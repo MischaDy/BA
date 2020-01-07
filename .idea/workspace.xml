@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="e3978b0e-2b19-4c80-9087-fb6ac0a9d81d" name="Default Changelist" comment="" />
+    <list default="true" id="e3978b0e-2b19-4c80-9087-fb6ac0a9d81d" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/GUI/Tests/center_test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/GUI/Tests/customwidget_test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/GUI/Tests/filedialog_test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/GUI/Tests/messagebox_test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/GUI/Tests/mytest.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/GUI/Tests/quitbutton_test.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/GUI/Tests/tooltip_test.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/GUI/Tests/icon_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/GUI/Tests/icon_test.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -18,46 +28,32 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectId" id="1VOJc8dWYfqZO40U0qnzFjzqOYQ" />
-  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showExcludedFiles" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/GUI/Tests" />
+    <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
+    <property name="com.intellij.ide.scratch.LRUPopupBuilder$1/New Scratch File" value="Python" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../../../PyProjects/Project Euler" />
     <property name="settings.editor.selected.configurable" value="preferences.keymap" />
   </component>
   <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Mischa\Desktop\Uni\Bachelor\BA\GUI\Tests" />
+    </key>
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Mischa\Desktop\Uni\Bachelor\BA\GUI\Tests" />
       <recent name="C:\Users\Mischa\Desktop\Uni\Bachelor\BA\GUI" />
       <recent name="C:\Users\Mischa\Desktop\Uni\Bachelor\BA\Logic" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.icon_test">
-    <configuration name="current_date_time_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="BA" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/GUI" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/GUI/current_date_time_test.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="icon_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Python.mytest">
+    <configuration name="center_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="BA" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -69,7 +65,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/GUI/Tests/icon_test.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/GUI/Tests/center_test.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -78,28 +74,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="main_gui" type="PythonConfigurationType" factoryName="Python" temporary="true">
-      <module name="BA" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/GUI" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/GUI/main_gui.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="simple_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="customwidget_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="BA" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -111,7 +86,70 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/GUI/Tests/simple_test.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/GUI/Tests/customwidget_test.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="filedialog_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="BA" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/GUI/Tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/GUI/Tests/filedialog_test.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="messagebox_test" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="BA" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/GUI/Tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/GUI/Tests/messagebox_test.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="mytest" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="BA" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/GUI/Tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/GUI/Tests/mytest.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -122,10 +160,11 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.icon_test" />
-        <item itemvalue="Python.simple_test" />
-        <item itemvalue="Python.main_gui" />
-        <item itemvalue="Python.current_date_time_test" />
+        <item itemvalue="Python.mytest" />
+        <item itemvalue="Python.filedialog_test" />
+        <item itemvalue="Python.customwidget_test" />
+        <item itemvalue="Python.center_test" />
+        <item itemvalue="Python.messagebox_test" />
       </list>
     </recent_temporary>
   </component>
@@ -155,26 +194,26 @@
     <servers />
   </component>
   <component name="WindowStateProjectService">
-    <state x="740" y="166" key="FileChooserDialogImpl" timestamp="1577351789911">
+    <state x="740" y="166" key="FileChooserDialogImpl" timestamp="1578327514827">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state x="740" y="166" key="FileChooserDialogImpl/0.0.1280.680@0.0.1280.680" timestamp="1577351789911" />
-    <state width="617" height="165" key="GridCell.Tab.0.bottom" timestamp="1577352795439">
+    <state x="740" y="166" key="FileChooserDialogImpl/0.0.1280.680@0.0.1280.680" timestamp="1578327514827" />
+    <state width="617" height="167" key="GridCell.Tab.0.bottom" timestamp="1578328391145">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="617" height="165" key="GridCell.Tab.0.bottom/0.0.1280.680@0.0.1280.680" timestamp="1577352795439" />
-    <state width="617" height="165" key="GridCell.Tab.0.center" timestamp="1577352795439">
+    <state width="617" height="167" key="GridCell.Tab.0.bottom/0.0.1280.680@0.0.1280.680" timestamp="1578328391145" />
+    <state width="617" height="167" key="GridCell.Tab.0.center" timestamp="1578328391143">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="617" height="165" key="GridCell.Tab.0.center/0.0.1280.680@0.0.1280.680" timestamp="1577352795439" />
-    <state width="617" height="165" key="GridCell.Tab.0.left" timestamp="1577352795439">
+    <state width="617" height="167" key="GridCell.Tab.0.center/0.0.1280.680@0.0.1280.680" timestamp="1578328391143" />
+    <state width="617" height="167" key="GridCell.Tab.0.left" timestamp="1578328391143">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="617" height="165" key="GridCell.Tab.0.left/0.0.1280.680@0.0.1280.680" timestamp="1577352795439" />
-    <state width="617" height="165" key="GridCell.Tab.0.right" timestamp="1577352795439">
+    <state width="617" height="167" key="GridCell.Tab.0.left/0.0.1280.680@0.0.1280.680" timestamp="1578328391143" />
+    <state width="617" height="167" key="GridCell.Tab.0.right" timestamp="1578328391143">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
-    <state width="617" height="165" key="GridCell.Tab.0.right/0.0.1280.680@0.0.1280.680" timestamp="1577352795439" />
+    <state width="617" height="167" key="GridCell.Tab.0.right/0.0.1280.680@0.0.1280.680" timestamp="1578328391143" />
     <state width="619" height="204" key="GridCell.Tab.1.bottom" timestamp="1577120116016">
       <screen x="0" y="0" width="1280" height="680" />
     </state>
@@ -203,5 +242,13 @@
       <screen x="0" y="0" width="1280" height="680" />
     </state>
     <state x="336" y="166" key="com.intellij.ide.util.TipDialog/0.0.1280.680@0.0.1280.680" timestamp="1577118293021" />
+    <state x="282" y="67" width="700" height="530" key="recent.locations.popup" timestamp="1578248336134">
+      <screen x="0" y="0" width="1280" height="680" />
+    </state>
+    <state x="282" y="67" width="700" height="530" key="recent.locations.popup/0.0.1280.680@0.0.1280.680" timestamp="1578248336134" />
+    <state x="624" y="1" width="672" height="678" key="search.everywhere.popup" timestamp="1578321957225">
+      <screen x="0" y="0" width="1280" height="680" />
+    </state>
+    <state x="624" y="1" width="672" height="678" key="search.everywhere.popup/0.0.1280.680@0.0.1280.680" timestamp="1578321957225" />
   </component>
 </project>

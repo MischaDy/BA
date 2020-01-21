@@ -1,15 +1,3 @@
-#!/usr/bin/python3
-# -*- coding: utf-8 -*-
-
-import sys
-from PyQt5.QtWidgets import QApplication, QWidget
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    w = QWidget()
-    w.resize(500, 250)
-    w.move(0, 0)
-    w.setWindowTitle('Simpleyy')
-    w.show()
-
-    sys.exit(app.exec_())
+version https://git-lfs.github.com/spec/v1
+oid sha256:a3dea0643ca14bbb7d843e7dafaa60342f8a1b7f3e13f0a840f95b23605661c0
+size 297

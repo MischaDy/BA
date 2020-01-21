@@ -1,26 +1,3 @@
-import sys
-from PyQt5.QtWidgets import QWidget, QPushButton, QApplication
-
-
-class Example(QWidget):
-
-    def __init__(self):
-        super().__init__()
-
-        self.initUI()
-
-    def initUI(self):
-        qbtn = QPushButton('Quit', self)
-        qbtn.clicked.connect(QApplication.instance().quit)
-        qbtn.resize(qbtn.sizeHint())
-        qbtn.move(50, 50)
-
-        self.setGeometry(300, 300, 250, 150)
-        self.setWindowTitle('Quit button')
-        self.show()
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    ex = Example()
-    sys.exit(app.exec_())
+version https://git-lfs.github.com/spec/v1
+oid sha256:485941c85c82d007e7f3de8e3864cc209343959a8ea50e2e4fef1e236aa45d3a
+size 577

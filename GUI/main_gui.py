@@ -1,24 +1,3 @@
-import sys
-from PyQt5.QtWidgets import QApplication, QWidget
-from PyQt5.QtGui import QIcon
-
-
-class Example(QWidget):
-
-    def __init__(self):
-        super().__init__()
-
-        self.init_ui()
-
-    def init_ui(self):
-        self.setGeometry(300, 300, 300, 220)
-        self.setWindowTitle('Icon')
-        self.setWindowIcon(QIcon('web.png'))
-
-        self.show()
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    ex = Example()
-    sys.exit(app.exec_())
+version https://git-lfs.github.com/spec/v1
+oid sha256:fc837be8a428be6925cd36e578cb4b0904f0eafe4d8f36ee8b5f8dad91f2a4b8
+size 471

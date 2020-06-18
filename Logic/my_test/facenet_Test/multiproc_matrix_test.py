@@ -1,4 +1,7 @@
-from multiprocessing import Pool, Lock, Manager, cpu_count
+# from multiprocessing import Pool, Lock, Manager, cpu_count
+
+import dill
+from multiprocess import Pool, Lock, Manager, cpu_count
 
 from math import pi, ceil
 import psutil
@@ -11,6 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 import logging
+from timeit import default_timer
 
 
 logging.basicConfig(level=logging.INFO)
@@ -22,42 +26,40 @@ proc.nice(psutil.NORMAL_PRIORITY_CLASS)
 LIM = int(1e1)
 
 
-def main(nums, mat_size):  # , queue):
-    nums_list = list(nums)
+
+# Idea: pass a generator factory, so generator can be recreated!
+def main(nums_gen, mat_size):  # , queue):
+    nums_list = list(nums_gen)
     nums_chunks = chunk(nums_list, mat_size)
     dist_matrix_parts = [0 for _ in range(len(nums_chunks))]  # np.zeros(num_matrix_parts)
 
     with Pool() as pool:
         for i, num_part in enumerate(nums_chunks):
             dist_matrix_parts[i] = pool.apply_async(compute_dist_matrix_part,
-                                                    (num_part, nums, mat_size))  # , queue))
+                                                    (num_part, nums_gen, compute_dist))  # , queue))
 
         for i in range(len(dist_matrix_parts)):
             dist_matrix_parts[i].wait()
             dist_matrix_parts[i] = dist_matrix_parts[i].get()
         pool.close()
 
-    dist_matrix = join_matrix_parts(dist_matrix_parts, 1)
+    dist_matrix = join_matrix_parts(dist_matrix_parts)
     return dist_matrix
 
 
-def compute_dist_matrix_part(first_loop_values, second_loop_values, mat_size):  # , queue):
+def compute_dist_matrix_part(first_loop_values, second_loop_values, compute_dist):  # , queue):
     # TODO: Rename!
-    dist_matrix_part = torch.zeros(mat_size, mat_size)
+    dist_matrix_part = torch.zeros(len(first_loop_values), len(second_loop_values))
 
     for ind1, val1 in enumerate(first_loop_values):
         for ind2, val2 in enumerate(second_loop_values):
-            if ind2 <= ind1:
-                continue
             # if ind2 % 50 == 1:
             #     lock = queue.get(block=True)
             #     lock.acquire()
             #     logging.info(f"{ind1}, {ind2}")
             #     lock.release()
             #     queue.put(lock)
-            cur_dist = abs(val2 - val1)
-            dist_matrix_part[ind1][ind2] = cur_dist
-            # dist_matrix_part[ind2][ind1] = cur_dist
+            dist_matrix_part[ind1][ind2] = compute_dist(val1, val2)
     return dist_matrix_part
 
 
@@ -85,7 +87,7 @@ def chunk(list_, mat_size):
     return chunked_iterable
 
 
-def join_matrix_parts(matrix_parts, dim):
+def join_matrix_parts(matrix_parts, dim=0):
     return torch.cat(matrix_parts, dim)
 
 
@@ -93,6 +95,10 @@ def show_dist_matrix(dist_matrix):
     plt.imshow(dist_matrix.detach().numpy(), cmap=cm.YlOrRd)
     plt.colorbar()
     plt.show()
+
+
+def compute_dist(val1, val2):
+    return abs(val2 - val1)
 
 
 # def compute_dist_matrix_from_nums(ns):
@@ -106,8 +112,23 @@ if __name__ == '__main__':
     # q = manager.Queue()
     # q.put(lock)
 
-    # TODO: How to pass data/lock around?
-    # TODO: Make it work for a generator! Dill/Pickle explicitly?
-    x = [i for i in range(LIM)]
-    dist_matrix = main(x, LIM)  #, q)
+    logging.info("START")
+
+
+    x = (i for i in range(LIM))
+
+    def f(gen):
+        def g():
+            for elem in gen:
+                yield elem
+        return g
+
+    g = f(x)
+
+    t1 = default_timer()
+    dist_matrix = main(g, LIM)  #, q)
+    t2 = default_timer()
+    logging.info(f"Time: {round(t2-t1, 3)}s")
+
+
     show_dist_matrix(dist_matrix)

@@ -1,7 +1,8 @@
 # from multiprocessing import Pool, Lock, Manager, cpu_count
 
 import dill
-from multiprocess import Pool, Lock, Manager, cpu_count
+from multiprocess import (JoinableQueue, Queue, Process, Lock,  # Pool, Manager,
+                          cpu_count, freeze_support)
 
 from math import pi, ceil
 import psutil
@@ -19,46 +20,103 @@ from timeit import default_timer
 
 logging.basicConfig(level=logging.INFO)
 
-proc = psutil.Process(os.getpid())
-proc.nice(psutil.NORMAL_PRIORITY_CLASS)
+# Set priority of current process
+psutil.Process(os.getpid()).nice(psutil.NORMAL_PRIORITY_CLASS)
 
-# meaning??
 LIM = int(1e1)
 
 
+class Consumer(Process):
+    def __init__(self, task_queue, result_queue):
+        super().__init__()
+        self.task_queue = task_queue
+        self.result_queue = result_queue
 
-# Idea: pass a generator factory, so generator can be recreated!
-def main(nums_gen, mat_size):  # , queue):
-    nums_list = list(nums_gen)
+    def run(self):
+        next_task = self.task_queue.get()
+        self.task_queue.task_done()
+
+        first_loop_vals, second_loop_vals, dist_func, lock, id_ = next_task()
+
+        result = compute_dist_matrix_part(first_loop_vals, second_loop_vals, dist_func)
+        self.task_queue.task_done()
+        self.result_queue.put((id_, result))
+
+        # lock for printing
+        lock.acquire()
+        logging.info(f'Task {id_} finished.')
+        lock.release()
+
+
+class Task:
+    def __init__(self, *args):
+        self.args = args
+
+    def __call__(self):
+        return self.args
+
+    def __str__(self):
+        return f'{self.args}'
+
+
+# TODO: idea - make generator chunky!
+# TODO: Use Queue to get results of workers (and to pass tasks to them?)
+def main(nums, mat_size):
+    # Credit for idea of Tasks + Results Queues: https://pymotw.com/3/multiprocessing/communication.html
+    # Adaptations to classes
+    nums_list = list(nums)
     nums_chunks = chunk(nums_list, mat_size)
-    dist_matrix_parts = [0 for _ in range(len(nums_chunks))]  # np.zeros(num_matrix_parts)
+    dist_matrix_parts = [None for _ in nums_chunks]
 
-    with Pool() as pool:
-        for i, num_part in enumerate(nums_chunks):
-            dist_matrix_parts[i] = pool.apply_async(compute_dist_matrix_part,
-                                                    (num_part, nums_gen, compute_dist))  # , queue))
+    results = Queue()
+    tasks = JoinableQueue()
 
-        for i in range(len(dist_matrix_parts)):
-            dist_matrix_parts[i].wait()
-            dist_matrix_parts[i] = dist_matrix_parts[i].get()
-        pool.close()
+    consumers = [Consumer(tasks, results) for _ in nums_chunks]
+    for consumer in consumers:
+        consumer.start()
 
-    dist_matrix = join_matrix_parts(dist_matrix_parts)
-    return dist_matrix
+    # Enqueue tasks
+    lock = Lock()
+    for id_, num_chunk in enumerate(nums_chunks):
+        tasks.put(Task(num_chunk, nums, compute_dist, lock, results, id_))
+
+    tasks.join()
+    # for proc in consumers:
+    #     proc.join()
+
+    dist_matrix_parts = [results.get() for _ in nums_chunks]
+    return join_matrix_parts(sorted(dist_matrix_parts, key=lambda tup: tup[0]))
 
 
-def compute_dist_matrix_part(first_loop_values, second_loop_values, compute_dist):  # , queue):
+    # nums_list = list(nums)
+    # nums_chunks = chunk(nums_list, mat_size)
+    # dist_matrix_parts = [0 for _ in range(len(nums_chunks))]
+    #
+    # with Pool() as pool:
+    #     for i, num_part in enumerate(nums_chunks):
+    #         dist_matrix_parts[i] = pool.apply_async(compute_dist_matrix_part,
+    #                                                 (num_part, nums, compute_dist))  # , queue))
+    #
+    #     for i in range(len(dist_matrix_parts)):
+    #         dist_matrix_parts[i].wait()
+    #         dist_matrix_parts[i] = dist_matrix_parts[i].get()
+    #     pool.close()
+    #
+    # dist_matrix = join_matrix_parts(dist_matrix_parts)
+    # return dist_matrix
+
+
+def compute_dist_matrix_part(first_loop_values, second_loop_values, compute_dist, lock):  # , queue):
     # TODO: Rename!
     dist_matrix_part = torch.zeros(len(first_loop_values), len(second_loop_values))
 
     for ind1, val1 in enumerate(first_loop_values):
         for ind2, val2 in enumerate(second_loop_values):
-            # if ind2 % 50 == 1:
-            #     lock = queue.get(block=True)
-            #     lock.acquire()
-            #     logging.info(f"{ind1}, {ind2}")
-            #     lock.release()
-            #     queue.put(lock)
+            # lock + logging test
+            if ind1 % 1 == 0:
+                lock.acquire()
+                logging.info(f"{ind1}, {ind2}")
+                lock.release()
             dist_matrix_part[ind1][ind2] = compute_dist(val1, val2)
     return dist_matrix_part
 
@@ -106,29 +164,29 @@ def compute_dist(val1, val2):
 
 
 if __name__ == '__main__':
-    # lock = Lock()
-    #
-    # manager = Manager()
-    # q = manager.Queue()
-    # q.put(lock)
+    freeze_support()
 
     logging.info("START")
 
-
-    x = (i for i in range(LIM))
-
-    def f(gen):
-        def g():
-            for elem in gen:
-                yield elem
-        return g
-
-    g = f(x)
+    x = [i for i in range(LIM)]  # TODO: to generator!
 
     t1 = default_timer()
-    dist_matrix = main(g, LIM)  #, q)
+    dist_matrix = main(x, LIM)  # , q)
     t2 = default_timer()
     logging.info(f"Time: {round(t2-t1, 3)}s")
 
-
     show_dist_matrix(dist_matrix)
+
+
+# from multiprocessing import Process, Pipe
+#
+# def f(conn):
+#     conn.send([42, None, 'hello'])
+#     conn.close()
+#
+# if __name__ == '__main__':
+#     parent_conn, child_conn = Pipe()
+#     p = Process(target=f, args=(child_conn,))
+#     p.start()
+#     print(parent_conn.recv())   # prints "[42, None, 'hello']"
+#     p.join()

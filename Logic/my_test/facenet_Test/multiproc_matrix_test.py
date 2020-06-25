@@ -26,22 +26,30 @@ proc.nice(psutil.NORMAL_PRIORITY_CLASS)
 LIM = int(1e1)
 
 
+def init(l):
+    global lock
+    lock = l
+
 
 # Idea: pass a generator factory, so generator can be recreated!
-def main(nums_gen, mat_size):  # , queue):
-    nums_list = list(nums_gen)
+def main(nums, mat_size):
+    # lock solution: https://stackoverflow.com/questions/25557686/python-sharing-a-lock-between-processes#25558333
+    l = Lock()
+
+    nums_list = list(nums)
     nums_chunks = chunk(nums_list, mat_size)
     dist_matrix_parts = [0 for _ in range(len(nums_chunks))]  # np.zeros(num_matrix_parts)
 
-    with Pool() as pool:
+    with Pool(initializer=init, initargs=(l,)) as pool:
         for i, num_part in enumerate(nums_chunks):
             dist_matrix_parts[i] = pool.apply_async(compute_dist_matrix_part,
-                                                    (num_part, nums_gen, compute_dist))  # , queue))
+                                                    (num_part, nums, compute_dist))  # , queue))
 
         for i in range(len(dist_matrix_parts)):
             dist_matrix_parts[i].wait()
             dist_matrix_parts[i] = dist_matrix_parts[i].get()
         pool.close()
+        pool.join()
 
     dist_matrix = join_matrix_parts(dist_matrix_parts)
     return dist_matrix
@@ -53,12 +61,10 @@ def compute_dist_matrix_part(first_loop_values, second_loop_values, compute_dist
 
     for ind1, val1 in enumerate(first_loop_values):
         for ind2, val2 in enumerate(second_loop_values):
-            # if ind2 % 50 == 1:
-            #     lock = queue.get(block=True)
-            #     lock.acquire()
-            #     logging.info(f"{ind1}, {ind2}")
-            #     lock.release()
-            #     queue.put(lock)
+            if ind1 % 1 == 0:
+                lock.acquire()
+                logging.info(f"{ind1}, {ind2}")
+                lock.release()
             dist_matrix_part[ind1][ind2] = compute_dist(val1, val2)
     return dist_matrix_part
 
@@ -106,29 +112,13 @@ def compute_dist(val1, val2):
 
 
 if __name__ == '__main__':
-    # lock = Lock()
-    #
-    # manager = Manager()
-    # q = manager.Queue()
-    # q.put(lock)
-
     logging.info("START")
 
-
-    x = (i for i in range(LIM))
-
-    def f(gen):
-        def g():
-            for elem in gen:
-                yield elem
-        return g
-
-    g = f(x)
+    x = [i for i in range(LIM)]
 
     t1 = default_timer()
-    dist_matrix = main(g, LIM)  #, q)
+    dist_matrix = main(x, LIM)
     t2 = default_timer()
     logging.info(f"Time: {round(t2-t1, 3)}s")
-
 
     show_dist_matrix(dist_matrix)

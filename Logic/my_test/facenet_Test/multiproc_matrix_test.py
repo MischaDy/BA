@@ -1,7 +1,7 @@
 # from multiprocessing import Pool, Lock, Manager, cpu_count
 
 import dill
-from multiprocess import Pool, Lock, Manager, cpu_count
+from multiprocess import Manager, Lock, Pool, JoinableQueue, SimpleQueue, cpu_count
 from multiprocess_chunks import map_list_as_chunks
 
 from math import pi, ceil, floor
@@ -37,27 +37,25 @@ def main(data, mat_size):
     l = Lock()
 
     gen_factory = GeneratorFactory(data, process_data)
-    # chunked_gens = tuple(gen_factory.get_chunked_generators())
+    task_queue = JoinableQueue()
+    for i, chunked_gen in enumerate(gen_factory.get_next_chunked_generator()):
+        task_queue.put((i, *chunked_gen))
 
-    # nums_list = list(data)
-    # nums_chunks = chunk(nums_list, mat_size)
-    dist_matrix_parts = [None for _ in range(len(data))]  # np.zeros(num_matrix_parts)
+    dist_matrix_parts = [None for _ in range(len(data))]
 
     # TODO: use result_queue to later distribute results to list
-    result_queue = ...
-    # TODO: Let workers read chunked_gens from a queue
+    result_queue = SimpleQueue()
 
     range_mat_parts = range(len(dist_matrix_parts))
-    with Pool(initializer=init, initargs=(l)) as pool:
+    with Pool(initializer=init, initargs=(l,)) as pool:
         for i in range_mat_parts:
-            dist_matrix_parts[i] = pool.apply_async(compute_dist_matrix_part,
-                                                    (gen_factory, data, compute_dist))
+            pool.apply_async(compute_dist_matrix_part,
+                             (task_queue, result_queue, data, compute_dist))
 
-        for i in range_mat_parts:
-            dist_matrix_parts[i].wait()
-            dist_matrix_parts[i] = dist_matrix_parts[i].get()
         pool.close()
         pool.join()
+
+    result_id_tups = [res for res in result_queue]
 
     dist_matrix = join_matrix_parts(dist_matrix_parts)
     return dist_matrix
@@ -68,12 +66,13 @@ def process_data(data_point, extra_data):
     return data_point
 
 
-def compute_dist_matrix_part(gen_factory, compute_dist):
+def compute_dist_matrix_part(task_queue, result_queue, data, compute_dist):
     # TODO: Rename!
-    first_loop_values, first_loop_value_range = gen_factory.get_next_chunked_generator()
-    second_loop_values, second_loop_value_range = gen_factory.get_data_generator()
+    task_id, first_loop_values, first_loop_value_range = task_queue.get()
+    second_loop_values, second_loop_value_range = data
 
-    dist_matrix_part = torch.zeros(first_loop_value_range[1], second_loop_value_range[1])
+    # dist_matrix_part = torch.zeros(first_loop_value_range[1], second_loop_value_range[1])
+    res_list = []
 
     for ind1, val1 in enumerate(first_loop_values):
         for ind2, val2 in enumerate(second_loop_values):
@@ -81,8 +80,11 @@ def compute_dist_matrix_part(gen_factory, compute_dist):
                 lock.acquire()
                 logging.info(f"{ind1}, {ind2}")
                 lock.release()
-            dist_matrix_part[ind1][ind2] = compute_dist(val1, val2)
-    return dist_matrix_part
+            res_list.append(
+                ((ind1, ind2), compute_dist(val1, val2))
+            )
+    result_queue.put([task_id] + res_list)
+    task_queue.task_done()
 
 
 
@@ -136,14 +138,16 @@ class GeneratorFactory:
         self.num_chunks = num_chunks
         self._processing_func = processing_func
 
+    # def get_all_chunked_generators(self):
+
     def get_next_chunked_generator(self):
         # process_data: function to apply to each data point (file name)
-        for chunk in self.chunks:
-            yield (self._processing_func(data_point)
-                   for data_point in chunk)
+        for i, chunk in enumerate(self.chunks):
+            yield i, (self._processing_func(data_point)
+                      for data_point in chunk)
 
     def get_data_generator(self):
-        return (data for data_point in self.data)
+        return (data_point for data_point in self.data)
 
 
 if __name__ == '__main__':

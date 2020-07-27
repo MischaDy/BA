@@ -88,6 +88,7 @@ def compute_dist_matrix_part(task_queue, result_queue, data, compute_dist):
 
 
 
+
 # def chunk(list_, mat_size):
 #     num_chunks = cpu_count()  # = number of 'workers'
 #

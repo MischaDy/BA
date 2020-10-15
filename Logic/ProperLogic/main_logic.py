@@ -1,48 +1,70 @@
 """
 Program containing the main application logic.
 """
+
 import os
 
 import torchvision
 from PIL import Image
 
+import input_output_logic
 
-EMBEDDING_STORAGE_PATH
 
-IMG_PATH = "Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive"
+TENSORS_PATH = 'Logic/ProperLogic/stored_tensors'
+
+IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 TO_TENSOR = torchvision.transforms.ToTensor()
 
-TERMINATING_TERMS = ('halt', 'stop', 'quit', 'exit', )
-COMMANDS = {'select New Faces': 'nf', 'edit Existing Faces': 'ef', }
+TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
+COMMANDS = {'select new faces': 'add',
+            'edit existing faces': 'edit',
+            'find individual': 'find',
+            'rebuild boundaries': 'rebuild',
+            }
 
 
-
-
+# TODO: Implement / c+p loading tensors
 # TODO: Test saving and loading tensors, check size!
-# TODO: Consistent naming
+# TODO: How to draw + store boundaries of clusters?
+#       --> "Cluster-Voronoi-Diagram"?? Spheres / specific ellipsoids of bounded size? Does this generalize well to many
+#           dimensions?
 # TODO: What should / shouldn't be private?
-# TODO: Make Commands to Enum
+# TODO: Turn Commands into an Enum
+# TODO: Associate Handler with each command
+# TODO: Consistent naming
 # TODO: Add comments & docstrings
 
 
 def main():
     command = ''
-    while command not in TERMINATING_TERMS:
+    while command not in TERMINATING_TOKENS:
         command = get_user_command()
-        if command == 'nf':  # select new faces
-            # TODO: complete
-            add_new_embeddings()
+        process_command(command)
 
-        elif command == 'ef':  # edit existing faces
-            ...
 
-        else:
-            raise NotImplementedError(f'known, but not yet implemented command {command}')
+def process_command(command):
+    # TODO: complete function
+    if command in 'add':  # select new faces
+        # TODO: complete section
+        add_new_embeddings()
+
+    elif command in 'edit':  # edit existing faces (or rather, existing identities)
+        ...
+
+    elif command in 'find':
+        ...
+
+    elif command in 'rebuild':
+        ...
+
+    else:
+        raise NotImplementedError(f'known, but not yet implemented command {command}')
 
 
 def get_user_command():
     command = _get_user_command_subfunc()
     while command not in COMMANDS.values():
+        print_error_msg('Unknown command, please try again.', False)
         command = _get_user_command_subfunc()
     return command
 
@@ -50,32 +72,33 @@ def get_user_command():
 def _get_user_command_subfunc():
     print('\nWhat would you like to do next?')
     print_command_options()
-    return input()
+    return input().lower()
 
 
 def print_command_options():
-    print('\n'.join(f"To {command}, type '{abbreviation}'." for command, abbreviation in COMMANDS))
+    print('\n'.join(f"- To {command}, type '{abbreviation}'." for command, abbreviation in COMMANDS.items()))
 
 
 def add_new_embeddings():
     """
     1. User selects new images to extract faces out of
-    2. Faces are extracted
+    2. Extract faces
+    3. Store embeddings in vector space
 
 
     """
     # Img Selection + Face Extraction
     face_embeddings_gen = user_choose_imgs()
-    add_to_embedding_space(face_embeddings_gen)
+    add_to_embeddings_to_vector_space(face_embeddings_gen)
 
 
-def add_to_embedding_space(embeddings):
+def add_to_embeddings_to_vector_space(embeddings):
     """
 
     :param embeddings: An iterable containing the embeddings
     :return:
     """
-
+    pass
 
 
 def user_choose_imgs():
@@ -121,7 +144,6 @@ def load_img_tensors_from_dir(dir_path, img_extensions=None, output_file_name=Fa
                 yield img_name, _to_tensor(img)
 
 
-
 def _to_tensor(img):
     return TO_TENSOR(img).unsqueeze(0)
 
@@ -135,5 +157,14 @@ def get_img_names(dir_path, recursive=False, img_extensions=None):
     return list(filter(lambda name: os.path.isfile(name), os.listdir(dir_path)))
 
 
-if __name__ == "__main__":
-    main()
+# ------- HELPER FUNCTIONS ------- #
+
+def print_error_msg(msg, print_newline=True):
+    print('\n' + msg, end='\n' if print_newline else '')
+
+
+if __name__ == '__main__':
+    # main()
+    pass
+
+

@@ -10,7 +10,7 @@ from PIL import Image
 import input_output_logic
 
 
-TENSORS_PATH = 'Logic/ProperLogic/stored_tensors'
+TENSORS_PATH = 'Logic/ProperLogic/stored_embeddings'
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 TO_TENSOR = torchvision.transforms.ToTensor()
@@ -23,8 +23,6 @@ COMMANDS = {'select new faces': 'add',
             }
 
 
-# TODO: Implement / c+p loading tensors
-# TODO: Test saving and loading tensors, check size!
 # TODO: How to draw + store boundaries of clusters?
 #       --> "Cluster-Voronoi-Diagram"?? Spheres / specific ellipsoids of bounded size? Does this generalize well to many
 #           dimensions?

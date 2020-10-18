@@ -16,30 +16,31 @@ logging.basicConfig(level=logging.INFO)
 
 
 IMAGE_PATH = os.path.join('..', 'my_test', 'facenet_Test', 'subset_cplfw_test', 'preprocessed_faces_naive')
-TENSORS_PATH = 'stored_tensors'
+TENSORS_PATH = 'stored_embeddings'
 
 TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
 
-# INPUT_SIZE = [112, 112]
-
 
 # TODO: Separate extraction and loading of images!
-# TODO: Learn how to time stuff well! Wrapper??
+# TODO: Consistent naming embeddings vs tensors
+# TODO: (Learn how to time stuff well! Wrapper??)
+
 
 def main(imgs_dir_path, tensors_dir_path):
-    # time1 = default_timer()
-    # mtcnn = MTCNN(image_size=160, margin=0)
-    # resnet = InceptionResnetV1(pretrained='vggface2').eval()
-    # time2 = default_timer()
-    # logging.info(f"Loading models: {time2 - time1}")
-    #
-    # time1 = default_timer()
-    # imgs_loader = load_img_tensors_from_path(imgs_dir_path)
-    # save_embeddings_to_path(imgs_loader, resnet, tensors_dir_path)  #TODO: (?) put mtcnn in
-    # time2 = default_timer()
-    # logging.info(f"Saving embeddings: {time2 - time1}")
+    mtcnn = MTCNN(image_size=160, margin=0)
+    resnet = InceptionResnetV1(pretrained='vggface2').eval()
 
+    _test_saving_embeddings(imgs_dir_path, tensors_dir_path, resnet)
+    _test_loading_embeddings(tensors_dir_path)
+
+
+def _test_saving_embeddings(imgs_dir_path, tensors_dir_path, resnet):
+    imgs_loader = load_imgs_from_path(imgs_dir_path)
+    save_embeddings_to_path(imgs_loader, resnet, tensors_dir_path)  # TODO: (?) put mtcnn in
+
+
+def _test_loading_embeddings(tensors_dir_path):
     tensors_loader = load_embeddings_from_path(tensors_dir_path)
     dists = []
     prev_tensor = torch.zeros([1, 512])
@@ -70,7 +71,7 @@ def get_and_count_img_names(dir_path, img_extensions=None):
     return img_names, num_images
 
 
-def load_img_tensors_from_path(dir_path, img_extensions=None):
+def load_imgs_from_path(dir_path, img_extensions=None):
     """
     Yield all images in the given directory.
     If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing

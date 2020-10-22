@@ -132,9 +132,10 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
         _extract_face_and_save_embedding(img_name, img, should_extract_face)
 
 
-def load_embeddings_from_path(tensors_path, tensor_extensions=None):
+def load_embeddings_from_path(tensors_path, yield_paths=True, tensor_extensions=None):
     """
-    Load face embeddings (tensors) from given path.
+    Yield all face embeddings (tensors) from given path/directory. They are preceded by their paths if yield_paths is
+    True.
 
     :param :
     :return:
@@ -146,11 +147,15 @@ def load_embeddings_from_path(tensors_path, tensor_extensions=None):
     file_names = filter(lambda obj_name: os.path.isfile(os.path.join(tensors_path, obj_name)),
                         os.listdir(tensors_path))
     if tensor_extensions:
-        file_names = filter(lambda obj_name: get_file_extension(obj_name) in tensor_extensions, file_names)
+        file_names = filter(lambda obj_name: get_file_extension(obj_name) in tensor_extensions,
+                            file_names)
+    file_paths = map(lambda file_name: os.path.join(tensors_path, file_name),
+                     file_names)
 
-    file_paths = map(lambda file_name: os.path.join(tensors_path, file_name), file_names)
-    for counter, tensor_path in enumerate(file_paths, start=1):
-        yield tensor_path, torch.load(tensor_path)
+    tensors_loader = map(torch.load, file_paths)
+    if yield_paths:
+        tensors_loader = zip(file_paths, tensors_loader)
+    return tensors_loader
 
 
 def get_file_extension(file_name):

@@ -6,13 +6,22 @@ from functools import reduce
 import logging
 
 
-CLASSIFICATION_THRESHOLD = 0.8
-YIELD_PATHS = False
+CLASSIFICATION_THRESHOLD = 1
 _NUM_EMBEDDINGS_TO_CLASSIFY = 20
 
+CLUSTER_SAVE_PATH = 'stored_clusters'
+EMBEDDINGS_PATH = 'stored_embeddings'
+
+# TODO: Proper comments!
+# TODO: Store thumbnail imgs WITH the tensors
 
 class Cluster:
+    # TODO: Keep track of the cluster_id beyond runtime of the program??
+    max_cluster_id = 1
 
+    # TODO: Idea - assign ids to embeddings of each cluster which are valid at least for lifetime of the cluster
+
+    # TODO: How to handle embeddings-generator??
     def __init__(self, embeddings=None):
         """
         embeddings can be single tensor or (flat) iterable of tensors
@@ -27,6 +36,8 @@ class Cluster:
             self.embeddings = list(embeddings) if not isinstance(embeddings, torch.Tensor) else [embeddings]
             self.num_embeddings = len(self.embeddings)
             self.center_point = Cluster.sum_embeddings(embeddings) / self.num_embeddings
+        self.cluster_id = Cluster.max_cluster_id
+        Cluster.max_cluster_id += 1
 
     def add_embedding(self, embedding):
         self.embeddings.append(embedding)
@@ -52,7 +63,6 @@ class Cluster:
         # (old_center is a uniformly weighted sum of the old embeddings)
         self.center_point = (old_num_embeddings * self.center_point - embedding) / self.num_embeddings
 
-
     # def remove_embeddings(self, embeddings_to_remove):
     #     # TODO!
     #     pass
@@ -63,6 +73,29 @@ class Cluster:
     def compute_dist_to_center(self, embedding):
         return float(torch.dist(self.center_point, embedding))
 
+    def save_cluster(self, save_path):
+        """
+
+        :param save_path:
+        :return:
+        """
+        cluster_save_path = os.path.join(save_path, f"cluster_{self.cluster_id}")
+        save_cluster_embeddings_to_path(self.embeddings, cluster_save_path)
+
+    @classmethod
+    def load_cluster(cls, path_to_cluster, cluster_id=None):
+        """
+
+        :param path_to_cluster:
+        :param cluster_id:
+        :return:
+        """
+        embeddings = list(load_embeddings_from_path(path_to_cluster))
+        cluster = cls(embeddings)
+        if cluster_id is not None:
+            cluster.cluster_id = cluster_id
+        return cluster
+
     @staticmethod
     def sum_embeddings(embeddings):
         return reduce(torch.add, embeddings)
@@ -71,8 +104,18 @@ class Cluster:
     #     pass
 
 
-def main_algorithm(classification_threshold, yield_paths=True):
-    embeddings_loader = load_embeddings_from_path(TENSORS_PATH, yield_paths)
+def main_algorithm(embeddings_path, classification_threshold, cluster_save_path=None):
+    """
+    Build clusters from face embeddings stored in the given path using the specified classification threshold.
+    (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed in
+    the same cluster. If cluster_save_path is set, store the resulting clusters as directories in the given path.
+
+    :param embeddings_path:
+    :param classification_threshold:
+    :param cluster_save_path:
+    :return:
+    """
+    embeddings_loader = load_embeddings_from_path(embeddings_path, yield_paths=False)
     try:
         first_embedding = next(embeddings_loader)
     except StopIteration as error:
@@ -95,7 +138,10 @@ def main_algorithm(classification_threshold, yield_paths=True):
             nearest_cluster.add_embedding(embedding)
         else:
             clusters.append(Cluster(embedding))
-    print('byebye!')
+
+    if cluster_save_path is not None:
+        for cluster in clusters:
+            cluster.save_cluster(cluster_save_path)
 
 
 def log_error(msg):
@@ -103,4 +149,4 @@ def log_error(msg):
 
 
 if __name__ == '__main__':
-    main_algorithm(CLASSIFICATION_THRESHOLD, YIELD_PATHS)
+    main_algorithm(EMBEDDINGS_PATH, CLASSIFICATION_THRESHOLD, CLUSTER_SAVE_PATH)

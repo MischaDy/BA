@@ -22,9 +22,10 @@ TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
 
 
+# TODO: Remember to CREATE directories if they don't already exist! (Don't assume existence)
 # TODO: Separate extraction and loading of images!
-# TODO: Consistent naming embeddings vs tensors
-# TODO: (Learn how to time stuff well! Wrapper??)
+# TODO: Consistent naming embeddings vs. tensors
+# TODO: (Learn how to time stuff well! Wrapper?)
 
 
 def main(imgs_dir_path, tensors_dir_path):
@@ -41,7 +42,7 @@ def _test_saving_embeddings(imgs_dir_path, tensors_dir_path, resnet):
 
 
 def _test_loading_embeddings(tensors_dir_path):
-    tensors_loader = load_embeddings_from_path(tensors_dir_path)
+    tensors_loader = load_embeddings_from_path(tensors_dir_path, yield_paths=True)
     dists = []
     prev_tensor = torch.zeros([1, 512])
     for tensor_path, tensor in tensors_loader:
@@ -93,7 +94,8 @@ def load_imgs_from_path(dir_path, img_extensions=None):
 
 def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extractor=None):
     """
-    Save face embeddings of images in the image loader.
+    Extract and save face embeddings of images in the image loader. If face_extractor is None, then the extraction step
+    is skipped.
 
     :param face_embedder:
     :param face_extractor:
@@ -113,7 +115,8 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
     if not os.path.exists(save_path):
         os.mkdir(save_path)
     elif not os.path.isdir(save_path):
-        raise OSError(f'object named {save_path} already exists, directory of same name cannot be created')
+        raise OSError(f'non-directory object named {save_path} already exists, '
+                      'directory of same name cannot be created')
 
     def _extract_face_and_save_embedding(img_name, img, should_extract_face=True):
         # Get pre-whitened and cropped image tensor of the face
@@ -128,11 +131,31 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
     should_extract_face = face_extractor is not None
     for counter, (img_name, img) in enumerate(imgs_loader, start=1):
         if counter % 50 == 0:
-            logging.info(f"loop number: {counter}")
+            logging.info(f"extract & save loop number: {counter}")
         _extract_face_and_save_embedding(img_name, img, should_extract_face)
 
 
-def load_embeddings_from_path(tensors_path, yield_paths=True, tensor_extensions=None):
+# TODO: Too specific of a function?
+# TODO: Merge with general save_embeddings function?
+def save_cluster_embeddings_to_path(embeddings, save_path):
+    # TODO: Use map or similar? Make more efficient?
+
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
+    elif not os.path.isdir(save_path):
+        raise OSError(f'non-directory object named {save_path} already exists, '
+                      'directory of same name cannot be created')
+    # TODO: possible 'race condition'?!
+    elif os.listdir(save_path):
+        # TODO: !!! handle possible naming conflicts!
+        raise RuntimeError('directory to save to not empty - potential naming conflicts!')
+
+    for embedding_num, embedding in enumerate(embeddings, start=1):
+        embedding_save_path = os.path.join(save_path, f"embedding_{embedding_num}.pt")
+        torch.save(embedding, embedding_save_path, pickle_protocol=pickle.DEFAULT_PROTOCOL)
+
+
+def load_embeddings_from_path(tensors_path, yield_paths=False, tensor_extensions=None):
     """
     Yield all face embeddings (tensors) from given path/directory. They are preceded by their paths if yield_paths is
     True.
@@ -157,6 +180,8 @@ def load_embeddings_from_path(tensors_path, yield_paths=True, tensor_extensions=
         tensors_loader = zip(file_paths, tensors_loader)
     return tensors_loader
 
+
+# ----- HELPER FUNCTIONS -----
 
 def get_file_extension(file_name):
     return file_name.split(os.path.extsep)[-1]

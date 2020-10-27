@@ -1,3 +1,5 @@
+import itertools
+
 from input_output_logic import *
 import torch
 
@@ -5,67 +7,85 @@ from functools import reduce
 
 import logging
 
-
 CLASSIFICATION_THRESHOLD = 1
 _NUM_EMBEDDINGS_TO_CLASSIFY = 20
 
 CLUSTER_SAVE_PATH = 'stored_clusters'
 EMBEDDINGS_PATH = 'stored_embeddings'
 
+
 # TODO: Proper comments!
 # TODO: Store thumbnail imgs WITH the tensors
+
 
 class Cluster:
     # TODO: Keep track of the cluster_id beyond runtime of the program??
     max_cluster_id = 1
 
     # TODO: Idea - assign ids to embeddings of each cluster which are valid at least for lifetime of the cluster
+    # TODO: Don't allow accidental overwriting of embeddings by using same id!
 
     # TODO: How to handle embeddings-generator??
-    def __init__(self, embeddings=None):
+    def __init__(self, embeddings=None, embeddings_ids=None):
         """
-        embeddings can be single tensor or (flat) iterable of tensors
+        embeddings must be (flat) iterable of tensors with len applicable
         :param embeddings:
+        :param embeddings_ids:
         """
+        numeric_ids_assigned = False
         if embeddings is None:
-            self.embeddings = []
+            self.embeddings = {}
             self.num_embeddings = 0
             self.center_point = None
         else:
-            # cast embeddings to list - brackets around it if it's a single tensor, otherwise directly cast to list
-            self.embeddings = list(embeddings) if not isinstance(embeddings, torch.Tensor) else [embeddings]
+            # TODO?: refactor / improve efficiency!
+            # TODO(?): consistent type for embedding ids
+            if embeddings_ids is None:
+                embeddings_ids = itertools.count(1)
+                numeric_ids_assigned = True
+            # cast embeddings to dict
+            self.embeddings = dict(zip(embeddings_ids, embeddings))
             self.num_embeddings = len(self.embeddings)
-            self.center_point = Cluster.sum_embeddings(embeddings) / self.num_embeddings
+            self.center_point = Cluster.sum_embeddings(self.embeddings.values()) / self.num_embeddings
+
+        # max number ever assigned as id for an embedding in this cluster
+        self.max_num_embedding_id = self.num_embeddings if numeric_ids_assigned else 0
         self.cluster_id = Cluster.max_cluster_id
         Cluster.max_cluster_id += 1
 
-    def add_embedding(self, embedding):
-        self.embeddings.append(embedding)
+    def get_embeddings(self, return_embeddings_ids=False):
+        if return_embeddings_ids:
+            return self.embeddings
+        return self.embeddings.values()
+
+    def get_embedding_id(self, embedding):
+        # TODO: implement(?)
+        return ...
+
+    def add_embedding(self, embedding, embedding_id=None):
+        if embedding_id is None:
+            self.max_num_embedding_id += 1
+            embedding_id = self.max_num_embedding_id
+        if self.embeddings.get(embedding_id):
+            raise RuntimeError('embedding with given ID already exists in this cluster')
+        self.embeddings[embedding_id] = embedding
+
         old_num_embeddings = self.num_embeddings
         self.num_embeddings += 1
         # (old_center is a uniformly weighted sum of the old embeddings)
         self.center_point = (old_num_embeddings * self.center_point + embedding) / self.num_embeddings
 
-    # def add_embeddings(self, new_embeddings):
-    #     self.embeddings.extend(new_embeddings)
-    #     self.num_embeddings += len(new_embeddings)
-    #     self.center_point = ...  # TODO!
-
-    def remove_embedding(self, embedding):
+    def remove_embedding(self, embedding_id):
         # TODO: Better way to specify embedding? Assign ids or the like and output those when new embedding is added?
         try:
-            self.embeddings.remove(embedding)
+            self.embeddings.pop(embedding_id)
         except ValueError as error:
             log_error('Specified embedding not found in embeddings')
             raise error
         old_num_embeddings = self.num_embeddings
         self.num_embeddings -= 1
         # (old_center is a uniformly weighted sum of the old embeddings)
-        self.center_point = (old_num_embeddings * self.center_point - embedding) / self.num_embeddings
-
-    # def remove_embeddings(self, embeddings_to_remove):
-    #     # TODO!
-    #     pass
+        self.center_point = (old_num_embeddings * self.center_point - embedding_id) / self.num_embeddings
 
     def get_center_point(self):
         return self.center_point
@@ -115,16 +135,17 @@ def main_algorithm(embeddings_path, classification_threshold, cluster_save_path=
     :param cluster_save_path:
     :return:
     """
-    embeddings_loader = load_embeddings_from_path(embeddings_path, yield_paths=False)
+    embeddings_loader = load_embeddings_from_path(embeddings_path, yield_paths=True)
     try:
-        first_embedding = next(embeddings_loader)
+        first_file_path, first_embedding = next(embeddings_loader)
     except StopIteration as error:
         log_error('No embeddings found in path')
         raise error
-    clusters = [Cluster(first_embedding)]
+    first_file_name = os.path.split(first_file_path)[-1]
+    clusters = [Cluster([first_embedding], [first_file_name])]
     # iterate over remaining embeddings
     # TODO: replace by enumerate iterator
-    for counter, embedding in zip(range(2, _NUM_EMBEDDINGS_TO_CLASSIFY+1), embeddings_loader):
+    for counter, (embedding_file_path, embedding) in zip(range(2, _NUM_EMBEDDINGS_TO_CLASSIFY + 1), embeddings_loader):
         logging.info(f'Current embedding number: {counter}')
 
         shortest_dist, nearest_cluster = float('inf'), None
@@ -135,9 +156,9 @@ def main_algorithm(embeddings_path, classification_threshold, cluster_save_path=
                 shortest_dist = dist_to_center
                 nearest_cluster = cluster
         if shortest_dist <= classification_threshold:
-            nearest_cluster.add_embedding(embedding)
+            nearest_cluster.add_embedding(embedding, embedding_file_path)
         else:
-            clusters.append(Cluster(embedding))
+            clusters.append(Cluster([embedding], [embedding_file_path]))
 
     if cluster_save_path is not None:
         for cluster in clusters:

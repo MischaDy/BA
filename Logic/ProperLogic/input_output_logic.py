@@ -148,7 +148,7 @@ def save_cluster_embeddings_to_path(embeddings, save_path):
     # TODO: possible 'race condition'?!
     elif os.listdir(save_path):
         # TODO: !!! handle possible naming conflicts!
-        raise RuntimeError('directory to save to not empty - potential naming conflicts!')
+        raise RuntimeError('directory to save to not empty - potential naming conflict(s)!')
 
     for embedding_num, embedding in enumerate(embeddings, start=1):
         embedding_save_path = os.path.join(save_path, f"embedding_{embedding_num}.pt")

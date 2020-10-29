@@ -14,6 +14,10 @@ from timeit import default_timer
 import logging
 logging.basicConfig(level=logging.INFO)
 
+from warnings import warn
+
+from shutil import rmtree
+
 
 IMAGE_PATH = os.path.join('..', 'my_test', 'facenet_Test', 'subset_cplfw_test', 'preprocessed_faces_naive')
 TENSORS_PATH = 'stored_embeddings'
@@ -113,7 +117,7 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
     # img_old_embedding = resnet(img_old_cropped.unsqueeze(0))
 
     if not os.path.exists(save_path):
-        os.mkdir(save_path)
+        os.makedirs(save_path)
     elif not os.path.isdir(save_path):
         raise OSError(f'non-directory object named {save_path} already exists, '
                       'directory of same name cannot be created')
@@ -137,21 +141,36 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
 
 # TODO: Too specific of a function?
 # TODO: Merge with general save_embeddings function?
+# TODO: Move to core_algorithm module?
 def save_cluster_embeddings_to_path(embeddings, save_path):
     # TODO: Use map or similar? Make more efficient?
 
     if not os.path.exists(save_path):
-        os.mkdir(save_path)
+        os.makedirs(save_path)
     elif not os.path.isdir(save_path):
         raise OSError(f'non-directory object named {save_path} already exists, '
                       'directory of same name cannot be created')
     # TODO: possible 'race condition'?!
     elif os.listdir(save_path):
         # TODO: !!! handle possible naming conflicts!
-        raise RuntimeError('directory to save to not empty - potential naming conflict(s)!')
+        warn('directory to save to not empty - potential naming conflict(s)!')
+        # TODO: Make this a choice! (Only temp??)
+        should_overwrite = 'y'
+        # input("Would you like to overwrite the directory? (Please enter 'y' or 'n'.)"
+        #                      ).lower().strip()
+        if not should_overwrite.startswith('y'):
+            raise RuntimeError('directory to save to not empty - potential naming conflict(s)!')
+        rmtree(save_path)  # TODO: Does it really delete the complete structure like it should?
+        os.makedirs(save_path)
 
-    for embedding_num, embedding in enumerate(embeddings, start=1):
-        embedding_save_path = os.path.join(save_path, f"embedding_{embedding_num}.pt")
+    for embedding_id, embedding in embeddings.items():
+        # TODO: Is it valid assumption that id is always either digit or 'proper' filename??
+        if embedding_id.isdigit() and not embedding_id.endswith('.pt'):
+            file_name = f'embedding_{embedding_id}.pt'
+        else:
+            file_name = embedding_id
+        embedding_save_path = os.path.join(save_path, file_name)
+
         torch.save(embedding, embedding_save_path, pickle_protocol=pickle.DEFAULT_PROTOCOL)
 
 

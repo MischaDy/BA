@@ -16,6 +16,7 @@ EMBEDDINGS_PATH = 'stored_embeddings'
 
 # TODO: Proper comments!
 # TODO: Store thumbnail imgs WITH the tensors
+# TODO: Make embedding id 'proper' id?? ---> Also in input_output_logic!
 
 
 class Cluster:
@@ -148,6 +149,7 @@ def main_algorithm(embeddings_path, classification_threshold, cluster_save_path=
     for counter, (embedding_file_path, embedding) in zip(range(2, _NUM_EMBEDDINGS_TO_CLASSIFY + 1), embeddings_loader):
         logging.info(f'Current embedding number: {counter}')
 
+        embedding_file_name = os.path.split(embedding_file_path)[-1]
         shortest_dist, nearest_cluster = float('inf'), None
         # TODO: Use map and min etc. to find nearest cluster and shortest dist!
         for cluster in clusters:
@@ -156,9 +158,9 @@ def main_algorithm(embeddings_path, classification_threshold, cluster_save_path=
                 shortest_dist = dist_to_center
                 nearest_cluster = cluster
         if shortest_dist <= classification_threshold:
-            nearest_cluster.add_embedding(embedding, embedding_file_path)
+            nearest_cluster.add_embedding(embedding, embedding_file_name)
         else:
-            clusters.append(Cluster([embedding], [embedding_file_path]))
+            clusters.append(Cluster([embedding], [embedding_file_name]))
 
     if cluster_save_path is not None:
         for cluster in clusters:

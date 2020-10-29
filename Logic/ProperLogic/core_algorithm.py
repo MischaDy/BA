@@ -1,14 +1,16 @@
-import itertools
-
 from input_output_logic import *
 import torch
 
 from functools import reduce
+from itertools import count
 
+from timeit import default_timer
 import logging
+logging.basicConfig(level=logging.INFO)
 
-CLASSIFICATION_THRESHOLD = 1
-_NUM_EMBEDDINGS_TO_CLASSIFY = 20
+
+CLASSIFICATION_THRESHOLD = 0.8  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
+_NUM_EMBEDDINGS_TO_CLASSIFY = -1
 
 CLUSTER_SAVE_PATH = 'stored_clusters'
 EMBEDDINGS_PATH = 'stored_embeddings'
@@ -42,7 +44,7 @@ class Cluster:
             # TODO?: refactor / improve efficiency!
             # TODO(?): consistent type for embedding ids
             if embeddings_ids is None:
-                embeddings_ids = itertools.count(1)
+                embeddings_ids = count(1)
                 numeric_ids_assigned = True
             # cast embeddings to dict
             self.embeddings = dict(zip(embeddings_ids, embeddings))
@@ -146,8 +148,13 @@ def main_algorithm(embeddings_path, classification_threshold, cluster_save_path=
     clusters = [Cluster([first_embedding], [first_file_name])]
     # iterate over remaining embeddings
     # TODO: replace by enumerate iterator
-    for counter, (embedding_file_path, embedding) in zip(range(2, _NUM_EMBEDDINGS_TO_CLASSIFY + 1), embeddings_loader):
-        logging.info(f'Current embedding number: {counter}')
+    logging.info('Starting iteration over embeddings')
+    time1 = default_timer()
+    counter_vals = range(2, _NUM_EMBEDDINGS_TO_CLASSIFY + 1) if _NUM_EMBEDDINGS_TO_CLASSIFY >= 0 else count(2)
+    for counter, (embedding_file_path, embedding) in zip(counter_vals, embeddings_loader):
+        if counter % 100 == 0:
+            logging.info(f'Current embedding number: {counter}')
+        # logging.info(f'Current embedding number: {counter}')
 
         embedding_file_name = os.path.split(embedding_file_path)[-1]
         shortest_dist, nearest_cluster = float('inf'), None
@@ -162,9 +169,14 @@ def main_algorithm(embeddings_path, classification_threshold, cluster_save_path=
         else:
             clusters.append(Cluster([embedding], [embedding_file_name]))
 
+    logging.info(f'Time spent on embeddings: {default_timer() - time1}')
+    time1 = default_timer()
+    logging.info('Starting iteration over embeddings')
     if cluster_save_path is not None:
-        for cluster in clusters:
+        for counter, cluster in enumerate(clusters):
+            logging.info(f'Current cluster number: {counter}')
             cluster.save_cluster(cluster_save_path)
+    logging.info(f'Time spent on clusters: {default_timer() - time1}')
 
 
 def log_error(msg):

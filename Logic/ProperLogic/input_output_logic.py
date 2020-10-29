@@ -14,8 +14,6 @@ from timeit import default_timer
 import logging
 logging.basicConfig(level=logging.INFO)
 
-from warnings import warn
-
 from shutil import rmtree
 
 
@@ -153,7 +151,7 @@ def save_cluster_embeddings_to_path(embeddings, save_path):
     # TODO: possible 'race condition'?!
     elif os.listdir(save_path):
         # TODO: !!! handle possible naming conflicts!
-        warn('directory to save to not empty - potential naming conflict(s)!')
+        # logging.warning('directory to save to not empty - potential naming conflict(s)!')
         # TODO: Make this a choice! (Only temp??)
         should_overwrite = 'y'
         # input("Would you like to overwrite the directory? (Please enter 'y' or 'n'.)"

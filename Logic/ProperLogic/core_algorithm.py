@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 CLASSIFICATION_THRESHOLD = 0.8  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
 _NUM_EMBEDDINGS_TO_CLASSIFY = -1
 
-CLUSTER_SAVE_PATH = 'stored_clusters'
+CLUSTERS_PATH = 'stored_clusters'
 EMBEDDINGS_PATH = 'stored_embeddings'
 
 
@@ -183,5 +183,11 @@ def log_error(msg):
     logging.error('Error: ' + msg)
 
 
+def _are_same_person(embedding_name1, embedding_name2):
+    person1_name, _ = os.path.splitext(embedding_name1)
+    person2_name, _ = os.path.splitext(embedding_name2)
+    return person1_name == person2_name
+
+
 if __name__ == '__main__':
-    main_algorithm(EMBEDDINGS_PATH, CLASSIFICATION_THRESHOLD, CLUSTER_SAVE_PATH)
+    main_algorithm(EMBEDDINGS_PATH, CLASSIFICATION_THRESHOLD, CLUSTERS_PATH)

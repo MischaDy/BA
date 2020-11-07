@@ -7,36 +7,49 @@ from core_algorithm import _are_same_person
 import logging
 logging.basicConfig(level=logging.INFO)
 
+import time
 
 CLUSTERS_PATH = 'stored_clusters'
 
 # cf. Bijl - A comparison of clustering algorithms for face clustering
 
 
+# TODO: For future: how to do this more elegantly? write/log to string buffer or sth?
+TEMP_OUTPUT_DICT = {}
+
+
 def compute_f_measure(clusters_path):
+    global TEMP_OUTPUT_DICT
     num_true_positives = count_true_positives(clusters_path)
     precision = compute_pairwise_precision(clusters_path, num_true_positives)
     recall = compute_pairwise_recall(clusters_path, num_true_positives)
-    print(f'precision: {precision}   recall: {recall}')
+    TEMP_OUTPUT_DICT['precision'] = precision
+    TEMP_OUTPUT_DICT['recall'] = recall
     return 2 * precision * recall / (precision + recall)
 
 
 def compute_pairwise_precision(clusters_path, num_true_positives=None):
+    global TEMP_OUTPUT_DICT
     """Fraction of faces correctly clustered together of all faces clustered together"""
-    # TODO: What does that measure mean??
+    # intuition: Of all faces *placed* in same cluster(s), how many really *belonged* there (together)?
+    # best when: clusters small
     if num_true_positives is None:
         num_true_positives = count_true_positives(clusters_path)
     num_false_positives = count_false_positives(clusters_path)
+    TEMP_OUTPUT_DICT['true positives'] = num_true_positives
+    TEMP_OUTPUT_DICT['false positives'] = num_false_positives
     return num_true_positives / (num_true_positives + num_false_positives)
 
 
 def compute_pairwise_recall(clusters_path, num_true_positives=None):
-    # TODO: Correct docstring!
-    # TODO: What does that measure mean??
-    """Fraction of faces correctly clustered together of all faces clustered together"""
+    global TEMP_OUTPUT_DICT
+    """Fraction of faces correctly clustered together of all faces belonging together"""
+    # intuition: Of all faces which *belonged* in same cluster(s), how many were actually *placed* there (together)?
+    # best when: clusters big
     if num_true_positives is None:
         num_true_positives = count_true_positives(clusters_path)
     num_false_negatives = count_false_negatives(clusters_path)
+    TEMP_OUTPUT_DICT['false negatives'] = num_false_negatives
     return num_true_positives / (num_true_positives + num_false_negatives)
 
 
@@ -81,9 +94,9 @@ def count_false_negatives(clusters_path):
     """
     clusters_embedding_pairs = _get_inter_clusters_embedding_pairs(clusters_path)
     total_positives = 0
-    for count, embedding_pairs in enumerate(clusters_embedding_pairs):
-        if count % 10000 == 0:
-            logging.info(f'--- --- embeddings iteration: {count}')
+    for embedding_pairs in clusters_embedding_pairs:
+        # if count % 10000 == 0:
+        #     logging.info(f'--- --- embeddings iteration: {count}')
         cluster_positives = sum(map(lambda pair: _are_same_person(*pair), embedding_pairs))
         total_positives += cluster_positives
     return total_positives
@@ -127,4 +140,12 @@ def _compute_dummy_metrics(clusters_path):
 
 if __name__ == '__main__':
     f_measure = compute_f_measure(CLUSTERS_PATH)
-    print(f'The f-measure of the current clustering is: {f_measure}')
+    TEMP_OUTPUT_DICT['f-measure'] = f_measure
+    num_embeddings = 2142
+    num_true_negatives = num_embeddings - sum(value for value in TEMP_OUTPUT_DICT.values() if str(value).isdigit())
+    TEMP_OUTPUT_DICT['true negatives'] = num_true_negatives
+
+    file_name = f'results_{round(time.time())}.txt'
+    with open(file_name, 'w') as file:
+        output = '\n'.join(f'{key}: {value}' for key, value in TEMP_OUTPUT_DICT.items())
+        file.write(output)

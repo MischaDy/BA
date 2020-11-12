@@ -10,6 +10,7 @@ logging.basicConfig(level=logging.INFO)
 import time
 
 CLUSTERS_PATH = 'stored_clusters'
+SAVE_RESULTS = False
 
 # cf. Bijl - A comparison of clustering algorithms for face clustering
 
@@ -127,25 +128,32 @@ def _get_inter_clusters_embedding_pairs(clusters_path):
         yield embedding_pairs
 
 
-# TODO: Useful??
-def _compute_dummy_metrics(clusters_path):
-    """
-    Compute f_measure of the two simplest clusterings:
-        1. every embedding gets its own cluster (#clusters = #embeddings)
-        2. every embedding placed in same cluster (#clusters = 1)
-    """
-    # TODO: Only number of embeddings needed, provide directly??
-    pass
+# # TODO: Useful??
+# def _compute_dummy_metrics(clusters_path):
+#     """
+#     Compute f_measure of the two simplest clusterings:
+#         1. every embedding gets its own cluster (#clusters = #embeddings)
+#         2. every embedding placed in same cluster (#clusters = 1)
+#     """
+#     # TODO: Only number of embeddings needed, provide directly??
+#     pass
 
 
 if __name__ == '__main__':
+    if not SAVE_RESULTS:
+        ans = input("Really don't save the results? Press Enter without entering anything to abort.\n")
+        if not ans:
+            exit()
+        print()
+
     f_measure = compute_f_measure(CLUSTERS_PATH)
     TEMP_OUTPUT_DICT['f-measure'] = f_measure
     num_embeddings = 2142
     num_true_negatives = num_embeddings - sum(value for value in TEMP_OUTPUT_DICT.values() if str(value).isdigit())
     TEMP_OUTPUT_DICT['true negatives'] = num_true_negatives
 
-    file_name = f'results_{round(time.time())}.txt'
-    with open(file_name, 'w') as file:
-        output = '\n'.join(f'{key}: {value}' for key, value in TEMP_OUTPUT_DICT.items())
-        file.write(output)
+    if SAVE_RESULTS:
+        file_name = f'results_{round(time.time())}.txt'
+        with open(file_name, 'w') as file:
+            output = '\n'.join(f'{key}: {value}' for key, value in TEMP_OUTPUT_DICT.items())
+            file.write(output)

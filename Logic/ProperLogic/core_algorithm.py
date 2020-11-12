@@ -9,7 +9,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 
-CLASSIFICATION_THRESHOLD = 0.8  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
+MAX_NUM_CLUSTER_COMP = 10  # maximum number of clusters to compute distance to
+CLASSIFICATION_THRESHOLD = 0.6  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
 _NUM_EMBEDDINGS_TO_CLASSIFY = -1
 
 CLUSTERS_PATH = 'stored_clusters'
@@ -19,6 +20,11 @@ EMBEDDINGS_PATH = 'stored_embeddings'
 # TODO: Proper comments!
 # TODO: Store thumbnail imgs WITH the tensors
 # TODO: Make embedding id 'proper' id?? ---> Also in input_output_logic!
+
+# TODO: Decide on exact way to split cluster??
+# TODO: (Which) limit to put on cluster size before splitting?
+
+# TODO: Algorithm sensitive to input order(?)!! How to fix? Line-sweep or similar? Fixable at all? Relevant?
 
 
 class Cluster:
@@ -61,9 +67,9 @@ class Cluster:
             return self.embeddings
         return self.embeddings.values()
 
-    def get_embedding_id(self, embedding):
-        # TODO: implement(?)
-        return ...
+    # def get_embedding_id(self, embedding):
+    #     # TODO: implement(?)
+    #     return ...
 
     def add_embedding(self, embedding, embedding_id=None):
         if embedding_id is None:
@@ -94,7 +100,7 @@ class Cluster:
         return self.center_point
 
     def compute_dist_to_center(self, embedding):
-        return float(torch.dist(self.center_point, embedding))
+        return compute_dist(self.center_point, embedding)
 
     def save_cluster(self, save_path):
         """
@@ -127,12 +133,13 @@ class Cluster:
     #     pass
 
 
-def main_algorithm(embeddings_path, classification_threshold, cluster_save_path=None):
+def main_algorithm(embeddings_path, classification_threshold, max_num_cluster_comp, cluster_save_path=None):
     """
     Build clusters from face embeddings stored in the given path using the specified classification threshold.
     (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed in
     the same cluster. If cluster_save_path is set, store the resulting clusters as directories in the given path.
 
+    :param max_num_cluster_comp:
     :param embeddings_path:
     :param classification_threshold:
     :param cluster_save_path:
@@ -147,36 +154,64 @@ def main_algorithm(embeddings_path, classification_threshold, cluster_save_path=
     first_file_name = os.path.split(first_file_path)[-1]
     clusters = [Cluster([first_embedding], [first_file_name])]
     # iterate over remaining embeddings
-    # TODO: replace by enumerate iterator
-    logging.info('Starting iteration over embeddings')
+    logging.info('START iteration over embeddings')
     time1 = default_timer()
-    counter_vals = range(2, _NUM_EMBEDDINGS_TO_CLASSIFY + 1) if _NUM_EMBEDDINGS_TO_CLASSIFY >= 0 else count(2)
-    for counter, (embedding_file_path, embedding) in zip(counter_vals, embeddings_loader):
+    # counter_vals = range(2, _NUM_EMBEDDINGS_TO_CLASSIFY + 1) if _NUM_EMBEDDINGS_TO_CLASSIFY >= 0 else count(2)
+    # zip(counter_vals, embeddings_loader):
+    # TODO: Are some embeddings just getting lost???
+    for counter, (embedding_file_path, new_embedding) in enumerate(embeddings_loader, start=2):
         if counter % 100 == 0:
-            logging.info(f'Current embedding number: {counter}')
-        # logging.info(f'Current embedding number: {counter}')
+            logging.info(f' --- Current embedding number: {counter}')
 
+        # sort clusters by distance from their center to embedding; only consider closest clusters
+        clusters_by_center_dist = sorted(clusters, key=lambda cluster: cluster.compute_dist_to_center(new_embedding))
+        closest_clusters = clusters_by_center_dist[:max_num_cluster_comp]
+
+        shortest_emb_dist, closest_cluster = find_closest_cluster_to_embedding(closest_clusters, new_embedding)
         embedding_file_name = os.path.split(embedding_file_path)[-1]
-        shortest_dist, nearest_cluster = float('inf'), None
-        # TODO: Use map and min etc. to find nearest cluster and shortest dist!
-        for cluster in clusters:
-            dist_to_center = cluster.compute_dist_to_center(embedding)
-            if dist_to_center < shortest_dist:
-                shortest_dist = dist_to_center
-                nearest_cluster = cluster
-        if shortest_dist <= classification_threshold:
-            nearest_cluster.add_embedding(embedding, embedding_file_name)
+        if shortest_emb_dist <= classification_threshold:
+            closest_cluster.add_embedding(new_embedding, embedding_file_name)
         else:
-            clusters.append(Cluster([embedding], [embedding_file_name]))
+            clusters.append(Cluster([new_embedding], [embedding_file_name]))
 
+    logging.info(f' --- Last embedding number: {counter}')
+    logging.info(f'END iteration over embeddings')
     logging.info(f'Time spent on embeddings: {default_timer() - time1}')
-    time1 = default_timer()
-    logging.info('Starting iteration over embeddings')
+
     if cluster_save_path is not None:
-        for counter, cluster in enumerate(clusters):
-            logging.info(f'Current cluster number: {counter}')
+        time1 = default_timer()
+        logging.info('\nSTART cluster saving')
+        for counter, cluster in enumerate(clusters, start=1):
+            if counter % 100 == 0:
+                logging.info(f' --- Current cluster number: {counter}')
             cluster.save_cluster(cluster_save_path)
-    logging.info(f'Time spent on clusters: {default_timer() - time1}')
+        logging.info(f' --- Last cluster number: {counter}')
+        logging.info(f'END cluster saving')
+        logging.info(f'Time spent on saving clusters: {default_timer() - time1}')
+
+
+def find_closest_cluster_to_embedding(clusters, embedding, return_dist=True):
+    """
+    Determine closest cluster to current embedding, i.e. the one which stores the closest embedding to
+    the current embedding.
+
+    :param clusters: Iterable of clusters from which the closest one should be picked.
+    :param embedding: The embedding to find closest cluster to
+    :param return_dist: If True, distance to closest cluster embedding is also returned.
+    :return: The cluster storing the embedding which is closest to given embedding
+    """
+    shortest_emb_dist = float('inf')
+    closest_cluster = None
+    for cluster in clusters:
+        cluster_embeddings = cluster.get_embeddings()
+        emb_dists = map(lambda cluster_emb: compute_dist(embedding, cluster_emb), cluster_embeddings)
+        min_cluster_emb_dist = min(emb_dists)
+        if min_cluster_emb_dist < shortest_emb_dist:
+            shortest_emb_dist = min_cluster_emb_dist
+            closest_cluster = cluster
+    if return_dist:
+        return shortest_emb_dist, closest_cluster
+    return closest_cluster
 
 
 def log_error(msg):
@@ -200,5 +235,9 @@ def _rstrip_underscored_part(string):
     return string
 
 
+def compute_dist(embedding1, embedding2):
+    return float(torch.dist(embedding1, embedding2))
+
+
 if __name__ == '__main__':
-    main_algorithm(EMBEDDINGS_PATH, CLASSIFICATION_THRESHOLD, CLUSTERS_PATH)
+    main_algorithm(EMBEDDINGS_PATH, CLASSIFICATION_THRESHOLD, MAX_NUM_CLUSTER_COMP, CLUSTERS_PATH)

@@ -117,7 +117,7 @@ def _get_inter_clusters_embedding_pairs(clusters_path):
     logging.info('STARTING INTER-CLUSTERS ITERATIONS')
     for count, (cluster1_name, cluster2_name) in enumerate(cluster_pairs):
         if count % 10000 == 0:
-            logging.info(f'--- cluster iteration: {count}')
+            logging.info(f' --- cluster iteration: {count}')
         cluster1_embeddings_path = os.path.join(clusters_path, cluster1_name)
         cluster2_embeddings_path = os.path.join(clusters_path, cluster2_name)
         cluster1_embeddings = os.listdir(cluster1_embeddings_path)

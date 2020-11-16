@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 
 MAX_NUM_CLUSTER_COMP = 10  # maximum number of clusters to compute distance to
 CLASSIFICATION_THRESHOLD = 0.6  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
-_NUM_EMBEDDINGS_TO_CLASSIFY = -1
+#_NUM_EMBEDDINGS_TO_CLASSIFY = -1
 
 CLUSTERS_PATH = 'stored_clusters'
 EMBEDDINGS_PATH = 'stored_embeddings'
@@ -153,12 +153,12 @@ def main_algorithm(embeddings_path, classification_threshold, max_num_cluster_co
         raise error
     first_file_name = os.path.split(first_file_path)[-1]
     clusters = [Cluster([first_embedding], [first_file_name])]
+
     # iterate over remaining embeddings
     logging.info('START iteration over embeddings')
     time1 = default_timer()
     # counter_vals = range(2, _NUM_EMBEDDINGS_TO_CLASSIFY + 1) if _NUM_EMBEDDINGS_TO_CLASSIFY >= 0 else count(2)
     # zip(counter_vals, embeddings_loader):
-    # TODO: Are some embeddings just getting lost???
     for counter, (embedding_file_path, new_embedding) in enumerate(embeddings_loader, start=2):
         if counter % 100 == 0:
             logging.info(f' --- Current embedding number: {counter}')
@@ -169,6 +169,7 @@ def main_algorithm(embeddings_path, classification_threshold, max_num_cluster_co
 
         shortest_emb_dist, closest_cluster = find_closest_cluster_to_embedding(closest_clusters, new_embedding)
         embedding_file_name = os.path.split(embedding_file_path)[-1]
+
         if shortest_emb_dist <= classification_threshold:
             closest_cluster.add_embedding(new_embedding, embedding_file_name)
         else:

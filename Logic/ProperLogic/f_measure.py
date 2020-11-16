@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 import time
 
 CLUSTERS_PATH = 'stored_clusters'
-SAVE_RESULTS = False
+SAVE_RESULTS = True
 
 # cf. Bijl - A comparison of clustering algorithms for face clustering
 

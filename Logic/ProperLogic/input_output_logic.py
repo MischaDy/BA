@@ -186,15 +186,16 @@ def load_embeddings_from_path(tensors_path, yield_paths=False, tensor_extensions
 
     file_names = filter(lambda obj_name: os.path.isfile(os.path.join(tensors_path, obj_name)),
                         os.listdir(tensors_path))
-    if tensor_extensions:
+    if len(tensor_extensions) != 0:
         file_names = filter(lambda obj_name: get_file_extension(obj_name) in tensor_extensions,
                             file_names)
     file_paths = map(lambda file_name: os.path.join(tensors_path, file_name),
                      file_names)
 
-    tensors_loader = map(torch.load, file_paths)
     if yield_paths:
-        tensors_loader = zip(file_paths, tensors_loader)
+        tensors_loader = map(lambda file_path: (file_path, torch.load(file_path)), file_paths)
+    else:
+        tensors_loader = map(torch.load, file_paths)
     return tensors_loader
 
 

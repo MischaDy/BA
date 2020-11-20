@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 MAX_NUM_CLUSTER_COMP = 10  # maximum number of clusters to compute distance to
-CLASSIFICATION_THRESHOLD = 0.6  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
+CLASSIFICATION_THRESHOLD = 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
 #_NUM_EMBEDDINGS_TO_CLASSIFY = -1
 
 CLUSTERS_PATH = 'stored_clusters'

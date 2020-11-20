@@ -148,8 +148,12 @@ if __name__ == '__main__':
 
     f_measure = compute_f_measure(CLUSTERS_PATH)
     TEMP_OUTPUT_DICT['f-measure'] = f_measure
-    num_embeddings = 2142
-    num_true_negatives = num_embeddings - sum(value for value in TEMP_OUTPUT_DICT.values() if str(value).isdigit())
+    num_embeddings = len(os.listdir('stored_clusters'))
+    # num_pairs = sum i=0...num_embeddings-1 {i} = n (n-1) / 2
+    # = len(list(combinations(range(n), 2)))
+    # = 2293011
+    num_pairs = num_embeddings * (num_embeddings - 1) / 2
+    num_true_negatives = num_pairs - sum(value for value in TEMP_OUTPUT_DICT.values() if str(value).isdigit())
     TEMP_OUTPUT_DICT['true negatives'] = num_true_negatives
 
     if SAVE_RESULTS:

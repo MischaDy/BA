@@ -10,13 +10,40 @@ logging.basicConfig(level=logging.INFO)
 import time
 
 CLUSTERS_PATH = 'stored_clusters'
+
 SAVE_RESULTS = True
+SAVE_PATH = 'results'
 
 # cf. Bijl - A comparison of clustering algorithms for face clustering
 
 
 # TODO: For future: how to do this more elegantly? write/log to string buffer or sth?
 TEMP_OUTPUT_DICT = {}
+
+
+def main(clusters_path, save_results, save_path):
+    if not save_results:
+        ans = input("Really don't save the results? Press Enter without entering anything to abort.\n")
+        if not ans:
+            exit()
+        print()
+
+    f_measure = compute_f_measure(clusters_path)
+    TEMP_OUTPUT_DICT['f-measure'] = f_measure
+    num_embeddings = len(os.listdir(clusters_path))
+    # num_pairs = sum i=0...num_embeddings-1 {i} = n (n-1) / 2
+    # = len(list(combinations(range(n), 2)))
+    # = 2293011
+    num_pairs = num_embeddings * (num_embeddings - 1) / 2
+    num_true_negatives = num_pairs - sum(value for value in TEMP_OUTPUT_DICT.values() if str(value).isdigit())
+    TEMP_OUTPUT_DICT['true negatives'] = num_true_negatives
+
+    if save_results:
+        file_name = f'results_{round(time.time())}.txt'
+        file_path = os.path.join(save_path, file_name)
+        with open(file_path, 'w') as file:
+            output = '\n'.join(f'{key}: {value}' for key, value in TEMP_OUTPUT_DICT.items())
+            file.write(output)
 
 
 def compute_f_measure(clusters_path):
@@ -140,24 +167,4 @@ def _get_inter_clusters_embedding_pairs(clusters_path):
 
 
 if __name__ == '__main__':
-    if not SAVE_RESULTS:
-        ans = input("Really don't save the results? Press Enter without entering anything to abort.\n")
-        if not ans:
-            exit()
-        print()
-
-    f_measure = compute_f_measure(CLUSTERS_PATH)
-    TEMP_OUTPUT_DICT['f-measure'] = f_measure
-    num_embeddings = len(os.listdir('stored_clusters'))
-    # num_pairs = sum i=0...num_embeddings-1 {i} = n (n-1) / 2
-    # = len(list(combinations(range(n), 2)))
-    # = 2293011
-    num_pairs = num_embeddings * (num_embeddings - 1) / 2
-    num_true_negatives = num_pairs - sum(value for value in TEMP_OUTPUT_DICT.values() if str(value).isdigit())
-    TEMP_OUTPUT_DICT['true negatives'] = num_true_negatives
-
-    if SAVE_RESULTS:
-        file_name = f'results_{round(time.time())}.txt'
-        with open(file_name, 'w') as file:
-            output = '\n'.join(f'{key}: {value}' for key, value in TEMP_OUTPUT_DICT.items())
-            file.write(output)
+    main(CLUSTERS_PATH, SAVE_RESULTS, SAVE_PATH)

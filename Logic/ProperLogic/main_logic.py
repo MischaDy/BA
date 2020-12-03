@@ -7,6 +7,8 @@ import os
 import torchvision
 from PIL import Image
 
+#from abc import ABC
+
 import input_output_logic
 
 
@@ -27,12 +29,14 @@ COMMANDS_DESCRIPTIONS = {
     'edit existing faces': 'edit',
     'find individual': 'find',
     'reclassify individuals': 'reclassify',
-    'show cluster': 'showcluster',
+    'show a cluster': 'showcluster',
 }
 
-HANDLERS = {
-    'showcluster': handler_showcluster,
-}
+
+def get_handlers_dict():
+    return {
+        'showcluster': handler_showcluster,
+    }
 
 # TODO: How to draw + store boundaries of clusters?
 #       --> "Cluster-Voronoi-Diagram"?? Spheres / specific ellipsoids of bounded size? Does this generalize well to many
@@ -44,9 +48,15 @@ HANDLERS = {
 # TODO: Add comments & docstring
 
 
-def main(handlers, terminating_tokes, clusters_path):
+# class Handler:
+#     def __init__(self):
+#         pass
+
+
+def main(terminating_tokes, clusters_path):
+    handlers = get_handlers_dict()
     handlers_params = {
-        'showcluster': (clusters_path),
+        'showcluster': [clusters_path],
     }
 
     command = ''
@@ -80,7 +90,8 @@ def process_command(command, handlers, handlers_params):
 # ----- I/O -----
 
 def get_user_command():
-    command = _get_user_command_subfunc()
+    # TODO: make user choose command
+    command = 'showcluster'  # _get_user_command_subfunc()
     while command not in COMMANDS_DESCRIPTIONS.values():
         print_error_msg('Unknown command, please try again.', False)
         command = _get_user_command_subfunc()
@@ -102,21 +113,36 @@ def print_command_options():
 # --- i/o helpers ---
 
 
-def _choose_cluster(clusters_path):
-    clusters_names = list(get_clusters_gen(clusters_path))
+def _choose_cluster(clusters_path, return_names=True):
+    clusters_names_and_paths = list(get_clusters_gen(clusters_path, return_names=True))
+    clusters_names = _get_nth_tuple_elem(clusters_names_and_paths, n=0)
     print_clusters(clusters_names)
-    chosen_cluster = input()
-    while chosen_cluster not in clusters_names:
-        print(f'Error, cluster {chosen_cluster} not found. Please try again.')
+    chosen_cluster_name = input()
+    while chosen_cluster_name not in clusters_names:
+        print(f'Error, cluster {chosen_cluster_name} not found. Please try again.')
         print_clusters(clusters_names)
-        chosen_cluster = input()
-    return chosen_cluster
+        chosen_cluster_name = input()
+
+    chosen_cluster_path = next(filter(lambda iterable: iterable[0] == chosen_cluster_name, clusters_names_and_paths))[1]
+    return chosen_cluster_name
 
 
-def print_clusters(clusters):
+def _get_nth_tuple_elem(iterables, n=0):
+    """
+    Return nth element (zero-indexed!) in each iterable stored in the iterable.
+
+    Example: _get_nth_tuple_elem(zip(range(3, 7), 'abcdefgh'), n=1) --> ['a', 'b', 'c', 'd']
+
+    iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index).
+    n: index of element to return from each stored iterable
+    """
+    return list(map(lambda iterable: iterable[n], iterables))
+
+
+def print_clusters(clusters_names):
     TEMP_LIM = 10
-    # TODO: print clusters limited number at a time (Enter=continue
-    clusters_names = clusters[:TEMP_LIM]  # TODO: remove this line
+    # TODO: print clusters limited number at a time (Enter=continue)
+    clusters_names = clusters_names[:TEMP_LIM]  # TODO: remove this line
     clusters_str = '\n'.join(map(lambda string: f'- {string}', clusters_names))
     print('Which cluster would you like to view?')
     print(clusters_str)
@@ -124,8 +150,14 @@ def print_clusters(clusters):
 
 # ----- FILE I/O -----
 
-def get_clusters_gen(clusters_path):
-    return (string for string in os.listdir(clusters_path) if os.path.isdir(string))
+def get_clusters_gen(clusters_path, return_names=True):
+    file_obj_names = os.listdir(clusters_path)
+    file_obj_paths = map(lambda obj_name: os.path.join(clusters_path, obj_name), file_obj_names)
+    clusters_names_and_paths = filter(lambda obj_tup: os.path.isdir(obj_tup[1]), zip(file_obj_names, file_obj_paths))
+    if return_names:
+        return clusters_names_and_paths
+    # return only paths
+    return _get_nth_tuple_elem(clusters_names_and_paths, n=1)
 
 
 # ----- COMMAND PROCESSING -----
@@ -228,4 +260,4 @@ def print_error_msg(msg, print_newline=True):
 
 
 if __name__ == '__main__':
-    main(HANDLERS, TERMINATING_TOKENS, CLUSTERS_PATH)
+    main(TERMINATING_TOKENS, CLUSTERS_PATH)

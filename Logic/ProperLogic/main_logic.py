@@ -13,9 +13,10 @@ import input_output_logic
 
 
 # TODO: 'clean input' function, with lower and strip
+# TODO: Always allow option to leave current menu item / loop rather than continue!
 
 
-#TODO: consistent paths!
+# TODO: consistent paths!
 TENSORS_PATH = 'Logic/ProperLogic/stored_embeddings'
 CLUSTERS_PATH = 'stored_clusters'
 
@@ -83,7 +84,7 @@ def process_command(command, handlers, handlers_params):
         handler(*params)  # seems to work if params is empty, as well
 
     except KeyError:
-        print('Error, unknown command.')
+        print_error_msg('unknown command')
         # raise NotImplementedError(f"command '{command}'")
 
 
@@ -99,32 +100,40 @@ def get_user_command():
 
 
 def _get_user_command_subfunc():
-    print('\nWhat would you like to do next?')
+    _wait_for_any_input('What would you like to do next?')  # TODO: needs \n?
     print_command_options()
     return input().lower().strip()
 
 
 def print_command_options():
-    cmd_options_lines = (f"- To {command}, type '{abbreviation}'." for command, abbreviation in COMMANDS_DESCRIPTIONS.items())
+    cmd_options_lines = (f"- To {command}, type '{abbreviation}'."
+                         for command, abbreviation in COMMANDS_DESCRIPTIONS.items())
     output = '\n'.join(cmd_options_lines) + '\n'
     print(output)
+
+
+def _output_cluster_content(cluster_name, cluster_path):
+    _wait_for_any_input(f'Which face image in the cluster "{cluster_name}" would you like to view?')
+    # TODO: finish; output faces and (-> separate function?) allow choice of image
 
 
 # --- i/o helpers ---
 
 
-def _choose_cluster(clusters_path, return_names=True):
+def _user_choose_cluster(clusters_path, return_names=True):
     clusters_names_and_paths = list(get_clusters_gen(clusters_path, return_names=True))
     clusters_names = _get_nth_tuple_elem(clusters_names_and_paths, n=0)
-    print_clusters(clusters_names)
+    prompt_cluster_choice(clusters_names)
     chosen_cluster_name = input()
     while chosen_cluster_name not in clusters_names:
-        print(f'Error, cluster {chosen_cluster_name} not found. Please try again.')
-        print_clusters(clusters_names)
+        print_error_msg(f'cluster "{chosen_cluster_name}" not found; Please try again.')
+        prompt_cluster_choice(clusters_names)
         chosen_cluster_name = input()
 
     chosen_cluster_path = next(filter(lambda iterable: iterable[0] == chosen_cluster_name, clusters_names_and_paths))[1]
-    return chosen_cluster_name
+    if return_names:
+        return chosen_cluster_name, chosen_cluster_path
+    return chosen_cluster_path
 
 
 def _get_nth_tuple_elem(iterables, n=0):
@@ -139,13 +148,17 @@ def _get_nth_tuple_elem(iterables, n=0):
     return list(map(lambda iterable: iterable[n], iterables))
 
 
-def print_clusters(clusters_names):
+def prompt_cluster_choice(clusters_names):
     TEMP_LIM = 10
     # TODO: print clusters limited number at a time (Enter=continue)
     clusters_names = clusters_names[:TEMP_LIM]  # TODO: remove this line
     clusters_str = '\n'.join(map(lambda string: f'- {string}', clusters_names))
-    print('Which cluster would you like to view?')
+    _wait_for_any_input('Which cluster would you like to view? (Press any key to continue.)')
     print(clusters_str)
+
+
+def _wait_for_any_input(prompt):
+    input(prompt + '\n')
 
 
 # ----- FILE I/O -----
@@ -163,16 +176,15 @@ def get_clusters_gen(clusters_path, return_names=True):
 # ----- COMMAND PROCESSING -----
 
 def handler_showcluster(clusters_path):
-    choose_another_cluster = ''
-    while 'n' not in choose_another_cluster:
-        chosen_cluster = _choose_cluster(clusters_path)
+    should_continue = ''
+    while 'n' not in should_continue:
+        cluster_name, cluster_path = _user_choose_cluster(clusters_path)
+        _output_cluster_content(cluster_path)
 
 
 
-        choose_another_cluster = input('Choose another cluster?\n').lower().strip()
 
-
-
+        should_continue = input('Choose another cluster?\n').lower().strip()
 
 
 def add_new_embeddings():
@@ -256,7 +268,7 @@ def get_img_names(dir_path, recursive=False, img_extensions=None):
 # ------- HELPER FUNCTIONS ------- #
 
 def print_error_msg(msg, print_newline=True):
-    print('\n' + msg, end='\n' if print_newline else '')
+    print('\nError: ' + msg, end='\n' if print_newline else '')
 
 
 if __name__ == '__main__':

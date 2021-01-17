@@ -71,15 +71,26 @@ thumbnail.save(stream, format='JPEG')
 thumbnail_bytes = stream.getvalue()
 torch.save(embedding, stream)
 embedding_bytes = stream.getvalue()
+stream.close()
 c.execute(f'INSERT INTO {faces_table} VALUES (1, ?, ?)',
           [thumbnail_bytes, embedding_bytes])
 
 
 images_rows = c.execute(f'SELECT * FROM {images_table}').fetchall()
 faces_rows = c.execute(f'SELECT * FROM {faces_table}').fetchall()
-print(images_rows)
-print('\n'.join(map(str, faces_rows[0])))
-print()
+# print(images_rows)
+# print('\n'.join(map(str, faces_rows[0])))
+
+thumb, emb = faces_rows[0][1:]
+
+
+print(emb)
+
+# convert back to image
+stream = io.BytesIO(thumb)
+image = Image.open(stream).convert('RGBA')  # 'RGBA'
+stream.close()
+image.show()
 
 
 # Closing the connection to the database file

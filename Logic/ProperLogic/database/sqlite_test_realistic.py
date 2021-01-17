@@ -66,12 +66,16 @@ c.execute(f'INSERT INTO {images_table} VALUES (1, "apple sauce", ?)',
 embedding = torch.load('Aaron_Eckhart_1.pt')
 thumbnail = Image.open('preprocessed_Aaron_Eckhart_1.jpg')
 
-stream = io.BytesIO()
-thumbnail.save(stream, format='JPEG')
-thumbnail_bytes = stream.getvalue()
-torch.save(embedding, stream)
-embedding_bytes = stream.getvalue()
-stream.close()
+buffer = io.BytesIO()
+thumbnail.save(buffer, format='JPEG')
+thumbnail_bytes = buffer.getvalue()
+buffer.close()
+
+buffer = io.BytesIO()
+torch.save(embedding, buffer)
+embedding_bytes = buffer.getvalue()
+buffer.close()
+
 c.execute(f'INSERT INTO {faces_table} VALUES (1, ?, ?)',
           [thumbnail_bytes, embedding_bytes])
 
@@ -81,15 +85,20 @@ faces_rows = c.execute(f'SELECT * FROM {faces_table}').fetchall()
 # print(images_rows)
 # print('\n'.join(map(str, faces_rows[0])))
 
-thumb, emb = faces_rows[0][1:]
+thumbnail_bytes, embedding_bytes = faces_rows[0][1:]
 
+print(embedding_bytes)
 
-print(emb)
+# convert back to tensor
+buffer = io.BytesIO(embedding_bytes)
+tensor = torch.load(buffer)
+buffer.close()
+print(tensor)
 
 # convert back to image
-stream = io.BytesIO(thumb)
-image = Image.open(stream).convert('RGBA')  # 'RGBA'
-stream.close()
+buffer = io.BytesIO(thumbnail_bytes)
+image = Image.open(buffer).convert('RGBA')  # 'RGBA'
+buffer.close()
 image.show()
 
 

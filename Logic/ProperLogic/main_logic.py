@@ -7,21 +7,37 @@ import os
 import torchvision
 from PIL import Image
 
+#from abc import ABC
+
 import input_output_logic
 
 
+# TODO: 'clean input' function, with lower and strip
+# TODO: Always allow option to leave current menu item / loop rather than continue!
+
+
+# TODO: consistent paths!
 TENSORS_PATH = 'Logic/ProperLogic/stored_embeddings'
+CLUSTERS_PATH = 'stored_clusters'
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 TO_TENSOR = torchvision.transforms.ToTensor()
 
 TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
-COMMANDS = {'select new faces': 'add',
-            'edit existing faces': 'edit',
-            'find individual': 'find',
-            'rebuild boundaries': 'rebuild',
-            }
+# TODO: add 'help' command
+COMMANDS_DESCRIPTIONS = {
+    'select new faces': 'add',
+    'edit existing faces': 'edit',
+    'find individual': 'find',
+    'reclassify individuals': 'reclassify',
+    'show a cluster': 'showcluster',
+}
 
+
+def get_handlers_dict():
+    return {
+        'showcluster': handler_showcluster,
+    }
 
 # TODO: How to draw + store boundaries of clusters?
 #       --> "Cluster-Voronoi-Diagram"?? Spheres / specific ellipsoids of bounded size? Does this generalize well to many
@@ -30,51 +46,145 @@ COMMANDS = {'select new faces': 'add',
 # TODO: Turn Commands into an Enum
 # TODO: Associate Handler with each command
 # TODO: Consistent naming
-# TODO: Add comments & docstrings
+# TODO: Add comments & docstring
 
 
-def main():
+# class Handler:
+#     def __init__(self):
+#         pass
+
+
+def main(terminating_tokes, clusters_path):
+    handlers = get_handlers_dict()
+    handlers_params = {
+        'showcluster': [clusters_path],
+    }
+
     command = ''
-    while command not in TERMINATING_TOKENS:
+    while command not in terminating_tokes:
         command = get_user_command()
-        process_command(command)
+        process_command(command, handlers, handlers_params)
 
 
-def process_command(command):
+def process_command(command, handlers, handlers_params):
     # TODO: complete function
-    if command in 'add':  # select new faces
-        # TODO: complete section
-        add_new_embeddings()
+    # if command in 'add':  # select new faces
+    #     # TODO: complete section
+    #     add_new_embeddings()
+    #
+    # elif command in 'edit':  # edit existing faces (or rather, existing identities)
+    #     ...
+    #
+    # elif command in 'find':
+    #     ...
 
-    elif command in 'edit':  # edit existing faces (or rather, existing identities)
-        ...
+    try:
+        handler = handlers[command]
+        params = handlers_params[command]
+        handler(*params)  # seems to work if params is empty, as well
 
-    elif command in 'find':
-        ...
+    except KeyError:
+        print_error_msg('unknown command')
+        # raise NotImplementedError(f"command '{command}'")
 
-    elif command in 'rebuild':
-        ...
 
-    else:
-        raise NotImplementedError(f'known, but not yet implemented command {command}')
-
+# ----- I/O -----
 
 def get_user_command():
-    command = _get_user_command_subfunc()
-    while command not in COMMANDS.values():
+    # TODO: make user choose command
+    command = 'showcluster'  # _get_user_command_subfunc()
+    while command not in COMMANDS_DESCRIPTIONS.values():
         print_error_msg('Unknown command, please try again.', False)
         command = _get_user_command_subfunc()
     return command
 
 
 def _get_user_command_subfunc():
-    print('\nWhat would you like to do next?')
+    _wait_for_any_input('What would you like to do next?')  # TODO: needs \n?
     print_command_options()
-    return input().lower()
+    return input().lower().strip()
 
 
 def print_command_options():
-    print('\n'.join(f"- To {command}, type '{abbreviation}'." for command, abbreviation in COMMANDS.items()))
+    cmd_options_lines = (f"- To {command}, type '{abbreviation}'."
+                         for command, abbreviation in COMMANDS_DESCRIPTIONS.items())
+    output = '\n'.join(cmd_options_lines) + '\n'
+    print(output)
+
+
+def _output_cluster_content(cluster_name, cluster_path):
+    _wait_for_any_input(f'Which face image in the cluster "{cluster_name}" would you like to view?')
+    # TODO: finish; output faces and (-> separate function?) allow choice of image
+
+
+# --- i/o helpers ---
+
+
+def _user_choose_cluster(clusters_path, return_names=True):
+    clusters_names_and_paths = list(get_clusters_gen(clusters_path, return_names=True))
+    clusters_names = _get_nth_tuple_elem(clusters_names_and_paths, n=0)
+    prompt_cluster_choice(clusters_names)
+    chosen_cluster_name = input()
+    while chosen_cluster_name not in clusters_names:
+        print_error_msg(f'cluster "{chosen_cluster_name}" not found; Please try again.')
+        prompt_cluster_choice(clusters_names)
+        chosen_cluster_name = input()
+
+    chosen_cluster_path = next(filter(lambda iterable: iterable[0] == chosen_cluster_name, clusters_names_and_paths))[1]
+    if return_names:
+        return chosen_cluster_name, chosen_cluster_path
+    return chosen_cluster_path
+
+
+def _get_nth_tuple_elem(iterables, n=0):
+    """
+    Return nth element (zero-indexed!) in each iterable stored in the iterable.
+
+    Example: _get_nth_tuple_elem(zip(range(3, 7), 'abcdefgh'), n=1) --> ['a', 'b', 'c', 'd']
+
+    iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index).
+    n: index of element to return from each stored iterable
+    """
+    return list(map(lambda iterable: iterable[n], iterables))
+
+
+def prompt_cluster_choice(clusters_names):
+    TEMP_LIM = 10
+    # TODO: print clusters limited number at a time (Enter=continue)
+    clusters_names = clusters_names[:TEMP_LIM]  # TODO: remove this line
+    clusters_str = '\n'.join(map(lambda string: f'- {string}', clusters_names))
+    _wait_for_any_input('Which cluster would you like to view? (Press any key to continue.)')
+    print(clusters_str)
+
+
+def _wait_for_any_input(prompt):
+    input(prompt + '\n')
+
+
+# ----- FILE I/O -----
+
+def get_clusters_gen(clusters_path, return_names=True):
+    file_obj_names = os.listdir(clusters_path)
+    file_obj_paths = map(lambda obj_name: os.path.join(clusters_path, obj_name), file_obj_names)
+    clusters_names_and_paths = filter(lambda obj_tup: os.path.isdir(obj_tup[1]), zip(file_obj_names, file_obj_paths))
+    if return_names:
+        return clusters_names_and_paths
+    # return only paths
+    return _get_nth_tuple_elem(clusters_names_and_paths, n=1)
+
+
+# ----- COMMAND PROCESSING -----
+
+def handler_showcluster(clusters_path):
+    should_continue = ''
+    while 'n' not in should_continue:
+        cluster_name, cluster_path = _user_choose_cluster(clusters_path)
+        _output_cluster_content(cluster_path)
+
+
+
+
+        should_continue = input('Choose another cluster?\n').lower().strip()
 
 
 def add_new_embeddings():
@@ -158,11 +268,8 @@ def get_img_names(dir_path, recursive=False, img_extensions=None):
 # ------- HELPER FUNCTIONS ------- #
 
 def print_error_msg(msg, print_newline=True):
-    print('\n' + msg, end='\n' if print_newline else '')
+    print('\nError: ' + msg, end='\n' if print_newline else '')
 
 
 if __name__ == '__main__':
-    # main()
-    pass
-
-
+    main(TERMINATING_TOKENS, CLUSTERS_PATH)

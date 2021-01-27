@@ -22,6 +22,9 @@ CLUSTERS_PATH = 'stored_clusters'
 EMBEDDINGS_PATH = 'stored_embeddings'
 
 
+# design decision re. splitting: check for cluster size first, because greater efficiency (short-circuit), although if
+# both cluster-size and too far from center apply, it would be better to start reclustering with new embedding.
+
 # TODO: remove
 _NUM_EMBEDDINGS_TO_CLASSIFY = 100
 
@@ -152,6 +155,7 @@ def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_com
     the embeddings
     :param classification_threshold:
     :param max_num_cluster_comps:
+    :param reclustering_threshold:
     :param max_cluster_size:
     :param cluster_save_path:
     :return:
@@ -182,11 +186,11 @@ def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_com
 
         if shortest_emb_dist <= classification_threshold:
             closest_cluster.add_embedding(new_embedding, embedding_file_name)
-            if should_recluster(closest_cluster, new_embedding, max_cluster_size, reclustering_threshold):
-                new_clusters = recluster_without_splitting(closest_cluster.get_embeddings(), classification_threshold,
-                                                           max_num_cluster_comps)
-                clusters.extend(new_clusters)
-                clusters.remove(closest_cluster)
+            if _is_cluster_too_big(closest_cluster, max_cluster_size):
+                recluster_without_splitting(closest_cluster, clusters, classification_threshold, max_num_cluster_comps)
+            elif _is_emb_too_far_from_center(closest_cluster, new_embedding, reclustering_threshold):
+                recluster_without_splitting(closest_cluster, clusters, classification_threshold, max_num_cluster_comps,
+                                            start_embeddings=[new_embedding])
         else:
             clusters.append(Cluster([new_embedding], [embedding_file_name]))
 
@@ -208,12 +212,15 @@ def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_com
         return clusters
 
 
-def should_recluster(cluster, embedding, max_cluster_size, reclustering_threshold):
-    if max_cluster_size is not None and cluster.get_size() >= max_cluster_size:
-        return True
-    if reclustering_threshold is not None:
-        return cluster.compute_dist_to_center(embedding) >= reclustering_threshold
-    return False
+def _is_cluster_too_big(cluster, max_cluster_size):
+    return max_cluster_size is not None and cluster.get_size() >= max_cluster_size
+
+
+def _is_emb_too_far_from_center(cluster, emb, max_dist):
+    """
+    :param max_dist: Maximum distance to from center allowed
+    """
+    return max_dist is not None and cluster.compute_dist_to_center(emb) >= max_dist
 
 
 def find_closest_cluster_to_embedding(clusters, embedding, return_dist=True):
@@ -229,8 +236,8 @@ def find_closest_cluster_to_embedding(clusters, embedding, return_dist=True):
     shortest_emb_dist = float('inf')
     closest_cluster = None
     for cluster in clusters:
-        cluster_embeddings = cluster.get_embeddings()
-        emb_dists = map(lambda cluster_emb: compute_dist(embedding, cluster_emb), cluster_embeddings)
+        embeddings = cluster.get_embeddings()
+        emb_dists = map(lambda cluster_emb: compute_dist(embedding, cluster_emb), embeddings)
         min_cluster_emb_dist = min(emb_dists)
         if min_cluster_emb_dist < shortest_emb_dist:
             shortest_emb_dist = min_cluster_emb_dist
@@ -240,7 +247,23 @@ def find_closest_cluster_to_embedding(clusters, embedding, return_dist=True):
     return closest_cluster
 
 
-def recluster_without_splitting(embeddings, threshold, max_num_cluster_comp):
+def recluster_without_splitting(closest_cluster, clusters, classification_threshold, max_num_cluster_comps,
+                                start_embeddings=None):
+    """
+    Recluster given cluster without further (indirectly recursive) splitting.
+
+    :param start_embeddings: Embeddings which to cluster first
+    """
+    embeddings = closest_cluster.get_embeddings()
+    if start_embeddings is not None:
+        embeddings = start_embeddings + embeddings
+    new_clusters = _recluster_without_splitting_worker(embeddings, classification_threshold,
+                                                       max_num_cluster_comps)
+    clusters.extend(new_clusters)
+    clusters.remove(closest_cluster)
+
+
+def _recluster_without_splitting_worker(embeddings, threshold, max_num_cluster_comp):
     # TODO: Start with newly added embedding!
     return cluster_embeddings(embeddings, threshold, max_num_cluster_comp)
 
@@ -285,7 +308,7 @@ def _handle_tree_removal_errors(function, path, excinfo):
     elif exc_type is PermissionError:
         log_error(f'No permission to remove file or directory at {path}')
     elif exc_type is OSError:
-        log_error(f'The following error occured for the file or directory at {path}:' '\n', traceback)
+        log_error(f'The following error occurred for the file or directory at {path}:' '\n' + str(traceback))
     else:
         raise
 

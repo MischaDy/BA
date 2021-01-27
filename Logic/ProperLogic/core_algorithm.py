@@ -186,9 +186,8 @@ def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_com
 
         if shortest_emb_dist <= classification_threshold:
             closest_cluster.add_embedding(new_embedding, embedding_file_name)
-            if _is_cluster_too_big(closest_cluster, max_cluster_size):
-                recluster_without_splitting(closest_cluster, clusters, classification_threshold, max_num_cluster_comps)
-            elif _is_emb_too_far_from_center(closest_cluster, new_embedding, reclustering_threshold):
+            start_embeddings = _get_embs_too_far_from_center(closest_cluster, reclustering_threshold)
+            if len(start_embeddings) > 0 or _is_cluster_too_big(closest_cluster, max_cluster_size):
                 recluster_without_splitting(closest_cluster, clusters, classification_threshold, max_num_cluster_comps,
                                             start_embeddings=[new_embedding])
         else:
@@ -216,11 +215,14 @@ def _is_cluster_too_big(cluster, max_cluster_size):
     return max_cluster_size is not None and cluster.get_size() >= max_cluster_size
 
 
-def _is_emb_too_far_from_center(cluster, emb, max_dist):
+def _get_embs_too_far_from_center(cluster, max_dist):
     """
     :param max_dist: Maximum distance to from center allowed
     """
-    return max_dist is not None and cluster.compute_dist_to_center(emb) >= max_dist
+    if max_dist is None:
+        return []
+    return list(filter(lambda emb: cluster.compute_dist_to_center(emb) > max_dist,
+                       cluster.get_embeddings()))
 
 
 def find_closest_cluster_to_embedding(clusters, embedding, return_dist=True):

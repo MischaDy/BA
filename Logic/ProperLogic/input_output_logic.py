@@ -44,7 +44,7 @@ def _test_saving_embeddings(imgs_dir_path, tensors_dir_path, resnet):
 
 
 def _test_loading_embeddings(tensors_dir_path):
-    tensors_loader = load_embeddings_from_path(tensors_dir_path, yield_paths=True)
+    tensors_loader = _load_tensors_from_path(tensors_dir_path, yield_paths=True)
     dists = []
     prev_tensor = torch.zeros([1, 512])
     for tensor_path, tensor in tensors_loader:
@@ -172,7 +172,13 @@ def save_cluster_embeddings_to_path(embeddings, save_path):
         torch.save(embedding, embedding_save_path, pickle_protocol=pickle.DEFAULT_PROTOCOL)
 
 
-def load_embeddings_from_path(tensors_path, yield_paths=False, tensor_extensions=None):
+def load_tensors(tensors, from_path, yield_paths=False):
+    if from_path:
+        return _load_tensors_from_path(tensors, yield_paths)
+    return map(lambda tup: (str(tup[0]), tup[1]), enumerate(tensors))
+
+
+def _load_tensors_from_path(tensors_path, yield_paths=False):
     """
     Yield all face embeddings (tensors) from given path/directory. They are preceded by their paths if yield_paths is
     True.
@@ -180,15 +186,8 @@ def load_embeddings_from_path(tensors_path, yield_paths=False, tensor_extensions
     :param :
     :return:
     """
-    # TODO: Implement functionality to choose which tensors to load
-    if tensor_extensions is None:
-        tensor_extensions = set()
-
     file_names = filter(lambda obj_name: os.path.isfile(os.path.join(tensors_path, obj_name)),
                         os.listdir(tensors_path))
-    if len(tensor_extensions) != 0:
-        file_names = filter(lambda obj_name: get_file_extension(obj_name) in tensor_extensions,
-                            file_names)
     file_paths = map(lambda file_name: os.path.join(tensors_path, file_name),
                      file_names)
 

@@ -258,6 +258,8 @@ def recluster_without_splitting(closest_cluster, clusters, classification_thresh
     """
     embeddings = closest_cluster.get_embeddings()
     if start_embeddings is not None:
+        1/0
+        # TODO: Don't process embeddings in start_embeddings twice!
         embeddings = start_embeddings + embeddings
     new_clusters = _recluster_without_splitting_worker(embeddings, classification_threshold,
                                                        max_num_cluster_comps)
@@ -266,7 +268,7 @@ def recluster_without_splitting(closest_cluster, clusters, classification_thresh
 
 
 def _recluster_without_splitting_worker(embeddings, threshold, max_num_cluster_comp):
-    # TODO: Start with newly added embedding!
+    # TODO: Implement actual no-splitting!!!
     return cluster_embeddings(embeddings, threshold, max_num_cluster_comp)
 
 

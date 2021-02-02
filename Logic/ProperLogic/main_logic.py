@@ -12,11 +12,12 @@ from PIL import Image
 import input_output_logic
 
 
-# TODO: 'clean input' function, with lower and strip
 # TODO: Always allow option to leave current menu item / loop rather than continue!
 
 
 # TODO: consistent paths!
+from Logic.misc_helpers import clean_str
+
 TENSORS_PATH = 'Logic/ProperLogic/stored_embeddings'
 CLUSTERS_PATH = 'stored_clusters'
 
@@ -102,7 +103,7 @@ def get_user_command():
 def _get_user_command_subfunc():
     _wait_for_any_input('What would you like to do next?')  # TODO: needs \n?
     print_command_options()
-    return input().lower().strip()
+    return clean_str(input())
 
 
 def print_command_options():
@@ -184,7 +185,7 @@ def handler_showcluster(clusters_path):
 
 
 
-        should_continue = input('Choose another cluster?\n').lower().strip()
+        should_continue = clean_str(input('Choose another cluster?\n'))
 
 
 def add_new_embeddings():

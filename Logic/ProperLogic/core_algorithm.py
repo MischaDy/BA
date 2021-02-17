@@ -1,5 +1,7 @@
 import shutil
 
+from Logic.ProperLogic.database_logic import *
+from Logic.misc_helpers import log_error
 from input_output_logic import *
 import torch
 
@@ -9,6 +11,11 @@ from itertools import count
 from timeit import default_timer
 import logging
 logging.basicConfig(level=logging.INFO)
+
+
+# TODO: Handle situation without global variables
+PATH_TO_CENTRAL_DB = os.path.join(DB_FILES_PATH, LOCAL_DB_FILE)
+PATH_TO_LOCAL_DB = os.path.join(DB_FILES_PATH, CENTRAL_DB_FILE)
 
 
 CLASSIFICATION_THRESHOLD = 0.95  # 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
@@ -41,54 +48,56 @@ _NUM_EMBEDDINGS_TO_CLASSIFY = 100
 class Cluster:
     # TODO: Keep track of the cluster_id beyond runtime of the program??
     max_cluster_id = 1
+    max_embedding_id = 1
 
     # TODO: Idea - assign ids to embeddings of each cluster which are valid at least for lifetime of the cluster
     # TODO: Don't allow accidental overwriting of embeddings by using same id!
 
     # TODO: How to handle embeddings-generator??
-    def __init__(self, embeddings=None, embeddings_ids=None):
+    def __init__(self, embeddings=None, embeddings_ids=None, cluster_id=None, label=None, center_point=None):
         """
         embeddings must be (flat) iterable of tensors with len applicable
         :param embeddings:
         :param embeddings_ids:
         """
-        numeric_ids_assigned = False
         if embeddings is None:
             self.embeddings = {}
             self.num_embeddings = 0
             self.center_point = None
+            # max number ever assigned as id for an embedding in this cluster
+            Cluster.max_embedding_id = 0
         else:
-            # TODO?: refactor / improve efficiency!
-            # TODO(?): consistent type for embedding ids
+            # TODO: refactor
+            # TODO: consistent type for embedding ids(?)
             if embeddings_ids is None:
                 embeddings_ids = count(1)
-                numeric_ids_assigned = True
             # cast embeddings to dict
             self.embeddings = dict(zip(embeddings_ids, embeddings))
             self.num_embeddings = len(self.embeddings)
-            self.center_point = Cluster.sum_embeddings(self.embeddings.values()) / self.num_embeddings
+            if center_point is not None:
+                self.center_point = center_point
+            else:
+                self.center_point = Cluster.sum_embeddings(self.embeddings.values()) / self.num_embeddings
+            Cluster.max_embedding_id = max(self.embeddings.keys())
 
-        # max number ever assigned as id for an embedding in this cluster
-        self.max_num_embedding_id = self.num_embeddings if numeric_ids_assigned else 0
-        self.cluster_id = Cluster.max_cluster_id
-        Cluster.max_cluster_id += 1
+        if cluster_id is None:
+            self.cluster_id = Cluster.max_cluster_id
+        else:
+            self.cluster_id = cluster_id
+        Cluster.max_cluster_id = max(cluster_id, Cluster.max_cluster_id - 1) + 1
 
     def get_embeddings(self, return_embeddings_ids=False):
         if return_embeddings_ids:
             return self.embeddings
         return list(self.embeddings.values())
 
-    # def get_embedding_id(self, embedding):
-    #     # TODO: implement(?)
-    #     return ...
-
     def get_size(self):
         return len(self.embeddings)
 
     def add_embedding(self, embedding, embedding_id=None):
         if embedding_id is None:
-            self.max_num_embedding_id += 1
-            embedding_id = self.max_num_embedding_id
+            Cluster.max_embedding_id += 1
+            embedding_id = Cluster.max_embedding_id
         if self.embeddings.get(embedding_id):
             raise RuntimeError('embedding with given ID already exists in this cluster')
         self.embeddings[embedding_id] = embedding
@@ -99,7 +108,7 @@ class Cluster:
         self.center_point = (old_num_embeddings * self.center_point + embedding) / self.num_embeddings
 
     def remove_embedding(self, embedding_id):
-        # TODO: Better way to specify embedding? Assign ids or the like and output those when new embedding is added?
+        # TODO: Handle DB? Or handle when saving? --> Probably the latter
         try:
             self.embeddings.pop(embedding_id)
         except ValueError as error:
@@ -122,8 +131,9 @@ class Cluster:
         :param save_path:
         :return:
         """
-        cluster_save_path = os.path.join(save_path, f"cluster_{self.cluster_id}")
-        save_cluster_embeddings_to_path(self.embeddings, cluster_save_path)
+        # TODO: Save in DB
+        # cluster_save_path = os.path.join(save_path, f"cluster_{self.cluster_id}")
+        # save_cluster_embeddings_to_path(self.embeddings, cluster_save_path)
 
     @classmethod
     def load_cluster(cls, path_to_cluster, cluster_id=None):
@@ -133,19 +143,32 @@ class Cluster:
         :param cluster_id:
         :return:
         """
+        # TODO: Replace with the corresponding DB method
         embeddings = list(load_tensors(path_to_cluster, from_path=True))
         cluster = cls(embeddings)
         if cluster_id is not None:
             cluster.cluster_id = cluster_id
         return cluster
 
+    @classmethod
+    def from_db(cls):
+        # TODO: Finish implementation
+        manager = DBManager(PATH_TO_CENTRAL_DB, PATH_TO_LOCAL_DB)
+        clusters = []
+        cluster_ids = manager.fetch_from_table(CLUSTER_ATTRIBUTES_TABLE, [CLUSTER_ID_COL])
+        for cluster_id in cluster_ids:
+            rows = manager.fetch_from_table(EMBEDDINGS_TABLE, [EMBEDDING_COL, FACE_ID_COL],
+                                            f'cluster_id = {cluster_id}')
+            print('hi')
+            break
+
     @staticmethod
     def sum_embeddings(embeddings):
         return reduce(torch.add, embeddings)
 
 
-def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_comps, reclustering_threshold=None,
-                       max_cluster_size=None, cluster_save_path=None):
+def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_comps, existing_clusters=None,
+                       reclustering_threshold=None, max_cluster_size=None):
     """
     Build clusters from face embeddings stored in the given path using the specified classification threshold.
     (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed in
@@ -153,13 +176,15 @@ def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_com
 
     :param embeddings: Either a path (string) to the directory wherein embeddings are located or an iterable containing
     the embeddings
+    :param existing_clusters:
     :param classification_threshold:
     :param max_num_cluster_comps:
     :param reclustering_threshold:
     :param max_cluster_size:
-    :param cluster_save_path:
     :return:
     """
+    if existing_clusters is None:
+        existing_clusters = []
     embeddings_loader = load_tensors(embeddings, yield_paths=True, from_path=isinstance(embeddings, str))
     try:
         first_file_path, first_embedding = next(embeddings_loader)
@@ -167,7 +192,8 @@ def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_com
         log_error('No embeddings found in path')
         raise error
     first_file_name = os.path.split(first_file_path)[-1]
-    clusters = [Cluster([first_embedding], [first_file_name])]
+
+    clusters = existing_clusters + [Cluster([first_embedding], [first_file_name])]
 
     # iterate over remaining embeddings
     logging.info('START iteration over embeddings')
@@ -197,18 +223,20 @@ def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_com
     logging.info(f'END iteration over embeddings')
     logging.info(f'Time spent on embeddings: {default_timer() - time1}')
 
-    if cluster_save_path is not None:
-        time1 = default_timer()
-        logging.info('\nSTART cluster saving')
-        for counter, cluster in enumerate(clusters, start=1):
-            if counter % 100 == 0:
-                logging.info(f' --- Current cluster number: {counter}')
-            cluster.save_cluster(cluster_save_path)
-        logging.info(f' --- Last cluster number: {counter}')
-        logging.info(f'END cluster saving')
-        logging.info(f'Time spent on saving clusters: {default_timer() - time1}')
-    else:
-        return clusters
+    # if cluster_save_path is not None:
+    #     time1 = default_timer()
+    #     logging.info('\nSTART cluster saving')
+    #     for counter, cluster in enumerate(clusters, start=1):
+    #         if counter % 100 == 0:
+    #             logging.info(f' --- Current cluster number: {counter}')
+    #         cluster.save_cluster(cluster_save_path)
+    #     logging.info(f' --- Last cluster number: {counter}')
+    #     logging.info(f'END cluster saving')
+    #     logging.info(f'Time spent on saving clusters: {default_timer() - time1}')
+    # else:
+    #     return clusters
+
+    return clusters
 
 
 def _is_cluster_too_big(cluster, max_cluster_size):
@@ -256,6 +284,7 @@ def recluster_without_splitting(closest_cluster, clusters, classification_thresh
 
     :param start_embeddings: Embeddings which to cluster first
     """
+    # TODO: Implement other version
     embeddings = closest_cluster.get_embeddings()
     if start_embeddings is not None:
         1/0
@@ -268,15 +297,11 @@ def recluster_without_splitting(closest_cluster, clusters, classification_thresh
 
 
 def _recluster_without_splitting_worker(embeddings, threshold, max_num_cluster_comp):
-    # TODO: Implement actual no-splitting!!!
+    # TODO: Implement other version (cf. above)
     return cluster_embeddings(embeddings, threshold, max_num_cluster_comp)
 
 
 # ------- HELPERS -------
-
-
-def log_error(msg):
-    logging.error('Error: ' + msg)
 
 
 def _are_same_person(embedding_name1, embedding_name2):
@@ -301,11 +326,13 @@ def compute_dist(embedding1, embedding2):
 
 
 def remove_directory_trees(dir_tree_paths):
+    # TODO: needed??
     for dir_tree_path in dir_tree_paths:
         shutil.rmtree(dir_tree_path, onerror=_handle_tree_removal_errors)
 
 
 def _handle_tree_removal_errors(function, path, excinfo):
+    # TODO: Needed?
     exc_type, _, traceback = excinfo
     if exc_type is FileNotFoundError:
         log_error(f'File or directory at {path} not found')
@@ -318,6 +345,6 @@ def _handle_tree_removal_errors(function, path, excinfo):
 
 
 if __name__ == '__main__':
-    remove_directory_trees([CLUSTERS_PATH])
+    # remove_directory_trees([CLUSTERS_PATH])
     cluster_embeddings(EMBEDDINGS_PATH, CLASSIFICATION_THRESHOLD, MAX_NUM_CLUSTER_COMPS, RECLUSTERING_THRESHOLD,
                        MAX_CLUSTER_SIZE, CLUSTERS_PATH)

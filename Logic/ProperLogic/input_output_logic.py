@@ -1,6 +1,8 @@
 import os
 import pickle
 
+from shutil import rmtree
+
 import torch
 import torchvision
 
@@ -10,11 +12,11 @@ from PIL import Image
 
 from facenet_pytorch import MTCNN, InceptionResnetV1
 
-from timeit import default_timer
 import logging
-logging.basicConfig(level=logging.INFO)
 
-from shutil import rmtree
+from Logic.ProperLogic.core_algorithm import Cluster
+
+logging.basicConfig(level=logging.INFO)
 
 
 IMAGE_PATH = os.path.join('..', 'my_test', 'facenet_Test', 'subset_cplfw_test', 'preprocessed_faces_naive')
@@ -24,6 +26,8 @@ TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
 
 
+# TODO: How to fuse with the DBs?
+#       --> DB handles DB-internals, while this module use DB module to load and store stuff for other modules?
 # TODO: Remember to CREATE directories if they don't already exist! (Don't assume existence)
 # TODO: Separate extraction and loading of images!
 # TODO: Consistent naming embeddings vs. tensors
@@ -36,6 +40,14 @@ def main(imgs_dir_path, tensors_dir_path):
 
     _test_saving_embeddings(imgs_dir_path, tensors_dir_path, resnet)
     _test_loading_embeddings(tensors_dir_path)
+
+
+def load_clusters_from_db(db_manager):
+    db_manager.fetch_from_table(len(db_manager), path_to_local_db=None, cols=None, cond='')
+    cluster_parts = db_manager.get_cluster_parts()
+    clusters = [Cluster(embeddings=embeddings, embeddings_ids=embeddings_ids, cluster_id=id_, label=label, center_point=mean)
+                for id_, label, mean, embeddings, embeddings_ids in cluster_parts]
+    return clusters
 
 
 def _test_saving_embeddings(imgs_dir_path, tensors_dir_path, resnet):
@@ -74,19 +86,16 @@ def get_and_count_img_names(dir_path, img_extensions=None):
     return img_names, num_images
 
 
-def load_imgs_from_path(dir_path, img_extensions=None):
+def load_imgs_from_path(dir_path):
     """
     Yield all images in the given directory.
     If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
     in the set will be returned.
 
     :param dir_path: Directory containing images
-    :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}
     :return: Yield(!) tuples of image_names and tensors contained in this folder
     """
-    # TODO: Implement(?) img_extensions functionality
-    if img_extensions is None:
-        img_extensions = set()
+    # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}
     img_names, num_imgs = get_and_count_img_names(dir_path)
 
     for counter, img_name in enumerate(img_names, start=1):
@@ -129,7 +138,7 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
         tensor_save_path = os.path.join(save_path, f"embedding_{img_name.split('.')[0]}.pt")
         torch.save(face_embedding, tensor_save_path, pickle_protocol=pickle.DEFAULT_PROTOCOL)
 
-    # TODO: PROPERLY Vectorize this loop(?)
+    # TODO: PROPERLY vectorize this loop(?)
     should_extract_face = face_extractor is not None
     for counter, (img_name, img) in enumerate(imgs_loader, start=1):
         if counter % 50 == 0:

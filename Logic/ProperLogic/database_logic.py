@@ -2,14 +2,12 @@
 import os
 import sqlite3
 import time
-from functools import partial
 
 import torch
 from PIL import Image
 import io
 
-from Logic.misc_helpers import clean_str
-
+from Logic.misc_helpers import clean_str, log_error
 
 # TODO: *Global* face_id - created in central table, then written to corresponding local table
 # TODO: Foreign keys despite separate db files???
@@ -21,9 +19,6 @@ from Logic.misc_helpers import clean_str
 # TODO: Backup necessary?
 # TODO: Use SQLAlchemy?
 
-
-CENTRAL_DB_FILE = 'central_db.sqlite'
-LOCAL_DB_FILE = 'local_db.sqlite'
 
 DB_FILES_PATH = 'database'
 
@@ -68,12 +63,18 @@ CENTER_COL = ('center', 'BLOB')
 
 CENTRAL_TABLES = {EMBEDDINGS_TABLE, CLUSTER_ATTRIBUTES_TABLE}
 
+# TODO: Guarantee that connection is closed at end of methods
+#       --> Using try (/ except) / finally??
 
+# TODO: Make singleton object?
 class DBManager:
-    def __init__(self, path_to_central_db, path_to_local_db):
+    central_db_file = 'central_db.sqlite'
+    local_db_file = 'local_db.sqlite'
+    central_db_connection = None
+
+    def __init__(self, path_to_central_db, path_to_local_db=None):
         self.path_to_central_db = path_to_central_db
         self.path_to_local_db = path_to_local_db
-        self.central_db_connection = None
         self.local_db_connection = None
 
     def __del__(self):
@@ -84,38 +85,31 @@ class DBManager:
             except AttributeError:
                 pass
 
-    # def handle_db_conn(self, func):
-    #     def new_func(*args, **kwargs):
-    #         cur = self.open_connection()
-    #         result = func(cur, *args, **kwargs)
-    #         self.close_connection()
-    #         return result
-    #     return new_func
-
-    def open_connection(self, open_local):
+    def open_connection(self, open_local, path_to_local_db=None):
         if open_local:
-            self.local_db_connection = sqlite3.connect(self.path_to_local_db)
+            path_to_local_db = path_to_local_db if path_to_local_db is not None else self.path_to_local_db
+            self.local_db_connection = sqlite3.connect(path_to_local_db)
             cur = self.local_db_connection.cursor()
         else:
             self.central_db_connection = sqlite3.connect(self.path_to_central_db)
             cur = self.central_db_connection.cursor()
         return cur
 
-    def close_connection(self, close_local):
+    def commit_and_close_connection(self, close_local):
         db_connection = self.local_db_connection if close_local else self.central_db_connection
         db_connection.commit()
         db_connection.close()
 
-    def create_tables(self, create_local, drop_existing_tables=True):
-        cur = self.open_connection(open_local=create_local)
+    def create_tables(self, create_local, path_to_local_db=None, drop_existing_tables=True):
+        cur = self.open_connection(create_local, path_to_local_db)
         if drop_existing_tables:
-            self._drop_tables(cur, drop_local=create_local)
+            self._drop_tables(cur, create_local)
 
         if create_local:
             self._create_local_tables(cur)
         else:
             self._create_central_tables(cur)
-        self.close_connection(close_local=create_local)
+        self.commit_and_close_connection(create_local)
 
     @staticmethod
     def _create_local_tables(cur):
@@ -169,24 +163,36 @@ class DBManager:
         for table in tables:
             cur.execute(f'DROP TABLE IF EXISTS {table}')
 
-    def store_in_table(self, table_name, rows):
+    def store_in_table(self, table_name, rows, path_to_local_db=None):
         store_in_local = self.is_local_table(table_name)
-        cur = self.open_connection(open_local=store_in_local)
+        cur = self.open_connection(store_in_local, path_to_local_db)
         # cur.execute(f'INSERT INTO {table_name} VALUES ?',
         #             rows)
         values_template = self._make_values_template(len(rows[0]))
         cur.executemany(f'INSERT INTO {table_name} VALUES {values_template}', rows)
-        self.close_connection(close_local=store_in_local)
+        self.commit_and_close_connection(store_in_local)
 
-    def fetch_from_table(self, table_name, cols=None):
+    def fetch_from_table(self, table_name, path_to_local_db=None, cols=None, cond=''):
         if cols is None:
             cols = ['*']
+        cond_str = '' if len(cond) == 0 else f'WHERE {cond}'
         fetch_from_local = self.is_local_table(table_name)
-        cur = self.open_connection(open_local=fetch_from_local)
+        cur = self.open_connection(fetch_from_local, path_to_local_db)
         cols_template = ','.join(cols)
-        result = cur.execute(f'SELECT {cols_template} FROM {table_name}').fetchall()
-        self.close_connection(close_local=fetch_from_local)
+        result = cur.execute(f'SELECT {cols_template} FROM {table_name} {cond_str}').fetchall()
+        self.commit_and_close_connection(fetch_from_local)
         return result
+
+    def get_cluster_parts(self):
+        cur = self.open_connection(open_local=False)
+        cluster_parts = cur.execute(
+            f'''
+            SELECT {CLUSTER_ID_COL}, {LABEL_COL}, {CENTER_COL}, {EMBEDDING_COL}, {FACE_ID_COL}
+            FROM {EMBEDDINGS_TABLE} INNER JOIN {CLUSTER_ATTRIBUTES_TABLE} USING ({CLUSTER_ID_COL});
+            '''
+        )
+        self.commit_and_close_connection(close_local=False)
+        return cluster_parts
 
     def add_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
         # TODO: Implement + Change signature + use
@@ -199,7 +205,7 @@ class DBManager:
     def check_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
         # TODO: Change signature + use
         try:
-            self.close_connection(False)
+            self.commit_and_close_connection(False)
             central_cur = self.central_db_connection.cursor()
         except ...:
             pass
@@ -314,8 +320,6 @@ class DBManager:
     #     # # e.g., ['id', 'date', 'time', 'date_time']
 
 
-
-
 # XXXXX
 
         #
@@ -336,7 +340,6 @@ class DBManager:
         #                  f'FOREIGN KEY ({IMAGE_ID_COL[0]}) REFERENCES {IMAGES_TABLE} ({IMAGE_ID_COL[0]})'
         #                  ' ON DELETE CASCADE'
         #                  ')')
-
 
 if __name__ == '__main__':
     path_to_central_db = os.path.join(DB_FILES_PATH, LOCAL_DB_FILE)

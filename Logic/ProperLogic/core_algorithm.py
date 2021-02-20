@@ -1,21 +1,18 @@
 import shutil
 
-from Logic.ProperLogic.database_logic import *
+from Logic.ProperLogic.database_logic import DBManager
 from Logic.misc_helpers import log_error
 from input_output_logic import *
-import torch
 
-from functools import reduce
 from itertools import count
 
 from timeit import default_timer
 import logging
 logging.basicConfig(level=logging.INFO)
 
-
 # TODO: Handle situation without global variables
-PATH_TO_CENTRAL_DB = os.path.join(DB_FILES_PATH, LOCAL_DB_FILE)
-PATH_TO_LOCAL_DB = os.path.join(DB_FILES_PATH, CENTRAL_DB_FILE)
+PATH_TO_CENTRAL_DB = os.path.join(DBManager.db_files_path, DBManager.central_db_file_path)
+PATH_TO_LOCAL_DB = os.path.join(DBManager.db_files_path, DBManager.local_db_file_name)
 
 
 CLASSIFICATION_THRESHOLD = 0.95  # 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
@@ -43,128 +40,6 @@ _NUM_EMBEDDINGS_TO_CLASSIFY = 100
 # TODO: (Which) limit to put on cluster size before splitting?
 
 # TODO: Algorithm sensitive to input order(?)!! How to fix? Line-sweep or similar? Fixable at all? Relevant?
-
-
-class Cluster:
-    # TODO: Keep track of the cluster_id beyond runtime of the program??
-    max_cluster_id = 1
-    max_embedding_id = 1
-
-    # TODO: Idea - assign ids to embeddings of each cluster which are valid at least for lifetime of the cluster
-    # TODO: Don't allow accidental overwriting of embeddings by using same id!
-
-    # TODO: How to handle embeddings-generator??
-    def __init__(self, embeddings=None, embeddings_ids=None, cluster_id=None, label=None, center_point=None):
-        """
-        embeddings must be (flat) iterable of tensors with len applicable
-        :param embeddings:
-        :param embeddings_ids:
-        """
-        if embeddings is None:
-            self.embeddings = {}
-            self.num_embeddings = 0
-            self.center_point = None
-            # max number ever assigned as id for an embedding in this cluster
-            Cluster.max_embedding_id = 0
-        else:
-            # TODO: refactor
-            # TODO: consistent type for embedding ids(?)
-            if embeddings_ids is None:
-                embeddings_ids = count(1)
-            # cast embeddings to dict
-            self.embeddings = dict(zip(embeddings_ids, embeddings))
-            self.num_embeddings = len(self.embeddings)
-            if center_point is not None:
-                self.center_point = center_point
-            else:
-                self.center_point = Cluster.sum_embeddings(self.embeddings.values()) / self.num_embeddings
-            Cluster.max_embedding_id = max(self.embeddings.keys())
-
-        if cluster_id is None:
-            self.cluster_id = Cluster.max_cluster_id
-        else:
-            self.cluster_id = cluster_id
-        Cluster.max_cluster_id = max(cluster_id, Cluster.max_cluster_id - 1) + 1
-
-    def get_embeddings(self, return_embeddings_ids=False):
-        if return_embeddings_ids:
-            return self.embeddings
-        return list(self.embeddings.values())
-
-    def get_size(self):
-        return len(self.embeddings)
-
-    def add_embedding(self, embedding, embedding_id=None):
-        if embedding_id is None:
-            Cluster.max_embedding_id += 1
-            embedding_id = Cluster.max_embedding_id
-        if self.embeddings.get(embedding_id):
-            raise RuntimeError('embedding with given ID already exists in this cluster')
-        self.embeddings[embedding_id] = embedding
-
-        old_num_embeddings = self.num_embeddings
-        self.num_embeddings += 1
-        # (old_center is a uniformly weighted sum of the old embeddings)
-        self.center_point = (old_num_embeddings * self.center_point + embedding) / self.num_embeddings
-
-    def remove_embedding(self, embedding_id):
-        # TODO: Handle DB? Or handle when saving? --> Probably the latter
-        try:
-            self.embeddings.pop(embedding_id)
-        except ValueError as error:
-            log_error('Specified embedding not found in embeddings')
-            raise error
-        old_num_embeddings = self.num_embeddings
-        self.num_embeddings -= 1
-        # (old_center is a uniformly weighted sum of the old embeddings)
-        self.center_point = (old_num_embeddings * self.center_point - embedding_id) / self.num_embeddings
-
-    def get_center_point(self):
-        return self.center_point
-
-    def compute_dist_to_center(self, embedding):
-        return compute_dist(self.center_point, embedding)
-
-    def save_cluster(self, save_path):
-        """
-
-        :param save_path:
-        :return:
-        """
-        # TODO: Save in DB
-        # cluster_save_path = os.path.join(save_path, f"cluster_{self.cluster_id}")
-        # save_cluster_embeddings_to_path(self.embeddings, cluster_save_path)
-
-    @classmethod
-    def load_cluster(cls, path_to_cluster, cluster_id=None):
-        """
-
-        :param path_to_cluster:
-        :param cluster_id:
-        :return:
-        """
-        # TODO: Replace with the corresponding DB method
-        embeddings = list(load_tensors(path_to_cluster, from_path=True))
-        cluster = cls(embeddings)
-        if cluster_id is not None:
-            cluster.cluster_id = cluster_id
-        return cluster
-
-    @classmethod
-    def from_db(cls):
-        # TODO: Finish implementation
-        manager = DBManager(PATH_TO_CENTRAL_DB, PATH_TO_LOCAL_DB)
-        clusters = []
-        cluster_ids = manager.fetch_from_table(CLUSTER_ATTRIBUTES_TABLE, [CLUSTER_ID_COL])
-        for cluster_id in cluster_ids:
-            rows = manager.fetch_from_table(EMBEDDINGS_TABLE, [EMBEDDING_COL, FACE_ID_COL],
-                                            f'cluster_id = {cluster_id}')
-            print('hi')
-            break
-
-    @staticmethod
-    def sum_embeddings(embeddings):
-        return reduce(torch.add, embeddings)
 
 
 def cluster_embeddings(embeddings, classification_threshold, max_num_cluster_comps, existing_clusters=None,
@@ -267,7 +142,7 @@ def find_closest_cluster_to_embedding(clusters, embedding, return_dist=True):
     closest_cluster = None
     for cluster in clusters:
         embeddings = cluster.get_embeddings()
-        emb_dists = map(lambda cluster_emb: compute_dist(embedding, cluster_emb), embeddings)
+        emb_dists = map(lambda cluster_emb: Cluster.compute_dist(embedding, cluster_emb), embeddings)
         min_cluster_emb_dist = min(emb_dists)
         if min_cluster_emb_dist < shortest_emb_dist:
             shortest_emb_dist = min_cluster_emb_dist
@@ -319,10 +194,6 @@ def _rstrip_underscored_part(string):
     if underscore_ind != -1:
         return string[:underscore_ind]
     return string
-
-
-def compute_dist(embedding1, embedding2):
-    return float(torch.dist(embedding1, embedding2))
 
 
 def remove_directory_trees(dir_tree_paths):

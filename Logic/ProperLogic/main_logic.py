@@ -3,7 +3,7 @@ Program containing the main application logic.
 """
 
 from Logic.ProperLogic.commands import *
-from Logic.ProperLogic.database_logic import CENTRAL_DB_FILE, DBManager
+from Logic.ProperLogic.database_logic import DBManager
 from Logic.ProperLogic.input_output_logic import load_clusters_from_db
 from Logic.misc_helpers import clean_str, log_error, wait_for_any_input
 
@@ -26,8 +26,11 @@ TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
 
 def main(terminating_tokes, path_to_central_dir):
     initialize_commands(path_to_central_dir)
-    path_to_central_db = os.path.join(path_to_central_dir, CENTRAL_DB_FILE)
-    db_manager = DBManager(path_to_central_db)
+    path_to_central_db = os.path.join(path_to_central_dir, DBManager.central_db_file_path)
+    path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
+    db_manager = DBManager(path_to_central_db, path_to_local_db)
+    db_manager.create_tables(False)
+    db_manager.create_tables(True)
     clusters = load_clusters_from_db(db_manager)
 
     cmd_name = ''
@@ -41,7 +44,7 @@ def main(terminating_tokes, path_to_central_dir):
 
 def get_user_command():
     # TODO: make user choose command
-    command = 'add'  # _get_user_command_subfunc()
+    command = _get_user_command_subfunc()
     while command not in Command.commands.keys():
         log_error('Unknown command, please try again.')
         command = _get_user_command_subfunc()

@@ -2,12 +2,17 @@ import os
 
 import torchvision
 from PIL import Image
+from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
+from Logic.ProperLogic.models import Models
 from Logic.misc_helpers import log_error, clean_str, wait_for_any_input, get_nth_tuple_elem
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
+TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
+
+# INPUT_SIZE = [112, 112]
 
 
 class Command:
@@ -51,7 +56,7 @@ class Command:
 
     @classmethod
     def get_command_descriptions(cls):
-        return [(cmd.cmd_name, cmd.cmd_desc) for cmd in cls.commands]
+        return [(cmd.cmd_name, cmd.cmd_desc) for cmd in cls.commands.values()]
 
     @classmethod
     def remove_command(cls, cmd_name):
@@ -69,6 +74,9 @@ class Command:
             return None
         return cmd
 
+
+# TODO: This is just a mark
+# resnet(img_detected.unsqueeze(0))
 
 def initialize_commands(central_dir_path):
     # TODO: Finish!
@@ -96,8 +104,8 @@ def process_command(cmd):
     # elif command in 'find':
     #     ...
 
-    handler, params = cmd.handler, cmd.params
-    handler(*params)
+    handler, handler_params = cmd.handler, cmd.handler_params
+    handler(*handler_params)
 
 
 # ----- COMMAND PROCESSING -----
@@ -137,20 +145,73 @@ def add_embeddings_to_vector_space(embeddings):
 
 def user_choose_imgs():
     # TODO: Implement
-    path = user_choose_path()
+    # TODO: Make user choose path
+    path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
     extract_faces(path)
     face_embeddings_gen = load_img_tensors_from_dir(path)
     return face_embeddings_gen
 
 
 def user_choose_path():
-    # TODO: Implement
-    return IMG_PATH
+    path = input('Please enter a path with images of people you would like to add.\n')
+    while not os.path.exists(path):
+        log_error(f"Unable to find path '{path}'")
+        print("\nPlease try again.")
+        path = input('Please enter a path with images of people you would like to add.\n')
+    return path  # IMG_PATH
 
 
 def extract_faces(path):
-    # TODO: Implement
-    return 0
+    # TODO: Finish implementation(?)
+    # TODO: Implement DB interactions
+
+    faces = []
+    for img in load_imgs_from_path(path):
+        # img = TO_TENSOR(img).unsqueeze(0)
+        cur_faces = cut_out_faces(Models.mtcnn, img)
+        faces.extend(cur_faces)
+    return faces
+
+
+def cut_out_faces(mtcnn, img):
+    boxes, _ = mtcnn.detect(img)
+    image_size, mtcnn_margin = mtcnn.image_size, mtcnn.margin
+    faces = []
+    for box in boxes:
+        margin = [
+            mtcnn_margin * (box[2] - box[0]) / (image_size - mtcnn_margin),
+            mtcnn_margin * (box[3] - box[1]) / (image_size - mtcnn_margin),
+        ]
+        raw_image_size = get_size(img)
+        box = [
+            int(max(box[0] - margin[0] / 2, 0)),
+            int(max(box[1] - margin[1] / 2, 0)),
+            int(min(box[2] + margin[0] / 2, raw_image_size[0])),
+            int(min(box[3] + margin[1] / 2, raw_image_size[1])),
+        ]
+
+        face = crop_resize(img, box, image_size)
+        faces.append(face)
+    return faces
+
+
+def load_imgs_from_path(dir_path, output_file_name=False):
+    """
+    Yield all images in the given directory.
+    If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
+    in the set will be returned.
+
+    :param output_file_name: Whether the tensor should be yielded together with the corresponding file name
+    :param dir_path: Directory containing images
+    :return: Yield(!) tuples of image_names and PIL images contained in this folder
+    """
+    # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}. Empty = no
+    # filtering
+    # TODO: Finish implementing (what's missing?)
+    params_pick_func = (lambda name, img: (name, img)) if output_file_name else (lambda name, img: img)
+    for img_name in get_img_names(dir_path):
+        with Image.open(os.path.join(dir_path, img_name)) as img:
+            yield params_pick_func(img_name, img)
 
 
 def load_img_tensors_from_dir(dir_path, output_file_name=False):
@@ -182,10 +243,16 @@ def _to_tensor(img):
 
 
 def get_img_names(dir_path):
+    """
+    Yield all image file paths in dir_path (no extension filtering currently happening).
+    """
     # TODO: Finish implementing
     # TODO: Implement recursive option?
     # TODO: Implement extension filtering?
-    return list(filter(lambda name: os.path.isfile(name), os.listdir(dir_path)))
+    for obj_name in os.listdir(dir_path):
+        obj_path = os.path.join(dir_path, obj_name)
+        if os.path.isfile(obj_path):
+            yield obj_path
 
 
 def _output_cluster_content(cluster_name, cluster_path):

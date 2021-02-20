@@ -44,7 +44,7 @@ def main(terminating_tokes, path_to_central_dir):
 
 def get_user_command():
     # TODO: make user choose command
-    command = _get_user_command_subfunc()
+    command = 'add'  # _get_user_command_subfunc()
     while command not in Command.commands.keys():
         log_error('Unknown command, please try again.')
         command = _get_user_command_subfunc()
@@ -52,7 +52,7 @@ def get_user_command():
 
 
 def _get_user_command_subfunc():
-    wait_for_any_input('What would you like to do next?')
+    wait_for_any_input('What would you like to do next? (Press any key to continue).')
     print_command_options()
     return clean_str(input())
 

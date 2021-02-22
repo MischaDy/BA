@@ -1,4 +1,5 @@
 import os
+from functools import partial
 
 import torchvision
 from PIL import Image
@@ -167,13 +168,18 @@ def extract_faces(path):
 
     faces = []
     for img in load_imgs_from_path(path):
-        # img = TO_TENSOR(img).unsqueeze(0)
         cur_faces = cut_out_faces(Models.mtcnn, img)
+
         faces.extend(cur_faces)
     return faces
 
 
 def cut_out_faces(mtcnn, img):
+    """
+    NOTE: This part is copied from the extract_face function in facenet_pytorch/models/utils/detect_face.py,
+    since this particular functionality is only provided for saving, not returning the face pictures.
+    """
+    # TODO: Use a file buffer or something like that to save from the original function instead of doing this??
     boxes, _ = mtcnn.detect(img)
     image_size, mtcnn_margin = mtcnn.image_size, mtcnn.margin
     faces = []
@@ -195,23 +201,40 @@ def cut_out_faces(mtcnn, img):
     return faces
 
 
-def load_imgs_from_path(dir_path, output_file_name=False):
+def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=False):
     """
     Yield all images in the given directory.
     If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
     in the set will be returned.
 
-    :param output_file_name: Whether the tensor should be yielded together with the corresponding file name
+    :param output_file_names: Whether the tensor should be yielded together with the corresponding file name
     :param dir_path: Directory containing images
     :return: Yield(!) tuples of image_names and PIL images contained in this folder
     """
     # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}. Empty = no
     # filtering
     # TODO: Finish implementing (what's missing?)
-    params_pick_func = (lambda name, img: (name, img)) if output_file_name else (lambda name, img: img)
+    # TODO: More pythonic way to select function based on condition??
+    if output_file_paths and output_file_names:
+        log_error('At most one of output_file_paths and output_file_names should be True. Using output_file_paths.')
+
+    indices = []
+    if output_file_paths:
+        indices.append(0)
+    elif output_file_names:
+        indices.append(1)
+    indices.append(2)
+    output_format_func = partial(choose_args, indices)
     for img_name in get_img_names(dir_path):
-        with Image.open(os.path.join(dir_path, img_name)) as img:
-            yield params_pick_func(img_name, img)
+        img_path = os.path.join(dir_path, img_name)
+        with Image.open(img_path) as img:
+            yield output_format_func(img_path, img_name, img)
+
+
+def choose_args(indices, *args):
+    # TODO: Use kwargs instead?
+    # TODO: Use operator.itemgetter?
+    return [arg for i, arg in enumerate(args) if i in indices]
 
 
 def load_img_tensors_from_dir(dir_path, output_file_name=False):

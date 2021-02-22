@@ -4,8 +4,8 @@ import torchvision
 from PIL import Image
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
-from Logic.ProperLogic.models import Models
-from Logic.misc_helpers import log_error, clean_str, wait_for_any_input, get_nth_tuple_elem
+from models import Models
+from misc_helpers import log_error, clean_str, wait_for_any_input, get_nth_tuple_elem
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 

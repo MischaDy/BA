@@ -1,5 +1,5 @@
 from Logic.ProperLogic.database_logic import *
-from Logic.misc_helpers import log_error
+from Logic.ProperLogic.misc_helpers import log_error
 # from input_output_logic import *
 import torch
 

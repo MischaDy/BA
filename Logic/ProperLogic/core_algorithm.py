@@ -1,7 +1,7 @@
 import shutil
 
 from Logic.ProperLogic.database_logic import DBManager
-from Logic.misc_helpers import log_error
+from Logic.ProperLogic.misc_helpers import log_error
 from input_output_logic import *
 
 from itertools import count

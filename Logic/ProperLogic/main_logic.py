@@ -2,10 +2,10 @@
 Program containing the main application logic.
 """
 
-from Logic.ProperLogic.commands import *
-from Logic.ProperLogic.database_logic import DBManager
-from Logic.ProperLogic.input_output_logic import load_clusters_from_db
-from Logic.misc_helpers import clean_str, log_error, wait_for_any_input
+from commands import *
+from database_logic import DBManager
+from input_output_logic import load_clusters_from_db
+from misc_helpers import clean_str, log_error, wait_for_any_input
 
 TENSORS_PATH = 'Logic/ProperLogic/stored_embeddings'
 CLUSTERS_PATH = 'stored_clusters'

@@ -7,7 +7,7 @@ import torch
 from PIL import Image
 import io
 
-from Logic.misc_helpers import clean_str
+from Logic.ProperLogic.misc_helpers import clean_str
 
 # TODO: *Global* face_id - created in central table, then written to corresponding local table
 # TODO: Foreign keys despite separate db files???

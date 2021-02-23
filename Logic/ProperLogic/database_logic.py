@@ -1,4 +1,4 @@
-# Credit: https://sebastianraschka.com/Articles/2014_sqlite_in_python_tutorial.html
+# Credits: https://sebastianraschka.com/Articles/2014_sqlite_in_python_tutorial.html
 import os
 import sqlite3
 import time
@@ -20,6 +20,7 @@ from Logic.ProperLogic.misc_helpers import clean_str
 # TODO: Use SQLAlchemy?
 
 # TODO: Append semi-colons everywhere?
+# TODO: FK faces -> embeddings other way around? Or remove completely?
 
 
 """
@@ -142,12 +143,12 @@ CENTRAL_TABLES = {EMBEDDINGS_TABLE, CLUSTER_ATTRIBUTES_TABLE}
 # TODO: Make singleton object?
 class DBManager:
     db_files_path = 'database'
-    central_db_file_path = 'central_db.sqlite'
+    central_db_file_name = 'central_db.sqlite'
+    central_db_file_path = os.path.join(db_files_path, central_db_file_name)
     local_db_file_name = 'local_db.sqlite'
     central_db_connection = None
 
-    def __init__(self, path_to_central_db, path_to_local_db=None):
-        self.path_to_central_db = path_to_central_db
+    def __init__(self, path_to_local_db=None):
         self.path_to_local_db = path_to_local_db
         self.local_db_connection = None
 
@@ -165,7 +166,7 @@ class DBManager:
             self.local_db_connection = sqlite3.connect(path_to_local_db)
             cur = self.local_db_connection.cursor()
         else:
-            self.central_db_connection = sqlite3.connect(self.path_to_central_db)
+            self.central_db_connection = sqlite3.connect(DBManager.central_db_file_path)
             cur = self.central_db_connection.cursor()
         return cur
 
@@ -309,6 +310,22 @@ class DBManager:
         except ...:
             pass
 
+    def aggregate_col(self, table, col, func, path_to_local_db=None):
+        # TODO: Simplify signature? (pointer in Column class to parent table)
+        aggregate_from_local = DBManager.is_local_table(table)
+        cur = self.open_connection(aggregate_from_local, path_to_local_db)
+        agg_value = cur.execute(
+            f"SELECT {func}(SELECT {col.col_name} FROM {table.name});"
+        ).fetchone()
+        self.commit_and_close_connection(aggregate_from_local)
+        return agg_value
+
+    @classmethod
+    def get_db_path(cls, path, local=True):
+        if local:
+            return os.path.join(path, cls.local_db_file_name)
+        return cls.central_db_file_name
+
     @staticmethod
     def _make_values_template(length, char_to_join='?', sep=','):
         chars_to_join = length * char_to_join if len(char_to_join) == 1 else char_to_join
@@ -438,10 +455,9 @@ class DBManager:
 
 
 if __name__ == '__main__':
-    path_to_central_db = os.path.join(DBManager.db_files_path, DBManager.central_db_file_path)
     path_to_local_db = os.path.join(DBManager.db_files_path, DBManager.local_db_file_name)
 
-    manager = DBManager(path_to_central_db, path_to_local_db)
+    manager = DBManager(path_to_local_db)
     manager.create_tables(True)
     manager.create_tables(False)
 

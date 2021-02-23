@@ -122,7 +122,7 @@ class Cluster:
     @classmethod
     def from_db(cls):
         # TODO: Finish implementation
-        manager = DBManager(DBManager.central_db_file_path, DBManager.local_db_file_name)
+        manager = DBManager(DBManager.central_db_file_name, DBManager.local_db_file_name)
         clusters = []
         cluster_ids = manager.fetch_from_table(CLUSTER_ATTRIBUTES_TABLE, [CLUSTER_ID_COL])
         for cluster_id in cluster_ids:

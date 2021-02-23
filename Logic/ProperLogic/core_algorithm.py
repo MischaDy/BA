@@ -11,7 +11,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 # TODO: Handle situation without global variables
-PATH_TO_CENTRAL_DB = os.path.join(DBManager.db_files_path, DBManager.central_db_file_path)
+PATH_TO_CENTRAL_DB = os.path.join(DBManager.db_files_path, DBManager.central_db_file_name)
 PATH_TO_LOCAL_DB = os.path.join(DBManager.db_files_path, DBManager.local_db_file_name)
 
 

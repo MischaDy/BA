@@ -1,3 +1,4 @@
+import datetime
 import os
 from functools import partial
 
@@ -5,6 +6,7 @@ import torchvision
 from PIL import Image
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
+from Logic.ProperLogic.database_logic import *
 from models import Models
 from misc_helpers import log_error, clean_str, wait_for_any_input, get_nth_tuple_elem
 
@@ -162,15 +164,31 @@ def user_choose_path():
     return path  # IMG_PATH
 
 
-def extract_faces(path):
+def extract_faces(path, db_manager: DBManager):
     # TODO: Finish implementation(?)
     # TODO: Implement DB interactions
+    # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth like that)
+    # TODO: Store + update max_img_id and max_face_id somewhere?
+    # TODO: Acting on centralized tables necessary here?
+    # TODO: Outsource db interactions to input-output logic?
+
+    path_to_local_db = DBManager.get_db_path(path, local=True)
+    max_img_id = db_manager.aggregate_col(table=IMAGES_TABLE, col=IMAGES_TABLE['img_id'], func='MAX',
+                                          path_to_local_db=path_to_local_db)
+    max_face_id = db_manager.aggregate_col(table=EMBEDDINGS_TABLE, col=EMBEDDINGS_TABLE['face_id'], func='MAX')
 
     faces = []
-    for img in load_imgs_from_path(path):
-        cur_faces = cut_out_faces(Models.mtcnn, img)
+    img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
+    for img_id, (img_path, img_name, img) in enumerate(img_loader, start=max_img_id+1):
+        img_faces = cut_out_faces(Models.mtcnn, img)
+        faces.extend(img_faces)
+        last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
+        img_row = (img_name, last_modified, img_id)
+        db_manager.store_in_table(IMAGES_TABLE.name, [img_row], path_to_local_db)
+        faces_rows = [(face, img_id, face_id)
+                      for face_id, face in enumerate(img_faces, start=max_face_id+1)]
+        db_manager.store_in_table(FACES_TABLE.name, faces_rows, path_to_local_db)
 
-        faces.extend(cur_faces)
     return faces
 
 
@@ -208,6 +226,7 @@ def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=Fal
     in the set will be returned.
 
     :param output_file_names: Whether the tensor should be yielded together with the corresponding file name
+    :param output_file_paths: Whether the tensor should be yielded together with the corresponding file path
     :param dir_path: Directory containing images
     :return: Yield(!) tuples of image_names and PIL images contained in this folder
     """
@@ -215,13 +234,10 @@ def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=Fal
     # filtering
     # TODO: Finish implementing (what's missing?)
     # TODO: More pythonic way to select function based on condition??
-    if output_file_paths and output_file_names:
-        log_error('At most one of output_file_paths and output_file_names should be True. Using output_file_paths.')
-
     indices = []
     if output_file_paths:
         indices.append(0)
-    elif output_file_names:
+    if output_file_names:
         indices.append(1)
     indices.append(2)
     output_format_func = partial(choose_args, indices)

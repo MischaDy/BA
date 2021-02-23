@@ -26,7 +26,7 @@ TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
 
 def main(terminating_tokes, path_to_central_dir):
     initialize_commands(path_to_central_dir)
-    path_to_central_db = os.path.join(path_to_central_dir, DBManager.central_db_file_path)
+    path_to_central_db = os.path.join(path_to_central_dir, DBManager.central_db_file_name)
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
     db_manager = DBManager(path_to_central_db, path_to_local_db)
     db_manager.create_tables(False)

@@ -21,6 +21,7 @@ from Logic.ProperLogic.misc_helpers import clean_str
 
 # TODO: Append semi-colons everywhere?
 # TODO: FK faces -> embeddings other way around? Or remove completely?
+# TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names??
 
 
 """
@@ -139,6 +140,7 @@ CENTRAL_TABLES = {EMBEDDINGS_TABLE, CLUSTER_ATTRIBUTES_TABLE}
 
 # TODO: Guarantee that connection is closed at end of methods
 #       --> Using try (/ except) / finally??
+
 
 # TODO: Make singleton object?
 class DBManager:

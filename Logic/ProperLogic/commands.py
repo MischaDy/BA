@@ -1,11 +1,11 @@
 import datetime
-import os
 from functools import partial
 
 import torchvision
-from PIL import Image
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
+from Logic.ProperLogic.core_algorithm import cluster_embeddings, CLASSIFICATION_THRESHOLD, MAX_NUM_CLUSTER_COMPS, \
+    MAX_CLUSTER_SIZE
 from Logic.ProperLogic.database_logic import *
 from models import Models
 from misc_helpers import log_error, clean_str, wait_for_any_input, get_nth_tuple_elem
@@ -81,11 +81,11 @@ class Command:
 # TODO: This is just a mark
 # resnet(img_detected.unsqueeze(0))
 
-def initialize_commands(central_dir_path):
+def initialize_commands(db_manager, clusters):
     # TODO: Finish!
     # TODO: Add params
     cmd_list = [
-        ('add', 'select new faces', handler_add_new_embeddings, []),
+        ('add', 'select new faces', handler_add_new_embeddings, [db_manager, clusters]),
         ('edit', 'edit existing faces', None, []),
         ('find', 'find individual', None, []),
         ('reclassify', 'reclassify individuals', None, []),
@@ -96,6 +96,8 @@ def initialize_commands(central_dir_path):
 
 
 def process_command(cmd):
+    # TODO: Add additional params in signature to pass to handler??
+    #       --> Check out Software Design Patterns??
     # TODO: complete function(?)
     # if command in 'add':  # select new faces
     #     # TODO: complete section
@@ -108,7 +110,8 @@ def process_command(cmd):
     #     ...
 
     handler, handler_params = cmd.handler, cmd.handler_params
-    handler(*handler_params)
+    output = handler(*handler_params)
+    return output
 
 
 # ----- COMMAND PROCESSING -----
@@ -123,36 +126,34 @@ def handler_show_cluster(clusters_path):
         should_continue = clean_str(input('Choose another cluster?\n'))
 
 
-def handler_add_new_embeddings():
+def handler_add_new_embeddings(db_manager, clusters):
     """
     1. User selects new images to extract faces out of
-    2. Extract faces
-    3. Store embeddings in vector space
-
-
+    2. Extract faces and store in DB
+    3. Compute embeddings and store in DB
     """
+    # TODO: Finish implementing
+    # TODO: Make sure DB is filled correctly after this executes
     # Img Selection + Face Extraction
-    face_embeddings_gen = user_choose_imgs()
-    add_embeddings_to_vector_space(face_embeddings_gen)
+    faces = user_choose_imgs(db_manager)
+    embeddings = list(faces_to_embeddings(faces))
+    clusters = cluster_embeddings(embeddings, CLASSIFICATION_THRESHOLD, MAX_NUM_CLUSTER_COMPS,
+                                  existing_clusters=clusters, max_cluster_size=MAX_CLUSTER_SIZE)
+    return clusters
 
 
-def add_embeddings_to_vector_space(embeddings):
-    """
-
-    :param embeddings: An iterable containing the embeddings
-    :return:
-    """
-    # TODO: Needed? What does this do, exactly??
-    pass
-
-
-def user_choose_imgs():
+def faces_to_embeddings(faces):
     # TODO: Implement
+    for face in faces:
+        yield Models.resnet(face.unsqueeze(0))
+
+
+def user_choose_imgs(db_manager):
+    # TODO: Finish implementing
     # TODO: Make user choose path
     path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
-    extract_faces(path)
-    face_embeddings_gen = load_img_tensors_from_dir(path)
-    return face_embeddings_gen
+    faces = extract_faces(path, db_manager)
+    return faces
 
 
 def user_choose_path():
@@ -171,6 +172,7 @@ def extract_faces(path, db_manager: DBManager):
     # TODO: Store + update max_img_id and max_face_id somewhere?
     # TODO: Acting on centralized tables necessary here?
     # TODO: Outsource db interactions to input-output logic?
+    # TODO: What does max return as a default value???
 
     path_to_local_db = DBManager.get_db_path(path, local=True)
     max_img_id = db_manager.aggregate_col(table=IMAGES_TABLE, col=IMAGES_TABLE['img_id'], func='MAX',
@@ -187,6 +189,7 @@ def extract_faces(path, db_manager: DBManager):
         db_manager.store_in_table(IMAGES_TABLE.name, [img_row], path_to_local_db)
         faces_rows = [(face, img_id, face_id)
                       for face_id, face in enumerate(img_faces, start=max_face_id+1)]
+        max_face_id += len(img_faces)
         db_manager.store_in_table(FACES_TABLE.name, faces_rows, path_to_local_db)
 
     return faces

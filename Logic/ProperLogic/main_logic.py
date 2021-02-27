@@ -25,19 +25,19 @@ TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
 
 
 def main(terminating_tokes, path_to_central_dir):
-    initialize_commands(path_to_central_dir)
-    path_to_central_db = os.path.join(path_to_central_dir, DBManager.central_db_file_name)
+    # TODO: Handle output of commands!
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
-    db_manager = DBManager(path_to_central_db, path_to_local_db)
+    db_manager = DBManager(path_to_local_db)
     db_manager.create_tables(False)
     db_manager.create_tables(True)
     clusters = load_clusters_from_db(db_manager)
+    initialize_commands(db_manager, clusters)
 
     cmd_name = ''
     while cmd_name not in terminating_tokes:
         cmd_name = get_user_command()
         cmd = Command.get_command(cmd_name)
-        process_command(cmd)
+        output = process_command(cmd)
 
 
 # ----- I/O -----

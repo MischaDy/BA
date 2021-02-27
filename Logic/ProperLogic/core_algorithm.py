@@ -32,6 +32,9 @@ EMBEDDINGS_PATH = 'stored_embeddings'
 # TODO: remove
 _NUM_EMBEDDINGS_TO_CLASSIFY = 100
 
+# TODO: Turn this into class?
+#       --> Easier calls for other modules, no need to access globals separately
+#       --> Stored clusters can be accessed directly(! No extra DB call necessary)
 
 # TODO: Add proper comments!
 # TODO: Make embedding id 'proper' id?? ---> Also in input_output_logic!

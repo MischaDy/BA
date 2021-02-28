@@ -52,6 +52,9 @@ class TableSchema:
     def __getitem__(self, item):
         return self.columns[item]
 
+    def __str__(self):
+        return self.name
+
     def get_columns(self):
         return self.get_column_dict().values()
 
@@ -62,81 +65,82 @@ class TableSchema:
         return self.columns
 
 
-class Column:
+class ColumnSchema:
     def __init__(self, col_name, col_type, col_constraint=''):
         self.col_name = col_name
         self.col_type = col_type
         self.col_constraint = col_constraint
 
+    def __str__(self):
+        return self.col_name
 
-# images table
-__image_id_col = Column('image_id', 'INT', 'UNIQUE NOT NULL')
-__file_name_col = Column('file_name', 'TEXT', 'NOT NULL')
-__last_modified_col = Column('last_modified', 'INT', 'NOT NULL')
-IMAGES_TABLE = TableSchema(
-    'images',
-    [__image_id_col,  # also used by faces table
-     __file_name_col,
-     __last_modified_col
-     ],
-    [f'PRIMARY KEY ({__image_id_col.col_name})'
-     ]
-)
-del __image_id_col, __file_name_col, __last_modified_col
-
-# faces table
-__face_id_col = Column('face_id', 'INT', 'UNIQUE NOT NULL')
-__image_id_col = Column('image_id', 'INT', 'NOT NULL')
-__thumbnail_col = Column('thumbnail', 'BLOB')
-FACES_TABLE = TableSchema(
-    'faces',
-    [__face_id_col,  # also used by embeddings table
-     __image_id_col,
-     __thumbnail_col
-     ],
-    [f'PRIMARY KEY ({__face_id_col.col_name})',
-     f'FOREIGN KEY ({__image_id_col.col_name}) REFERENCES {IMAGES_TABLE.name} ({__image_id_col.col_name})'
-     + ' ON DELETE CASCADE'
-     ]
-)
-del __face_id_col, __image_id_col, __thumbnail_col
-
-LOCAL_TABLES = {IMAGES_TABLE, FACES_TABLE}
+    def with_constraint(self, col_constraint):
+        return ColumnSchema(self.col_name, self.col_type, col_constraint)
 
 
-# cluster attributes table
-__cluster_id_col = Column('cluster_id', 'INT', 'NOT NULL')
-__label_col = Column('label', 'TEXT')
-__center_col = Column('center', 'BLOB')
-CLUSTER_ATTRIBUTES_TABLE = TableSchema(
-    'cluster_attributes',
-    [__cluster_id_col,  # also used by cluster attributes table
-     __label_col,
-     __center_col
-     ],
-    [f'PRIMARY KEY ({__cluster_id_col.col_name})']
-)
-del __cluster_id_col, __label_col, __center_col
+class Columns:
+    center_col = ColumnSchema('center', 'BLOB')
+    cluster_id_col = ColumnSchema('cluster_id', 'INT')
+    embedding_col = ColumnSchema('embedding', 'BLOB')
+    face_id_col = ColumnSchema('face_id', 'INT')
+    file_name_col = ColumnSchema('file_name', 'TEXT')
+    image_id_col = ColumnSchema('image_id', 'INT')
+    label_col = ColumnSchema('label', 'TEXT')
+    last_modified_col = ColumnSchema('last_modified', 'INT')
+    thumbnail_col = ColumnSchema('thumbnail', 'BLOB')
 
-# embeddings table
-__cluster_id_col = Column('cluster_id', 'INT', 'NOT NULL')
-__face_id_col = Column('face_id', 'INT', 'UNIQUE NOT NULL')
-__embedding_col = Column('embedding', 'BLOB', 'NOT NULL')
-EMBEDDINGS_TABLE = TableSchema(
-    'embeddings',
-    [__cluster_id_col,  # also used by cluster attributes table
-     __face_id_col,  # also used by embeddings table
-     __embedding_col
-     ],
-    [f'PRIMARY KEY ({__face_id_col.col_name})',
-     f'FOREIGN KEY ({__cluster_id_col.col_name}) REFERENCES {CLUSTER_ATTRIBUTES_TABLE.name} ({__cluster_id_col.col_name})'
-     + ' ON DELETE CASCADE'
-     ]
-)
-del __cluster_id_col, __face_id_col, __embedding_col
 
-CENTRAL_TABLES = {EMBEDDINGS_TABLE, CLUSTER_ATTRIBUTES_TABLE}
+class Tables:
+    images_table = TableSchema(
+        'images',
+        [Columns.image_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by faces table
+         Columns.file_name_col.with_constraint('NOT NULL'),
+         Columns.last_modified_col.with_constraint('NOT NULL')
+         ],
+        [f'PRIMARY KEY ({Columns.image_id_col})'
+         ]
+    )
 
+    faces_table = TableSchema(
+        'faces',
+        [Columns.face_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
+         Columns.image_id_col.with_constraint('NOT NULL'),
+         Columns.thumbnail_col.with_constraint('BLOB')
+         ],
+        [f'PRIMARY KEY ({Columns.face_id_col})',
+         f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {images_table} ({Columns.image_id_col})'
+         + ' ON DELETE CASCADE'
+         ]
+    )
+
+    local_tables = {images_table, faces_table}
+
+    cluster_attributes_table = TableSchema(
+        'cluster_attributes',
+        [Columns.cluster_id_col.with_constraint('NOT NULL'),  # also used by cluster attributes table
+         Columns.label_col,
+         Columns.center_col
+         ],
+        [f'PRIMARY KEY ({Columns.cluster_id_col})']
+    )
+
+    embeddings_table = TableSchema(
+        'embeddings',
+        [Columns.cluster_id_col.with_constraint('NOT NULL'),  # also used by cluster attributes table
+         Columns.face_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
+         Columns.embedding_col.with_constraint('NOT NULL')
+         ],
+        [f'PRIMARY KEY ({Columns.face_id_col})',
+         f'FOREIGN KEY ({Columns.cluster_id_col}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id_col})'
+         + ' ON DELETE CASCADE'
+         ]
+    )
+
+    central_tables = {embeddings_table, cluster_attributes_table}
+
+    @staticmethod
+    def is_local_table(table):
+        return table in Tables.local_tables
 
 # TODO: Guarantee that connection is closed at end of methods
 #       --> Using try (/ except) / finally??
@@ -194,25 +198,25 @@ class DBManager:
         cur.execute('PRAGMA foreign_keys = ON')
 
         # create images table
-        cur.execute(cls.__table_to_creating_sql(IMAGES_TABLE))
+        cur.execute(cls.__table_to_creating_sql(Tables.images_table))
         # cur.execute(
-        #     f"CREATE TABLE IF NOT EXISTS {IMAGES_TABLE.name} ("
-        #     f"{IMAGES_TABLE['image_id'].col_name} {IMAGES_TABLE['image_id'].col_type} UNIQUE NOT NULL, "
-        #     f"{IMAGES_TABLE['file_name'].col_name} {IMAGES_TABLE['file_name'].col_type} NOT NULL, "
-        #     f"{LAST_MODIFIED_COL[0]} {LAST_MODIFIED_COL[1]} NOT NULL, "
-        #     f"PRIMARY KEY ({IMAGE_ID_COL[0]})"
+        #     f"CREATE TABLE IF NOT EXISTS {Tables.images_table} ("
+        #     f"{Columns.image_id_col} {Columns.image_id_col.col_type} UNIQUE NOT NULL, "
+        #     f"{Columns.file_name_col} {Columns.file_name_col.col_type} NOT NULL, "
+        #     f"{Columns.last_modified_col} {Columns.last_modified_col.col_type} NOT NULL, "
+        #     f"PRIMARY KEY ({Columns.image_id_col})"
         #     ")"
         # )
 
         # create faces table
-        cur.execute(cls.__table_to_creating_sql(FACES_TABLE))
+        cur.execute(cls.__table_to_creating_sql(Tables.faces_table))
         # cur.execute(
-        #     f"CREATE TABLE IF NOT EXISTS {FACES_TABLE.name} ("
-        #     f"{FACE_ID_COL[0]} {FACE_ID_COL[1]} UNIQUE NOT NULL, "
-        #     f"{IMAGE_ID_COL[0]} {IMAGE_ID_COL[1]} NOT NULL, "
-        #     f"{THUMBNAIL_COL[0]} {THUMBNAIL_COL[1]}, "
-        #     f"PRIMARY KEY ({FACE_ID_COL[0]})"
-        #     f"FOREIGN KEY ({IMAGE_ID_COL[0]}) REFERENCES {IMAGES_TABLE.name} ({IMAGE_ID_COL[0]})"
+        #     f"CREATE TABLE IF NOT EXISTS {Tables.faces_table} ("
+        #     f"{Columns.face_id_col} {Columns.face_id_col.col_type} UNIQUE NOT NULL, "
+        #     f"{Columns.image_id_col} {Columns.image_id_col.col_type} NOT NULL, "
+        #     f"{Columns.thumbnail_col} {Columns.thumbnail_col.col_type}, "
+        #     f"PRIMARY KEY ({Columns.face_id_col})"
+        #     f"FOREIGN KEY ({Columns.image_id_col}) REFERENCES {Tables.images_table} ({Columns.image_id_col})"
         #     " ON DELETE CASCADE"
         #     ")"
         # )
@@ -221,7 +225,7 @@ class DBManager:
     def __table_to_creating_sql(table):
         constraints_sql = ", ".join(table.constraints)
         creating_sql = (
-            f"CREATE TABLE IF NOT EXISTS {table.name} ("
+            f"CREATE TABLE IF NOT EXISTS {table} ("
             + ", ".join(f"{col.col_name} {col.col_type} {col.col_constraint}" for col in table.get_columns())
             + (", " if constraints_sql else "")
             + constraints_sql
@@ -235,45 +239,45 @@ class DBManager:
         cur.execute('PRAGMA foreign_keys = ON;')
 
         # create embeddings table
-        cur.execute(cls.__table_to_creating_sql(EMBEDDINGS_TABLE))
-        # cur.execute(f'CREATE TABLE IF NOT EXISTS {EMBEDDINGS_TABLE.name} ('
-        #             f'{CLUSTER_ID_COL[0]} {CLUSTER_ID_COL[1]} NOT NULL, '
-        #             f'{FACE_ID_COL[0]} {FACE_ID_COL[1]} UNIQUE NOT NULL, '
-        #             f'{EMBEDDING_COL[0]} {EMBEDDING_COL[1]} NOT NULL, '
-        #             f'PRIMARY KEY ({FACE_ID_COL[0]}), '
-        #             f'FOREIGN KEY ({CLUSTER_ID_COL[0]}) REFERENCES {CLUSTER_ATTRIBUTES_TABLE.name} ({CLUSTER_ID_COL[0]})'
+        cur.execute(cls.__table_to_creating_sql(Tables.embeddings_table))
+        # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
+        #             f'{Columns.cluster_id_col} {Columns.cluster_id_col.col_type} NOT NULL, '
+        #             f'{Columns.face_id_col} {Columns.face_id_col.col_type} UNIQUE NOT NULL, '
+        #             f'{Columns.embedding_col} {Columns.embedding_col.col_type} NOT NULL, '
+        #             f'PRIMARY KEY ({Columns.face_id_col}), '
+        #             f'FOREIGN KEY ({Columns.cluster_id_col}) REFERENCES {Tables.cluster_attributes_table} ({Columns.cluster_id_col})'
         #             ' ON DELETE CASCADE'
         #             ')')
 
         # create cluster attributes table
-        cur.execute(cls.__table_to_creating_sql(CLUSTER_ATTRIBUTES_TABLE))
-        # cur.execute(f'CREATE TABLE IF NOT EXISTS {CLUSTER_ATTRIBUTES_TABLE.name} ('
-        #             f'{CLUSTER_ID_COL[0]} {CLUSTER_ID_COL[1]} NOT NULL, '
-        #             f'{LABEL_COL[0]} {LABEL_COL[1]}, '
-        #             f'{CENTER_COL[0]} {CENTER_COL[1]}, '
-        #             f'PRIMARY KEY ({CLUSTER_ID_COL[0]})'
+        cur.execute(cls.__table_to_creating_sql(Tables.cluster_attributes_table))
+        # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
+        #             f'{Columns.cluster_id_col} {Columns.cluster_id_col.col_type} NOT NULL, '
+        #             f'{Columns.label_col} {Columns.label_col.col_type}, '
+        #             f'{Columns.center_col} {Columns.center_col.col_type}, '
+        #             f'PRIMARY KEY ({Columns.cluster_id_col})'
         #             ')')
 
     @staticmethod
     def _drop_tables(cur, drop_local=True):
-        tables = LOCAL_TABLES if drop_local else CENTRAL_TABLES
+        tables = Tables.local_tables if drop_local else Tables.central_tables
         for table in tables:
-            cur.execute(f'DROP TABLE IF EXISTS {table.name};')
+            cur.execute(f'DROP TABLE IF EXISTS {table};')
 
-    def store_in_table(self, table_name, rows, path_to_local_db=None):
-        store_in_local = self.is_local_table(table_name)
+    def store_in_table(self, table, rows, path_to_local_db=None):
+        store_in_local = Tables.is_local_table(table)
         cur = self.open_connection(store_in_local, path_to_local_db)
         # cur.execute(f'INSERT INTO {table_name} VALUES ?',
         #             rows)
         values_template = self._make_values_template(len(rows[0]))
-        cur.executemany(f'INSERT INTO {table_name} VALUES {values_template};', rows)
+        cur.executemany(f'INSERT INTO {table} VALUES {values_template};', rows)
         self.commit_and_close_connection(store_in_local)
 
     def fetch_from_table(self, table_name, path_to_local_db=None, cols=None, cond=''):
         if cols is None:
             cols = ['*']
         cond_str = '' if len(cond) == 0 else f'WHERE {cond}'
-        fetch_from_local = self.is_local_table(table_name)
+        fetch_from_local = Tables.is_local_table(table_name)
         cur = self.open_connection(fetch_from_local, path_to_local_db)
         cols_template = ','.join(cols)
         result = cur.execute(f'SELECT {cols_template} FROM {table_name} {cond_str}').fetchall()
@@ -283,11 +287,11 @@ class DBManager:
     def get_cluster_parts(self):
         cur = self.open_connection(open_local=False)
         cluster_parts = cur.execute(
-            f"SELECT {EMBEDDINGS_TABLE['cluster_id'].col_name}, {CLUSTER_ATTRIBUTES_TABLE['label'].col_name},"
-            f" {CLUSTER_ATTRIBUTES_TABLE['center'].col_name}, {EMBEDDINGS_TABLE['embedding'].col_name}, "
-            f"{EMBEDDINGS_TABLE['face_id'].col_name}"
-            f" FROM {EMBEDDINGS_TABLE.name} INNER JOIN {CLUSTER_ATTRIBUTES_TABLE.name}"
-            f" USING ({EMBEDDINGS_TABLE['cluster_id'].col_name});"
+            f"SELECT {Columns.cluster_id_col}, {Columns.label_col},"
+            f" {Columns.center_col}, {Columns.embedding_col}, "
+            f"{Columns.face_id_col}"
+            f" FROM {Tables.embeddings_table} INNER JOIN {Tables.cluster_attributes_table}"
+            f" USING ({Columns.cluster_id_col});"
         ).fetchall()
         self.commit_and_close_connection(close_local=False)
         return cluster_parts
@@ -314,10 +318,10 @@ class DBManager:
 
     def aggregate_col(self, table, col, func, path_to_local_db=None):
         # TODO: Simplify signature? (pointer in Column class to parent table)
-        aggregate_from_local = DBManager.is_local_table(table)
+        aggregate_from_local = Tables.is_local_table(table)
         cur = self.open_connection(aggregate_from_local, path_to_local_db)
         agg_value = cur.execute(
-            f"SELECT {func}(SELECT {col.col_name} FROM {table.name});"
+            f"SELECT {func}(SELECT {col} FROM {table});"
         ).fetchone()
         self.commit_and_close_connection(aggregate_from_local)
         return agg_value
@@ -332,10 +336,6 @@ class DBManager:
     def _make_values_template(length, char_to_join='?', sep=','):
         chars_to_join = length * char_to_join if len(char_to_join) == 1 else char_to_join
         return sep.join(chars_to_join)
-
-    @staticmethod
-    def is_local_table(table_name):
-        return table_name in LOCAL_TABLES
 
     @staticmethod
     def data_to_bytes(data):
@@ -378,7 +378,7 @@ class DBManager:
     #
     #     # populate images table
     #     store_in_images_table(c, [f'(1, "apple sauce", {round(time.time())})'])
-    #     # c.execute(f'INSERT INTO {IMAGES_TABLE} VALUES (1, "apple sauce", ?)',
+    #     # c.execute(f'INSERT INTO {Tables.images_table} VALUES (1, "apple sauce", ?)',
     #     #           [round(time.time())])
     #
     #
@@ -390,7 +390,7 @@ class DBManager:
     #     embedding_bytes = data_to_bytes(embedding)
     #
     #     store_in_faces_table(c, [f'(1, {thumbnail_bytes}, {embedding_bytes})'])
-    #     # c.execute(f'INSERT INTO {FACES_TABLE} VALUES (1, ?, ?)',
+    #     # c.execute(f'INSERT INTO {Tables.faces_table} VALUES (1, ?, ?)',
     #     #           [thumbnail_bytes, embedding_bytes])
     #
     #     images_rows = fetch_all_from_images_table(c)
@@ -438,20 +438,20 @@ class DBManager:
 
         #
         # # create embeddings table
-        # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {EMBEDDINGS_TABLE} ('
-        #                  f'{IMAGE_ID_COL[0]} {IMAGE_ID_COL[1]} NOT NULL, '
-        #                  f'{THUMBNAIL_COL[0]} {THUMBNAIL_COL[1]}, '
-        #                  f'{EMBEDDING_COL[0]} {EMBEDDING_COL[1]}, '
-        #                  f'FOREIGN KEY ({IMAGE_ID_COL[0]}) REFERENCES {IMAGES_TABLE} ({IMAGE_ID_COL[0]})'
+        # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
+        #                  f'{Columns.image_id_col} {Columns.image_id_col.col_type} NOT NULL, '
+        #                  f'{Columns.thumbnail_col} {Columns.thumbnail_col.col_type}, '
+        #                  f'{Columns.embedding_col} {Columns.embedding_col.col_type}, '
+        #                  f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {Tables.images_table} ({Columns.image_id_col})'
         #                  ' ON DELETE CASCADE'
         #                  ')')
         #
         # # create cluster attributes table
-        # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {CLUSTER_ATTRIBUTES_TABLE} ('
-        #                  f'{IMAGE_ID_COL[0]} {IMAGE_ID_COL[1]} NOT NULL, '
-        #                  f'{THUMBNAIL_COL[0]} {THUMBNAIL_COL[1]}, '
-        #                  f'{EMBEDDING_COL[0]} {EMBEDDING_COL[1]}, '
-        #                  f'FOREIGN KEY ({IMAGE_ID_COL[0]}) REFERENCES {IMAGES_TABLE} ({IMAGE_ID_COL[0]})'
+        # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
+        #                  f'{Columns.image_id_col} {Columns.image_id_col.col_type} NOT NULL, '
+        #                  f'{Columns.thumbnail_col} {Columns.thumbnail_col.col_type}, '
+        #                  f'{Columns.embedding_col} {Columns.embedding_col.col_type}, '
+        #                  f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {Tables.images_table} ({Columns.image_id_col})'
         #                  ' ON DELETE CASCADE'
         #                  ')')
 
@@ -463,8 +463,8 @@ if __name__ == '__main__':
     manager.create_tables(True)
     manager.create_tables(False)
 
-    manager.store_in_table(IMAGES_TABLE.name, [(1, "apple sauce", round(time.time()))])
-    result = manager.fetch_from_table(IMAGES_TABLE.name)
+    manager.store_in_table(Tables.images_table, [(1, "apple sauce", round(time.time()))])
+    result = manager.fetch_from_table(Tables.images_table)
     print(result)
 
     """

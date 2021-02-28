@@ -175,9 +175,9 @@ def extract_faces(path, db_manager: DBManager):
     # TODO: What does max return as a default value???
 
     path_to_local_db = DBManager.get_db_path(path, local=True)
-    max_img_id = db_manager.aggregate_col(table=IMAGES_TABLE, col=IMAGES_TABLE['img_id'], func='MAX',
+    max_img_id = db_manager.aggregate_col(table=Tables.images_table, col=Columns.image_id_col, func='MAX',
                                           path_to_local_db=path_to_local_db)
-    max_face_id = db_manager.aggregate_col(table=EMBEDDINGS_TABLE, col=EMBEDDINGS_TABLE['face_id'], func='MAX')
+    max_face_id = db_manager.aggregate_col(table=Tables.embeddings_table, col=Columns.face_id_col, func='MAX')
 
     faces = []
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
@@ -186,11 +186,11 @@ def extract_faces(path, db_manager: DBManager):
         faces.extend(img_faces)
         last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
         img_row = (img_name, last_modified, img_id)
-        db_manager.store_in_table(IMAGES_TABLE.name, [img_row], path_to_local_db)
+        db_manager.store_in_table(Tables.images_table, [img_row], path_to_local_db)
         faces_rows = [(face, img_id, face_id)
                       for face_id, face in enumerate(img_faces, start=max_face_id+1)]
         max_face_id += len(img_faces)
-        db_manager.store_in_table(FACES_TABLE.name, faces_rows, path_to_local_db)
+        db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db)
 
     return faces
 

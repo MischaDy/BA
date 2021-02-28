@@ -1,6 +1,15 @@
 import logging
 
 
+# ----- OOP -----
+def have_equal_attrs(obj1, obj2):
+    return obj1.__dict__ == obj2.__dict__
+
+
+def have_equal_type_names(obj1, obj2):
+    return type(obj1).__name__ == type(obj2).__name__
+
+
 # ----- I/O -----
 
 def log_error(msg):

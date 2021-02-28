@@ -7,7 +7,7 @@ import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.misc_helpers import clean_str
+from Logic.ProperLogic.misc_helpers import clean_str, have_equal_attrs, have_equal_type_names
 
 # TODO: *Global* face_id - created in central table, then written to corresponding local table
 # TODO: Foreign keys despite separate db files???
@@ -50,10 +50,19 @@ class TableSchema:
         self.constraints = constraints
 
     def __getitem__(self, item):
-        return self.columns[item]
+        if isinstance(item, str):
+            return self.columns[item]
+        elif isinstance(item, ColumnSchema):
+            return self.columns[item.col_name]
+        return TypeError(f'Item {item} must be of type str or ColumnSchema')
 
     def __str__(self):
         return self.name
+
+    def __eq__(self, other):
+        if not have_equal_type_names(self, other):
+            return NotImplemented
+        return have_equal_attrs(self, other)
 
     def get_columns(self):
         return self.get_column_dict().values()
@@ -73,6 +82,11 @@ class ColumnSchema:
 
     def __str__(self):
         return self.col_name
+
+    def __eq__(self, other):
+        if not have_equal_type_names(self, other):
+            return NotImplemented
+        return have_equal_attrs(self, other)
 
     def with_constraint(self, col_constraint):
         return ColumnSchema(self.col_name, self.col_type, col_constraint)
@@ -113,7 +127,7 @@ class Tables:
          ]
     )
 
-    local_tables = {images_table, faces_table}
+    local_tables = (images_table, faces_table)
 
     cluster_attributes_table = TableSchema(
         'cluster_attributes',
@@ -136,7 +150,7 @@ class Tables:
          ]
     )
 
-    central_tables = {embeddings_table, cluster_attributes_table}
+    central_tables = (embeddings_table, cluster_attributes_table)
 
     @staticmethod
     def is_local_table(table):
@@ -181,7 +195,7 @@ class DBManager:
         db_connection.commit()
         db_connection.close()
 
-    def create_tables(self, create_local, path_to_local_db=None, drop_existing_tables=True):
+    def create_tables(self, create_local, path_to_local_db=None, drop_existing_tables=False):
         cur = self.open_connection(create_local, path_to_local_db)
         if drop_existing_tables:
             self._drop_tables(cur, create_local)
@@ -265,15 +279,17 @@ class DBManager:
             cur.execute(f'DROP TABLE IF EXISTS {table};')
 
     def store_in_table(self, table, rows, path_to_local_db=None):
+        # TODO: Call data_bytes_to when appropriate. --> How to know??
         store_in_local = Tables.is_local_table(table)
         cur = self.open_connection(store_in_local, path_to_local_db)
         # cur.execute(f'INSERT INTO {table_name} VALUES ?',
         #             rows)
         values_template = self._make_values_template(len(rows[0]))
-        cur.executemany(f'INSERT INTO {table} VALUES {values_template};', rows)
+        cur.executemany(f'INSERT INTO {table} VALUES ({values_template});', rows)
         self.commit_and_close_connection(store_in_local)
 
     def fetch_from_table(self, table_name, path_to_local_db=None, cols=None, cond=''):
+        # TODO: Call bytes_to_data when appropriate. --> How to know??
         if cols is None:
             cols = ['*']
         cond_str = '' if len(cond) == 0 else f'WHERE {cond}'
@@ -321,10 +337,17 @@ class DBManager:
         aggregate_from_local = Tables.is_local_table(table)
         cur = self.open_connection(aggregate_from_local, path_to_local_db)
         agg_value = cur.execute(
-            f"SELECT {func}(SELECT {col} FROM {table});"
+            f"SELECT {func}({col}) FROM {table};"
         ).fetchone()
         self.commit_and_close_connection(aggregate_from_local)
         return agg_value
+
+    def get_max_num(self, table, col, default=0, path_to_local_db=None):
+        max_num = self.aggregate_col(table=table, col=col, func='MAX',
+                                     path_to_local_db=path_to_local_db)[0]
+        if isinstance(max_num, int) or isinstance(max_num, float):
+            return max_num
+        return default
 
     @classmethod
     def get_db_path(cls, path, local=True):

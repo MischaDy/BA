@@ -15,21 +15,23 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
 
 
+# TODO: Add type hints where needed
+
 # TODO: What should / shouldn't be private?
-# TODO: Turn Commands into an Enum?
 # TODO: Consistent naming
-# TODO: Add comments & docstring
+# TODO: Add comments & docstrings
 # TODO: Always allow option to leave current menu item / loop rather than continue!
-# TODO: consistent paths!
-# TODO: consistent parameter names
+# TODO: Consistent paths!
+# TODO: Consistent parameter names(?)
+# TODO: How should local tables be created? How should they be referenced?
 
 
 def main(terminating_tokes, path_to_central_dir):
     # TODO: Handle output of commands!
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
     db_manager = DBManager(path_to_local_db)
-    db_manager.create_tables(False)
-    db_manager.create_tables(True)
+    db_manager.create_tables(create_local=False)
+    # db_manager.create_tables(create_local=True)
     clusters = load_clusters_from_db(db_manager)
     initialize_commands(db_manager, clusters)
 

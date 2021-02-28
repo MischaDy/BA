@@ -152,6 +152,9 @@ def user_choose_imgs(db_manager):
     # TODO: Finish implementing
     # TODO: Make user choose path
     path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
+    db_manager.create_tables(create_local=True,
+                             path_to_local_db=DBManager.get_db_path(path, local=True),
+                             drop_existing_tables=False)
     faces = extract_faces(path, db_manager)
     return faces
 
@@ -172,12 +175,12 @@ def extract_faces(path, db_manager: DBManager):
     # TODO: Store + update max_img_id and max_face_id somewhere?
     # TODO: Acting on centralized tables necessary here?
     # TODO: Outsource db interactions to input-output logic?
-    # TODO: What does max return as a default value???
+    # TODO: What does max return as a default value??? --> None / (None, )
 
     path_to_local_db = DBManager.get_db_path(path, local=True)
-    max_img_id = db_manager.aggregate_col(table=Tables.images_table, col=Columns.image_id_col, func='MAX',
-                                          path_to_local_db=path_to_local_db)
-    max_face_id = db_manager.aggregate_col(table=Tables.embeddings_table, col=Columns.face_id_col, func='MAX')
+    max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id_col, default=0,
+                                        path_to_local_db=path_to_local_db)
+    max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.face_id_col, default=0)
 
     faces = []
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)

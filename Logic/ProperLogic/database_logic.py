@@ -279,7 +279,7 @@ class DBManager:
             cur.execute(f'DROP TABLE IF EXISTS {table};')
 
     def store_in_table(self, table, rows, path_to_local_db=None):
-        # TODO: Call data_bytes_to when appropriate. --> How to know??
+        # TODO: Call data_to_bytes when appropriate. --> How to know??
         store_in_local = Tables.is_local_table(table)
         cur = self.open_connection(store_in_local, path_to_local_db)
         # cur.execute(f'INSERT INTO {table_name} VALUES ?',
@@ -368,7 +368,7 @@ class DBManager:
         :param data: Either a PyTorch Tensor or a PILLOW Image.
         """
         buffer = io.BytesIO()
-        if type(data) is torch.Tensor:  # case 1: embedding
+        if isinstance(data, torch.Tensor):  # case 1: embedding
             torch.save(data, buffer)
         else:  # case 2: thumbnail
             data.save(buffer, format='JPEG')
@@ -384,8 +384,12 @@ class DBManager:
         :param data_bytes: Bytes from storing either a PyTorch Tensor or a PILLOW Image.
         :param data_type: String denoting the original data type. One of: 'tensor', 'image'.
         """
+        type_str = clean_str(data_type)
+        if type_str not in ('tensor', 'image'):
+            raise ValueError("data_type must be one of 'tensor', 'image'")
+        
         buffer = io.BytesIO(data_bytes)
-        if clean_str(data_type) == 'tensor':
+        if type_str == 'tensor':
             obj = torch.load(buffer)
         else:
             obj = Image.open(buffer).convert('RGBA')

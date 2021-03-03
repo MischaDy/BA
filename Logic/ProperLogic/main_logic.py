@@ -15,6 +15,9 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
 
 
+# TODO: Using ground-truths in clustering - put every emb. in new cluster or merge close-by same-identity ones?
+# TODO: Check Cluster-Splitting algorithm! Currently using the right one?
+
 # TODO: Add type hints where needed
 
 # TODO: What should / shouldn't be private?

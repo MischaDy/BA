@@ -8,7 +8,7 @@ from Logic.ProperLogic.core_algorithm import cluster_embeddings, CLASSIFICATION_
     MAX_CLUSTER_SIZE
 from Logic.ProperLogic.database_logic import *
 from models import Models
-from misc_helpers import log_error, clean_str, wait_for_any_input, get_nth_tuple_elem
+from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
@@ -149,12 +149,13 @@ def faces_to_embeddings(faces):
 
 
 def user_choose_imgs(db_manager):
-    # TODO: Finish implementing
+    # TODO: Finish implementing (What's missing?)
     # TODO: Make user choose path
+    # TODO: Disable dropping of existing tables
     path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
     db_manager.create_tables(create_local=True,
                              path_to_local_db=DBManager.get_db_path(path, local=True),
-                             drop_existing_tables=False)
+                             drop_existing_tables=True)
     faces = extract_faces(path, db_manager)
     return faces
 
@@ -188,9 +189,13 @@ def extract_faces(path, db_manager: DBManager):
         img_faces = cut_out_faces(Models.mtcnn, img)
         faces.extend(img_faces)
         last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
-        img_row = (img_name, last_modified, img_id)
+        img_row = {Columns.image_id_col.col_name: img_id,
+                   Columns.file_name_col.col_name: img_name,
+                   Columns.last_modified_col.col_name: last_modified}
         db_manager.store_in_table(Tables.images_table, [img_row], path_to_local_db)
-        faces_rows = [(face, img_id, face_id)
+        faces_rows = [{Columns.thumbnail_col.col_name: face,
+                       Columns.image_id_col.col_name: img_id,
+                       Columns.face_id_col.col_name: face_id}
                       for face_id, face in enumerate(img_faces, start=max_face_id+1)]
         max_face_id += len(img_faces)
         db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db)
@@ -309,7 +314,7 @@ def _output_cluster_content(cluster_name, cluster_path):
 
 def _user_choose_cluster(clusters_path, return_names=True):
     clusters_names_and_paths = list(get_clusters_gen(clusters_path, return_names=True))
-    clusters_names = get_nth_tuple_elem(clusters_names_and_paths, n=0)
+    clusters_names = get_every_nth_item(clusters_names_and_paths, n=0)
     prompt_cluster_choice(clusters_names)
     chosen_cluster_name = input()
     while chosen_cluster_name not in clusters_names:
@@ -341,7 +346,7 @@ def get_clusters_gen(clusters_path, return_names=True):
     if return_names:
         return clusters_names_and_paths
     # return only paths
-    return get_nth_tuple_elem(clusters_names_and_paths, n=1)
+    return get_every_nth_item(clusters_names_and_paths, n=1)
 
 # ----- MISC -----
 

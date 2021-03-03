@@ -28,13 +28,14 @@ def clean_str(string, to_lower=True):
     return clean_string.upper()
 
 
-def get_nth_tuple_elem(iterables, n=0):
+def get_every_nth_item(iterables, n=0):
     """
     Return nth element (zero-indexed!) in each iterable stored in the iterable.
 
-    Example: _get_nth_tuple_elem(zip(range(3, 7), 'abcdefgh'), n=1) --> ['a', 'b', 'c', 'd']
+    Example: get_every_nth_item(zip(range(3, 7), 'abcdefgh'), n=1) --> ['a', 'b', 'c', 'd']
 
-    iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index).
-    n: index of element to return from each stored iterable
+    @param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
+    @param n: index of element to return from each stored iterable
+    @return: nth element in each iterable stored in 'iterables'
     """
     return list(map(lambda iterable: iterable[n], iterables))

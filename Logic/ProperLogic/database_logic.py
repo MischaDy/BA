@@ -2,15 +2,18 @@
 import os
 import sqlite3
 import time
+from collections import OrderedDict
+from enum import Enum
+from functools import partial
 
 import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.misc_helpers import clean_str, have_equal_attrs, have_equal_type_names
+from Logic.ProperLogic.misc_helpers import clean_str, have_equal_attrs, have_equal_type_names, get_every_nth_item
 
 # TODO: *Global* face_id - created in central table, then written to corresponding local table
-# TODO: Foreign keys despite separate db files???
+# TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
 # TODO: Refactor to programmatically connect columns and their properties (uniqueness etc.). But multiple columns???
 #       --> Make Tables class
 # TODO: When to close connection? Optimize?
@@ -22,6 +25,8 @@ from Logic.ProperLogic.misc_helpers import clean_str, have_equal_attrs, have_equ
 # TODO: Append semi-colons everywhere?
 # TODO: FK faces -> embeddings other way around? Or remove completely?
 # TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names??
+
+# TODO: How to ensure correct order of values for table?
 
 
 """
@@ -41,12 +46,10 @@ cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 
 class TableSchema:
     def __init__(self, name, columns, constraints=None):
-        self.name = name
-        self.columns = {}
-        for col in columns:
-            self.columns[col.col_name] = col
         if constraints is None:
             constraints = []
+        self.name = name
+        self.columns = OrderedDict((col.col_name, col) for col in columns)
         self.constraints = constraints
 
     def __getitem__(self, item):
@@ -65,19 +68,64 @@ class TableSchema:
         return have_equal_attrs(self, other)
 
     def get_columns(self):
-        return self.get_column_dict().values()
+        """
+
+        @return: The stored ColumnSchema objects.
+        """
+        return list(self.get_column_dict().values())
 
     def get_column_names(self):
-        return self.get_column_dict().keys()
+        """
+
+        @return: The names of the stored ColumnSchema objects.
+        """
+        return list(self.get_column_dict().keys())
 
     def get_column_dict(self):
+        """
+
+        @return: The OrderedDict storing the (column_name, ColumnSchema)-pairs.
+        """
         return self.columns
+
+    def get_column_type(self, col_name):
+        return self.get_column_dict()[col_name].col_type
+
+    def sort_dict_by_cols(self, row_dict, only_values=False):
+        """
+        Return a list containing the items in row_dict, sorted by the order the corresponding keys appear in this
+        tables' columns. If only_values is True, the dict values rather than items are returned.
+
+        Example:
+        self = TableSchema(first_name, last_name, age)
+        row_dict = {'last_name': 'Olafson', 'age': 29, 'first_name': 'Lina'}
+        --> ['Lina', 'Olafson', 29]
+
+        @param row_dict:
+        @return:
+        """
+        # if isinstance(list(row_dict.keys())[0], str):
+        #     cols = self.get_column_names()
+        # else:
+        #     cols = self.get_columns()
+        cols = self.get_column_names()
+        sorted_row_items = sorted(row_dict.items(),
+                                  key=lambda kv_pair: cols.index(kv_pair[0]))  # kv = key-value
+        if not only_values:
+            return sorted_row_items
+        return get_every_nth_item(sorted_row_items, n=1)
 
 
 class ColumnSchema:
     def __init__(self, col_name, col_type, col_constraint=''):
+        if isinstance(col_type, ColumnTypes):
+            self.col_type = col_type
+        elif isinstance(col_type, str):
+            self.col_type = ColumnTypes[col_type]
+        else:
+            raise TypeError(f"'col_type' must be a string or a member of ColumnTypes, not {col_type}")
+
         self.col_name = col_name
-        self.col_type = col_type
         self.col_constraint = col_constraint
 
     def __str__(self):
@@ -92,16 +140,25 @@ class ColumnSchema:
         return ColumnSchema(self.col_name, self.col_type, col_constraint)
 
 
+# TODO: Fix comparisons of tables not being equal due to this class!
+class ColumnTypes(Enum):
+    null = 'NULL'
+    integer = 'INT'
+    real = 'REAL'
+    text = 'TEXT'
+    blob = 'BLOB'
+
+
 class Columns:
-    center_col = ColumnSchema('center', 'BLOB')
-    cluster_id_col = ColumnSchema('cluster_id', 'INT')
-    embedding_col = ColumnSchema('embedding', 'BLOB')
-    face_id_col = ColumnSchema('face_id', 'INT')
-    file_name_col = ColumnSchema('file_name', 'TEXT')
-    image_id_col = ColumnSchema('image_id', 'INT')
-    label_col = ColumnSchema('label', 'TEXT')
-    last_modified_col = ColumnSchema('last_modified', 'INT')
-    thumbnail_col = ColumnSchema('thumbnail', 'BLOB')
+    center_col = ColumnSchema('center', ColumnTypes.blob)
+    cluster_id_col = ColumnSchema('cluster_id', ColumnTypes.integer)
+    embedding_col = ColumnSchema('embedding', ColumnTypes.blob)
+    face_id_col = ColumnSchema('face_id', ColumnTypes.integer)
+    file_name_col = ColumnSchema('file_name', ColumnTypes.text)
+    image_id_col = ColumnSchema('image_id', ColumnTypes.integer)
+    label_col = ColumnSchema('label', ColumnTypes.text)
+    last_modified_col = ColumnSchema('last_modified', ColumnTypes.integer)
+    thumbnail_col = ColumnSchema('thumbnail', ColumnTypes.blob)
 
 
 class Tables:
@@ -119,7 +176,7 @@ class Tables:
         'faces',
         [Columns.face_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
          Columns.image_id_col.with_constraint('NOT NULL'),
-         Columns.thumbnail_col.with_constraint('BLOB')
+         Columns.thumbnail_col.with_constraint('NOT NULL')  # TODO: Which constraint should go here?
          ],
         [f'PRIMARY KEY ({Columns.face_id_col})',
          f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {images_table} ({Columns.image_id_col})'
@@ -152,9 +209,25 @@ class Tables:
 
     central_tables = (embeddings_table, cluster_attributes_table)
 
-    @staticmethod
-    def is_local_table(table):
-        return table in Tables.local_tables
+    @classmethod
+    def is_local_table(cls, table):
+        if isinstance(table, str):
+            if table in cls.get_table_names(local=True):
+                return True
+            elif table in cls.get_table_names(local=False):
+                return False
+            raise ValueError(f"table '{table}' not found")
+
+        if table in cls.local_tables:
+            return True
+        elif table in cls.central_tables:
+            return False
+        raise ValueError(f"table '{table}' not found (its type, {type(table)}, might not be TableSchema)")
+
+    @classmethod
+    def get_table_names(cls, local):
+        tables = cls.local_tables if local else cls.central_tables
+        return map(lambda t: t.name, tables)
 
 # TODO: Guarantee that connection is closed at end of methods
 #       --> Using try (/ except) / finally??
@@ -215,9 +288,9 @@ class DBManager:
         cur.execute(cls.__table_to_creating_sql(Tables.images_table))
         # cur.execute(
         #     f"CREATE TABLE IF NOT EXISTS {Tables.images_table} ("
-        #     f"{Columns.image_id_col} {Columns.image_id_col.col_type} UNIQUE NOT NULL, "
-        #     f"{Columns.file_name_col} {Columns.file_name_col.col_type} NOT NULL, "
-        #     f"{Columns.last_modified_col} {Columns.last_modified_col.col_type} NOT NULL, "
+        #     f"{Columns.image_id_col} {Columns.image_id_col.col_type.value} UNIQUE NOT NULL, "
+        #     f"{Columns.file_name_col} {Columns.file_name_col.col_type.value} NOT NULL, "
+        #     f"{Columns.last_modified_col} {Columns.last_modified_col.col_type.value} NOT NULL, "
         #     f"PRIMARY KEY ({Columns.image_id_col})"
         #     ")"
         # )
@@ -226,9 +299,9 @@ class DBManager:
         cur.execute(cls.__table_to_creating_sql(Tables.faces_table))
         # cur.execute(
         #     f"CREATE TABLE IF NOT EXISTS {Tables.faces_table} ("
-        #     f"{Columns.face_id_col} {Columns.face_id_col.col_type} UNIQUE NOT NULL, "
-        #     f"{Columns.image_id_col} {Columns.image_id_col.col_type} NOT NULL, "
-        #     f"{Columns.thumbnail_col} {Columns.thumbnail_col.col_type}, "
+        #     f"{Columns.face_id_col} {Columns.face_id_col.col_type.value} UNIQUE NOT NULL, "
+        #     f"{Columns.image_id_col} {Columns.image_id_col.col_type.value} NOT NULL, "
+        #     f"{Columns.thumbnail_col} {Columns.thumbnail_col.col_type.value}, "
         #     f"PRIMARY KEY ({Columns.face_id_col})"
         #     f"FOREIGN KEY ({Columns.image_id_col}) REFERENCES {Tables.images_table} ({Columns.image_id_col})"
         #     " ON DELETE CASCADE"
@@ -240,7 +313,7 @@ class DBManager:
         constraints_sql = ", ".join(table.constraints)
         creating_sql = (
             f"CREATE TABLE IF NOT EXISTS {table} ("
-            + ", ".join(f"{col.col_name} {col.col_type} {col.col_constraint}" for col in table.get_columns())
+            + ", ".join(f"{col.col_name} {col.col_type.value} {col.col_constraint}" for col in table.get_columns())
             + (", " if constraints_sql else "")
             + constraints_sql
             + ");"
@@ -255,9 +328,9 @@ class DBManager:
         # create embeddings table
         cur.execute(cls.__table_to_creating_sql(Tables.embeddings_table))
         # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
-        #             f'{Columns.cluster_id_col} {Columns.cluster_id_col.col_type} NOT NULL, '
-        #             f'{Columns.face_id_col} {Columns.face_id_col.col_type} UNIQUE NOT NULL, '
-        #             f'{Columns.embedding_col} {Columns.embedding_col.col_type} NOT NULL, '
+        #             f'{Columns.cluster_id_col} {Columns.cluster_id_col.col_type.value} NOT NULL, '
+        #             f'{Columns.face_id_col} {Columns.face_id_col.col_type.value} UNIQUE NOT NULL, '
+        #             f'{Columns.embedding_col} {Columns.embedding_col.col_type.value} NOT NULL, '
         #             f'PRIMARY KEY ({Columns.face_id_col}), '
         #             f'FOREIGN KEY ({Columns.cluster_id_col}) REFERENCES {Tables.cluster_attributes_table} ({Columns.cluster_id_col})'
         #             ' ON DELETE CASCADE'
@@ -266,9 +339,9 @@ class DBManager:
         # create cluster attributes table
         cur.execute(cls.__table_to_creating_sql(Tables.cluster_attributes_table))
         # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
-        #             f'{Columns.cluster_id_col} {Columns.cluster_id_col.col_type} NOT NULL, '
-        #             f'{Columns.label_col} {Columns.label_col.col_type}, '
-        #             f'{Columns.center_col} {Columns.center_col.col_type}, '
+        #             f'{Columns.cluster_id_col} {Columns.cluster_id_col.col_type.value} NOT NULL, '
+        #             f'{Columns.label_col} {Columns.label_col.col_type.value}, '
+        #             f'{Columns.center_col} {Columns.center_col.col_type.value}, '
         #             f'PRIMARY KEY ({Columns.cluster_id_col})'
         #             ')')
 
@@ -278,13 +351,19 @@ class DBManager:
         for table in tables:
             cur.execute(f'DROP TABLE IF EXISTS {table};')
 
-    def store_in_table(self, table, rows, path_to_local_db=None):
+    def store_in_table(self, table, row_dicts, path_to_local_db=None):
+        """
+
+        @param table:
+        @param row_dicts: iterable of dicts storing (col_name, col_value)-pairs
+        @param path_to_local_db:
+        @return:
+        """
         # TODO: Call data_to_bytes when appropriate. --> How to know??
+        rows = DBManager.row_dicts_to_rows(table, row_dicts)
         store_in_local = Tables.is_local_table(table)
         cur = self.open_connection(store_in_local, path_to_local_db)
-        # cur.execute(f'INSERT INTO {table_name} VALUES ?',
-        #             rows)
-        values_template = self._make_values_template(len(rows[0]))
+        values_template = self._make_values_template(len(row_dicts[0]))
         cur.executemany(f'INSERT INTO {table} VALUES ({values_template});', rows)
         self.commit_and_close_connection(store_in_local)
 
@@ -333,7 +412,6 @@ class DBManager:
             pass
 
     def aggregate_col(self, table, col, func, path_to_local_db=None):
-        # TODO: Simplify signature? (pointer in Column class to parent table)
         aggregate_from_local = Tables.is_local_table(table)
         cur = self.open_connection(aggregate_from_local, path_to_local_db)
         agg_value = cur.execute(
@@ -354,6 +432,28 @@ class DBManager:
         if local:
             return os.path.join(path, cls.local_db_file_name)
         return cls.central_db_file_name
+
+    @classmethod
+    def row_dicts_to_rows(cls, table, row_dicts):
+        # TODO: Handle date -> int(?)!
+        sort_dict_by_cols = partial(table.sort_dict_by_cols, only_values=False)
+        sorted_item_rows = list(map(sort_dict_by_cols,
+                                    row_dicts))
+        rows = []
+        for item_row in sorted_item_rows:
+            # col_names = get_every_nth_item(item_row, 0)
+            # col_values = get_every_nth_item(item_row, 1)
+            # is_blob_col = set(map(lambda k: table.get_column_type(k) == ColumnTypes.blob, col_names))
+            # row = list(map(lambda is_blob, val: cls.data_to_bytes(val) if is_blob else val,
+            #                zip(is_blob_col, col_values)))
+            row = []
+            for col_name, col_value in item_row:
+                if table.get_column_type(col_name) == ColumnTypes.blob:
+                    row.append(cls.data_to_bytes(col_value))
+                else:
+                    row.append(col_value)
+            rows.append(row)
+        return rows
 
     @staticmethod
     def _make_values_template(length, char_to_join='?', sep=','):
@@ -387,7 +487,7 @@ class DBManager:
         type_str = clean_str(data_type)
         if type_str not in ('tensor', 'image'):
             raise ValueError("data_type must be one of 'tensor', 'image'")
-        
+
         buffer = io.BytesIO(data_bytes)
         if type_str == 'tensor':
             obj = torch.load(buffer)
@@ -443,7 +543,7 @@ class DBManager:
     #     conn.close()
     #
     #
-    #     # col_type = 'TEXT'  # E.g., INTEGER, TEXT, NULL, REAL, BLOB
+    #     # col_type = ColumnTypes.text  # E.g., INTEGER, TEXT, NULL, REAL, BLOB
     #     # default_val = 'Hello World'  # a default value for the new col rows
     #
     #     # last_modified = os.stat('my_db.sqlite').st_atime
@@ -466,18 +566,18 @@ class DBManager:
         #
         # # create embeddings table
         # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
-        #                  f'{Columns.image_id_col} {Columns.image_id_col.col_type} NOT NULL, '
-        #                  f'{Columns.thumbnail_col} {Columns.thumbnail_col.col_type}, '
-        #                  f'{Columns.embedding_col} {Columns.embedding_col.col_type}, '
+        #                  f'{Columns.image_id_col} {Columns.image_id_col.col_type.value} NOT NULL, '
+        #                  f'{Columns.thumbnail_col} {Columns.thumbnail_col.col_type.value}, '
+        #                  f'{Columns.embedding_col} {Columns.embedding_col.col_type.value}, '
         #                  f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {Tables.images_table} ({Columns.image_id_col})'
         #                  ' ON DELETE CASCADE'
         #                  ')')
         #
         # # create cluster attributes table
         # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
-        #                  f'{Columns.image_id_col} {Columns.image_id_col.col_type} NOT NULL, '
-        #                  f'{Columns.thumbnail_col} {Columns.thumbnail_col.col_type}, '
-        #                  f'{Columns.embedding_col} {Columns.embedding_col.col_type}, '
+        #                  f'{Columns.image_id_col} {Columns.image_id_col.col_type.value} NOT NULL, '
+        #                  f'{Columns.thumbnail_col} {Columns.thumbnail_col.col_type.value}, '
+        #                  f'{Columns.embedding_col} {Columns.embedding_col.col_type.value}, '
         #                  f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {Tables.images_table} ({Columns.image_id_col})'
         #                  ' ON DELETE CASCADE'
         #                  ')')

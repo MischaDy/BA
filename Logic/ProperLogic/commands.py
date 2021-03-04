@@ -1,6 +1,3 @@
-import datetime
-from functools import partial
-
 import torchvision
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 

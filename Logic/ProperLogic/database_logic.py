@@ -3,20 +3,18 @@ import datetime
 import os
 import sqlite3
 import time
-from collections import OrderedDict
-from enum import Enum
 from functools import partial
 
 import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.misc_helpers import clean_str, have_equal_attrs, have_equal_type_names, get_every_nth_item
+from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, _get_true_attr
+from Logic.ProperLogic.misc_helpers import clean_str
 
 # TODO: *Global* face_id - created in central table, then written to corresponding local table
 # TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
 # TODO: Refactor to programmatically connect columns and their properties (uniqueness etc.). But multiple columns???
-#       --> Make Tables class
 # TODO: When to close connection? Optimize?
 # TODO: (When to) use VACUUM?
 # TODO: Locking db necessary?
@@ -27,7 +25,10 @@ from Logic.ProperLogic.misc_helpers import clean_str, have_equal_attrs, have_equ
 # TODO: FK faces -> embeddings other way around? Or remove completely?
 # TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names??
 
-# TODO: How to ensure correct order of values for table?
+# TODO: Guarantee that connection is closed at end of methods
+#       --> Using try (/ except) / finally??
+
+# TODO: Make DBManager a singleton object?
 
 
 """
@@ -40,204 +41,12 @@ images(INT image_id, TEXT file_name, INT last_modified)
 faces(INT face_id, INT image_id, BLOB thumbnail)
 
 --- Centralized Tables ---
+
 embeddings(INT cluster_id, INT face_id, BLOB face_embedding)
 cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
 
 
-class TableSchema:
-    def __init__(self, name, columns, constraints=None):
-        if constraints is None:
-            constraints = []
-        self.name = name
-        self.columns = OrderedDict((col.col_name, col) for col in columns)
-        self.constraints = constraints
-
-    def __getitem__(self, item):
-        if isinstance(item, str):
-            return self.columns[item]
-        elif isinstance(item, ColumnSchema):
-            return self.columns[item.col_name]
-        return TypeError(f'Item {item} must be of type str or ColumnSchema')
-
-    def __str__(self):
-        return self.name
-
-    def __eq__(self, other):
-        if not have_equal_type_names(self, other):
-            return NotImplemented
-        return have_equal_attrs(self, other)
-
-    def get_columns(self):
-        """
-
-        @return: The stored ColumnSchema objects.
-        """
-        return list(self.get_column_dict().values())
-
-    def get_column_names(self):
-        """
-
-        @return: The names of the stored ColumnSchema objects.
-        """
-        return list(self.get_column_dict().keys())
-
-    def get_column_dict(self):
-        """
-
-        @return: The OrderedDict storing the (column_name, ColumnSchema)-pairs.
-        """
-        return self.columns
-
-    def get_column_type(self, col_name):
-        return self.get_column_dict()[col_name].col_type
-
-    def sort_dict_by_cols(self, row_dict, only_values=False):
-        """
-        Return a list containing the items in row_dict, sorted by the order the corresponding keys appear in this
-        tables' columns. If only_values is True, the dict values rather than items are returned.
-
-        Example:
-        self = TableSchema(first_name, last_name, age)
-        row_dict = {'last_name': 'Olafson', 'age': 29, 'first_name': 'Lina'}
-        --> ['Lina', 'Olafson', 29]
-
-        @param row_dict:
-        @return:
-        """
-        # if isinstance(list(row_dict.keys())[0], str):
-        #     cols = self.get_column_names()
-        # else:
-        #     cols = self.get_columns()
-        cols = self.get_column_names()
-        sorted_row_items = sorted(row_dict.items(),
-                                  key=lambda kv_pair: cols.index(kv_pair[0]))  # kv = key-value
-        if not only_values:
-            return sorted_row_items
-        return get_every_nth_item(sorted_row_items, n=1)
-
-
-class ColumnSchema:
-    def __init__(self, col_name, col_type, col_constraint=''):
-        if isinstance(col_type, ColumnTypes):
-            self.col_type = col_type
-        elif isinstance(col_type, str):
-            self.col_type = ColumnTypes[col_type]
-        else:
-            raise TypeError(f"'col_type' must be a string or a member of ColumnTypes, not {col_type}")
-
-        self.col_name = col_name
-        self.col_constraint = col_constraint
-
-    def __str__(self):
-        return self.col_name
-
-    def __eq__(self, other):
-        if not have_equal_type_names(self, other):
-            return NotImplemented
-        return have_equal_attrs(self, other)
-
-    def with_constraint(self, col_constraint):
-        return ColumnSchema(self.col_name, self.col_type, col_constraint)
-
-
-# TODO: Fix comparisons of tables not being equal due to this class!
-class ColumnTypes(Enum):
-    null = 'NULL'
-    integer = 'INT'
-    real = 'REAL'
-    text = 'TEXT'
-    blob = 'BLOB'
-
-    def __eq__(self, other):
-        return self.value == other.value
-
-
-class Columns:
-    center_col = ColumnSchema('center', ColumnTypes.blob)
-    cluster_id_col = ColumnSchema('cluster_id', ColumnTypes.integer)
-    embedding_col = ColumnSchema('embedding', ColumnTypes.blob)
-    face_id_col = ColumnSchema('face_id', ColumnTypes.integer)
-    file_name_col = ColumnSchema('file_name', ColumnTypes.text)
-    image_id_col = ColumnSchema('image_id', ColumnTypes.integer)
-    label_col = ColumnSchema('label', ColumnTypes.text)
-    last_modified_col = ColumnSchema('last_modified', ColumnTypes.text)
-    thumbnail_col = ColumnSchema('thumbnail', ColumnTypes.blob)
-
-
-class Tables:
-    images_table = TableSchema(
-        'images',
-        [Columns.image_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by faces table
-         Columns.file_name_col.with_constraint('NOT NULL'),
-         Columns.last_modified_col.with_constraint('NOT NULL')
-         ],
-        [f'PRIMARY KEY ({Columns.image_id_col})'
-         ]
-    )
-
-    faces_table = TableSchema(
-        'faces',
-        [Columns.face_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.image_id_col.with_constraint('NOT NULL'),
-         Columns.thumbnail_col.with_constraint('NOT NULL')  # TODO: Which constraint should go here?
-         ],
-        [f'PRIMARY KEY ({Columns.face_id_col})',
-         f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {images_table} ({Columns.image_id_col})'
-         + ' ON DELETE CASCADE'
-         ]
-    )
-
-    local_tables = (images_table, faces_table)
-
-    cluster_attributes_table = TableSchema(
-        'cluster_attributes',
-        [Columns.cluster_id_col.with_constraint('NOT NULL'),  # also used by cluster attributes table
-         Columns.label_col,
-         Columns.center_col
-         ],
-        [f'PRIMARY KEY ({Columns.cluster_id_col})']
-    )
-
-    embeddings_table = TableSchema(
-        'embeddings',
-        [Columns.cluster_id_col.with_constraint('NOT NULL'),  # also used by cluster attributes table
-         Columns.face_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.embedding_col.with_constraint('NOT NULL')
-         ],
-        [f'PRIMARY KEY ({Columns.face_id_col})',
-         f'FOREIGN KEY ({Columns.cluster_id_col}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id_col})'
-         + ' ON DELETE CASCADE'
-         ]
-    )
-
-    central_tables = (embeddings_table, cluster_attributes_table)
-
-    @classmethod
-    def is_local_table(cls, table):
-        if isinstance(table, str):
-            if table in cls.get_table_names(local=True):
-                return True
-            elif table in cls.get_table_names(local=False):
-                return False
-            raise ValueError(f"table '{table}' not found")
-
-        if table in cls.local_tables:
-            return True
-        elif table in cls.central_tables:
-            return False
-        raise ValueError(f"table '{table}' not found (its type, {type(table)}, might not be TableSchema)")
-
-    @classmethod
-    def get_table_names(cls, local):
-        tables = cls.local_tables if local else cls.central_tables
-        return map(lambda t: t.name, tables)
-
-# TODO: Guarantee that connection is closed at end of methods
-#       --> Using try (/ except) / finally??
-
-
-# TODO: Make singleton object?
 class DBManager:
     db_files_path = 'database'
     central_db_file_name = 'central_db.sqlite'
@@ -371,17 +180,25 @@ class DBManager:
         cur.executemany(f'INSERT INTO {table} VALUES ({values_template});', rows)
         self.commit_and_close_connection(store_in_local)
 
-    def fetch_from_table(self, table_name, path_to_local_db=None, cols=None, cond=''):
-        # TODO: Handle BLOB -> img/tensor correctly
-        # TODO: Handle text -> datetime correctly(?)
-        if cols is None:
-            cols = ['*']
+    def fetch_from_table(self, table, path_to_local_db=None, cols=None, cond=''):
+        """
+
+        @param table:
+        @param path_to_local_db:
+        @param cols: An iterable of column names, or an iterable containing only the string '*' (default).
+        @param cond:
+        @return:
+        """
+        # TODO: allow for multiple conditions(?)
+        if cols is None or '*' in cols:
+            cols = table.get_column_names()
         cond_str = '' if len(cond) == 0 else f'WHERE {cond}'
-        fetch_from_local = Tables.is_local_table(table_name)
+        fetch_from_local = Tables.is_local_table(table)
         cur = self.open_connection(fetch_from_local, path_to_local_db)
         cols_template = ','.join(cols)
-        result = cur.execute(f'SELECT {cols_template} FROM {table_name} {cond_str}').fetchall()
+        sql_values = cur.execute(f'SELECT {cols_template} FROM {table} {cond_str}').fetchall()
         self.commit_and_close_connection(fetch_from_local)
+        result = [DBManager.sql_value_to_data(value, col) for value, col in zip(sql_values, cols)]
         return result
 
     def get_cluster_parts(self):
@@ -467,6 +284,21 @@ class DBManager:
         return sep.join(chars_to_join)
 
     @staticmethod
+    def sql_value_to_data(value, details_obj):
+        """
+
+        @param value:
+        @param details_obj: String or ColumnSchema
+        @return:
+        """
+        details = _get_true_attr(details_obj, ColumnDetails, 'details_obj')
+        if details in (ColumnDetails.image, ColumnDetails.tensor):
+            value = DBManager.bytes_to_data(value, details)
+        elif details == ColumnDetails.date:
+            value = DBManager.iso_string_to_date(value)
+        return value
+
+    @staticmethod
     def data_to_bytes(data):
         """
         Convert the data (tensor or image) to bytes for storage as BLOB in DB.
@@ -488,11 +320,10 @@ class DBManager:
         Convert the BLOB bytes from the DB to either a tensor or an image, depending on the data_type argument.
 
         :param data_bytes: Bytes from storing either a PyTorch Tensor or a PILLOW Image.
-        :param data_type: String denoting the original data type. One of: 'tensor', 'image'.
+        :param data_type: String or ColumnDetails object denoting the original data type. One of 'tensor', 'image', or
+        one of the corresponding ColumnDetails objects.
         """
-        type_str = clean_str(data_type)
-        if type_str not in ('tensor', 'image'):
-            raise ValueError("data_type must be one of 'tensor', 'image'")
+        type_str = _get_true_attr(data_type, ColumnDetails, 'data_type')
 
         buffer = io.BytesIO(data_bytes)
         if type_str == 'tensor':

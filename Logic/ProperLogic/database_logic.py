@@ -1,4 +1,5 @@
 # Credits: https://sebastianraschka.com/Articles/2014_sqlite_in_python_tutorial.html
+import datetime
 import os
 import sqlite3
 import time
@@ -148,6 +149,9 @@ class ColumnTypes(Enum):
     text = 'TEXT'
     blob = 'BLOB'
 
+    def __eq__(self, other):
+        return self.value == other.value
+
 
 class Columns:
     center_col = ColumnSchema('center', ColumnTypes.blob)
@@ -157,7 +161,7 @@ class Columns:
     file_name_col = ColumnSchema('file_name', ColumnTypes.text)
     image_id_col = ColumnSchema('image_id', ColumnTypes.integer)
     label_col = ColumnSchema('label', ColumnTypes.text)
-    last_modified_col = ColumnSchema('last_modified', ColumnTypes.integer)
+    last_modified_col = ColumnSchema('last_modified', ColumnTypes.text)
     thumbnail_col = ColumnSchema('thumbnail', ColumnTypes.blob)
 
 
@@ -368,7 +372,8 @@ class DBManager:
         self.commit_and_close_connection(store_in_local)
 
     def fetch_from_table(self, table_name, path_to_local_db=None, cols=None, cond=''):
-        # TODO: Call bytes_to_data when appropriate. --> How to know??
+        # TODO: Handle BLOB -> img/tensor correctly
+        # TODO: Handle text -> datetime correctly(?)
         if cols is None:
             cols = ['*']
         cond_str = '' if len(cond) == 0 else f'WHERE {cond}'
@@ -435,7 +440,6 @@ class DBManager:
 
     @classmethod
     def row_dicts_to_rows(cls, table, row_dicts):
-        # TODO: Handle date -> int(?)!
         sort_dict_by_cols = partial(table.sort_dict_by_cols, only_values=False)
         sorted_item_rows = list(map(sort_dict_by_cols,
                                     row_dicts))
@@ -448,7 +452,9 @@ class DBManager:
             #                zip(is_blob_col, col_values)))
             row = []
             for col_name, col_value in item_row:
-                if table.get_column_type(col_name) == ColumnTypes.blob:
+                if isinstance(col_value, datetime.datetime):
+                    row.append(cls.date_to_iso_string(col_value))
+                elif table.get_column_type(col_name) == ColumnTypes.blob:
                     row.append(cls.data_to_bytes(col_value))
                 else:
                     row.append(col_value)
@@ -495,6 +501,14 @@ class DBManager:
             obj = Image.open(buffer).convert('RGBA')
         buffer.close()
         return obj
+
+    @staticmethod
+    def date_to_iso_string(date):
+        return date.isoformat().replace('T', ' ')
+
+    @staticmethod
+    def iso_string_to_date(string):
+        return datetime.datetime.fromisoformat(string)
 
     # def main(self):
     #     # connecting to the database file

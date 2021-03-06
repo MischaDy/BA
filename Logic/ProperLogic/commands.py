@@ -5,7 +5,7 @@ from Logic.ProperLogic.core_algorithm import cluster_embeddings, CLASSIFICATION_
     MAX_CLUSTER_SIZE
 from Logic.ProperLogic.database_logic import *
 from models import Models
-from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item
+from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item, have_equal_type_names
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
@@ -15,18 +15,26 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 # INPUT_SIZE = [112, 112]
 
 
+# TODO: Make enum-style Commands class like for ColumnSchema etc.?
+
 class Command:
     # TODO: add 'help' command
     commands = {}
 
-    def __init__(self, cmd_name, cmd_desc, handler, handler_params=None):
+    def __init__(self, cmd_name, cmd_desc, handler=None, handler_params=None):
+        if handler_params is None:
+            handler_params = []
         self.cmd_name = cmd_name
         self.cmd_desc = cmd_desc
         self.handler = handler
-        if handler_params is None:
-            handler_params = []
         self.handler_params = handler_params
         type(self).commands[self.cmd_name] = self
+
+    def __eq__(self, other):
+        # TODO: Implement more strict checking?
+        if not have_equal_type_names(self, other):
+            return False
+        return self.cmd_name == other.cmd_name
 
     def get_cmd_name(self):
         return self.cmd_name
@@ -39,6 +47,12 @@ class Command:
 
     def set_cmd_description(self, new_cmd_desc):
         self.cmd_desc = new_cmd_desc
+
+    def get_handler(self):
+        return self.handler
+
+    def set_handler(self, new_handler):
+        self.handler = new_handler
 
     def get_handler_params(self):
         return self.handler_params
@@ -75,24 +89,29 @@ class Command:
         return cmd
 
 
+class Commands:
+    # TODO: Make enum?
+    add = Command('add', 'select new faces')
+    edit = Command('edit', 'edit existing faces')
+    find = Command('find', 'find individual')
+    reclassify = Command('reclassify', 'reclassify individuals')
+    show_cluster = Command('showcluster', 'show a cluster')
+
+
 # TODO: This is just a mark
 # resnet(img_detected.unsqueeze(0))
 
-def initialize_commands(db_manager, clusters):
+def initialize_commands():
     # TODO: Finish!
-    # TODO: Add params
-    cmd_list = [
-        ('add', 'select new faces', handler_add_new_embeddings, [db_manager, clusters]),
-        ('edit', 'edit existing faces', None, []),
-        ('find', 'find individual', None, []),
-        ('reclassify', 'reclassify individuals', None, []),
-        ('showcluster', 'show a cluster', handler_show_cluster, []),
-    ]
-    for name, desc, handler, params in cmd_list:
-        Command(name, desc, handler, params)
+    # TODO: Add params?
+    Commands.add.set_handler(handler_add_new_embeddings)
+    Commands.edit.set_handler(handler_edit_faces)
+    Commands.find.set_handler(handler_find_person)
+    Commands.reclassify.set_handler(handler_reclassify)
+    Commands.show_cluster.set_handler(handler_show_cluster)
 
 
-def process_command(cmd):
+def process_command(cmd, **kwargs):
     # TODO: Add additional params in signature to pass to handler??
     #       --> Check out Software Design Patterns??
     # TODO: complete function(?)
@@ -106,14 +125,28 @@ def process_command(cmd):
     # elif command in 'find':
     #     ...
 
-    handler, handler_params = cmd.handler, cmd.handler_params
-    output = handler(*handler_params)
+    output = cmd.handler(**kwargs)
     return output
 
 
 # ----- COMMAND PROCESSING -----
 
-def handler_show_cluster(clusters_path):
+def handler_edit_faces(**kwargs):
+    # TODO: Implement
+    pass
+
+
+def handler_find_person(**kwargs):
+    # TODO: Implement
+    pass
+
+
+def handler_reclassify(**kwargs):
+    # TODO: Implement
+    pass
+
+
+def handler_show_cluster(clusters_path, **kwargs):
     # TODO: Finish implementation
     should_continue = ''
     while 'n' not in should_continue:
@@ -123,7 +156,7 @@ def handler_show_cluster(clusters_path):
         should_continue = clean_str(input('Choose another cluster?\n'))
 
 
-def handler_add_new_embeddings(db_manager, clusters):
+def handler_add_new_embeddings(db_manager, clusters, **kwargs):
     """
     1. User selects new images to extract faces out of
     2. Extract faces and store in DB
@@ -227,7 +260,7 @@ def cut_out_faces(mtcnn, img):
     return faces
 
 
-def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=False):
+def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=False, extensions=None):
     """
     Yield all images in the given directory.
     If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
@@ -236,10 +269,10 @@ def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=Fal
     :param output_file_names: Whether the tensor should be yielded together with the corresponding file name
     :param output_file_paths: Whether the tensor should be yielded together with the corresponding file path
     :param dir_path: Directory containing images
+    :param extensions: Iterable of file extensions considered images, e.g. ['jpg', 'png']. Default: 'jpg' and 'png'.
+    filtering
     :return: Yield(!) tuples of image_names and PIL images contained in this folder
     """
-    # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}. Empty = no
-    # filtering
     # TODO: Finish implementing (what's missing?)
     # TODO: More pythonic way to select function based on condition??
     indices = []
@@ -249,7 +282,7 @@ def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=Fal
         indices.append(1)
     indices.append(2)
     output_format_func = partial(choose_args, indices)
-    for img_name in get_img_names(dir_path):
+    for img_name in get_img_names(dir_path, extensions):
         img_path = os.path.join(dir_path, img_name)
         with Image.open(img_path) as img:
             yield output_format_func(img_path, img_name, img)
@@ -285,21 +318,41 @@ def load_img_tensors_from_dir(dir_path, output_file_name=False):
                 yield img_name, _to_tensor(img)
 
 
+def handle_command_output(output, cmd, clusters):
+    # TODO: Implement
+    if cmd == Command['add']:
+        pass
+
+
 def _to_tensor(img):
     return TO_TENSOR(img).unsqueeze(0)
 
 
-def get_img_names(dir_path):
+def get_img_names(dir_path, img_extensions=None):
     """
-    Yield all image file paths in dir_path (no extension filtering currently happening).
+    Yield all image file paths in dir_path.
     """
     # TODO: Finish implementing
     # TODO: Implement recursive option?
-    # TODO: Implement extension filtering?
-    for obj_name in os.listdir(dir_path):
-        obj_path = os.path.join(dir_path, obj_name)
-        if os.path.isfile(obj_path):
-            yield obj_path
+    obj_paths = map(lambda obj_name: os.path.join(dir_path, obj_name), os.listdir(dir_path))
+    image_paths = filter(lambda obj_path: is_img(obj_path, img_extensions), obj_paths)
+    return image_paths
+
+
+def is_img(obj_path, img_extensions=None):
+    """
+    
+    @param obj_path: Path to an object
+    @param img_extensions: Iterable of extensions. Default: 'jpg', 'jpeg' and 'png'.
+    @return: Whether obj_path ends with 
+    """
+    if img_extensions is None:
+        img_extensions = {'jpg', 'jpeg', 'png'}
+    else:
+        img_extensions = set(map(lambda s: s.lower(), img_extensions))
+    if not os.path.isfile(obj_path):
+        return False
+    return any(map(lambda ext: obj_path.endswith(ext), img_extensions))
 
 
 def _output_cluster_content(cluster_name, cluster_path):

@@ -15,18 +15,18 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
 
 
-# TODO: Using ground-truths in clustering - put every emb. in new cluster or merge close-by same-identity ones?
+# TODO: Using ground-truths in clustering - put every emb. in new cluster!
 # TODO: Check Cluster-Splitting algorithm! Currently using the right one?
 
 # TODO: Add type hints where needed
-
 # TODO: What should / shouldn't be private?
 # TODO: Consistent naming
 # TODO: Add comments & docstrings
 # TODO: Always allow option to leave current menu item / loop rather than continue!
 # TODO: Consistent paths!
-# TODO: Consistent parameter names(?)
-# TODO: How should local tables be created? How should they be referenced?
+# TODO: How should local tables be referenced?
+
+# TODO: Use property decorator?
 
 
 def main(terminating_tokes, path_to_central_dir):
@@ -34,22 +34,22 @@ def main(terminating_tokes, path_to_central_dir):
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
     db_manager = DBManager(path_to_local_db)
     db_manager.create_tables(create_local=False)
-    # db_manager.create_tables(create_local=True)
     clusters = load_clusters_from_db(db_manager)
-    initialize_commands(db_manager, clusters)
+    initialize_commands()
 
     cmd_name = ''
     while cmd_name not in terminating_tokes:
         cmd_name = get_user_command()
         cmd = Command.get_command(cmd_name)
-        output = process_command(cmd)
+        output = process_command(cmd, db_manager=db_manager, clusters=clusters)
+        handle_command_output(output, cmd, clusters)
 
 
 # ----- I/O -----
 
 def get_user_command():
     # TODO: make user choose command
-    command = 'add'  # _get_user_command_subfunc()
+    command = _get_user_command_subfunc()  # 'add'
     while command not in Command.commands.keys():
         log_error('Unknown command, please try again.')
         command = _get_user_command_subfunc()

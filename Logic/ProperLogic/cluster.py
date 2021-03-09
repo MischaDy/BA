@@ -1,6 +1,4 @@
-from Logic.ProperLogic.database_logic import *
 from Logic.ProperLogic.misc_helpers import log_error
-# from input_output_logic import *
 import torch
 
 from functools import reduce
@@ -11,20 +9,21 @@ logging.basicConfig(level=logging.INFO)
 
 
 class Cluster:
-    # TODO: Keep track of the cluster_id beyond runtime of the program??
     max_cluster_id = 1
     max_embedding_id = 1
 
-    # TODO: Idea - assign ids to embeddings of each cluster which are valid at least for lifetime of the cluster
-    # TODO: Don't allow accidental overwriting of embeddings by using same id!
+    # TODO: Don't allow accidental overwriting of embeddings by using same id! (What did I mean?)
 
-    # TODO: How to handle embeddings-generator??
+    # TODO: How to handle embeddings-generator? (What did I mean?)
     def __init__(self, embeddings=None, embeddings_ids=None, cluster_id=None, label=None, center_point=None):
         """
-        embeddings must be (flat) iterable of tensors with len applicable
+        embeddings must be (flat) iterable of embeddings with len applicable
         :param embeddings:
         :param embeddings_ids:
         """
+        if label is None:
+            label = 'Unknown Person'
+        self.label = label
         if embeddings is None:
             self.embeddings = {}
             self.num_embeddings = 0
@@ -45,11 +44,15 @@ class Cluster:
                 self.center_point = Cluster.sum_embeddings(self.embeddings.values()) / self.num_embeddings
             Cluster.max_embedding_id = max(self.embeddings.keys())
 
+        # TODO: Is this correct?
         if cluster_id is None:
             self.cluster_id = Cluster.max_cluster_id
         else:
             self.cluster_id = cluster_id
-        Cluster.max_cluster_id = max(cluster_id, Cluster.max_cluster_id - 1) + 1
+        Cluster.max_cluster_id = max(self.cluster_id, Cluster.max_cluster_id - 1) + 1
+
+    def set_label(self, label):
+        self.label = label
 
     def get_embeddings(self, return_embeddings_ids=False):
         if return_embeddings_ids:
@@ -73,6 +76,7 @@ class Cluster:
         self.center_point = (old_num_embeddings * self.center_point + embedding) / self.num_embeddings
 
     def remove_embedding(self, embedding_id):
+        # TODO: Needed?
         # TODO: Handle DB? Or handle when saving? --> Probably the latter
         try:
             self.embeddings.pop(embedding_id)
@@ -94,16 +98,20 @@ class Cluster:
     def compute_dist(embedding1, embedding2):
         return float(torch.dist(embedding1, embedding2))
 
-    def save_cluster(self, save_path):
-        """
+    @staticmethod
+    def sum_embeddings(embeddings):
+        return reduce(torch.add, embeddings)
 
-        :param save_path:
-        :return:
-        """
-        # TODO: Save in DB
-        # cluster_save_path = os.path.join(save_path, f"cluster_{self.cluster_id}")
-        # save_cluster_embeddings_to_path(self.embeddings, cluster_save_path)
-
+    # def save_cluster(self, save_path):
+    #     """
+    #
+    #     :param save_path:
+    #     :return:
+    #     """
+    #     # TODO: Save in DB
+    #     # cluster_save_path = os.path.join(save_path, f"cluster_{self.cluster_id}")
+    #     # save_cluster_embeddings_to_path(self.embeddings, cluster_save_path)
+    #
     # @classmethod
     # def load_cluster(cls, path_to_cluster, cluster_id=None):
     #     """
@@ -113,24 +121,21 @@ class Cluster:
     #     :return:
     #     """
     #     # TODO: Replace with the corresponding DB method
-    #     embeddings = list(load_tensors(path_to_cluster, from_path=True))
+    #     embeddings = list(load_embeddings(path_to_cluster, from_path=True))
     #     cluster = cls(embeddings)
     #     if cluster_id is not None:
     #         cluster.cluster_id = cluster_id
     #     return cluster
-
-    @classmethod
-    def from_db(cls):
-        # TODO: Fix implementation!
-        manager = DBManager(DBManager.central_db_file_name, DBManager.local_db_file_name)
-        clusters = []
-        cluster_ids = manager.fetch_from_table(CLUSTER_ATTRIBUTES_TABLE, [CLUSTER_ID_COL])
-        for cluster_id in cluster_ids:
-            rows = manager.fetch_from_table(EMBEDDINGS_TABLE, [EMBEDDING_COL, FACE_ID_COL],
-                                            f'cluster_id = {cluster_id}')
-            print('hi')
-            break
-
-    @staticmethod
-    def sum_embeddings(embeddings):
-        return reduce(torch.add, embeddings)
+    #
+    # # TODO: Needed?
+    # @classmethod
+    # def from_db(cls):
+    #     # TODO: Fix implementation!
+    #     manager = DBManager(DBManager.central_db_file_name, DBManager.local_db_file_name)
+    #     clusters = []
+    #     cluster_ids = manager.fetch_from_table(CLUSTER_ATTRIBUTES_TABLE, [CLUSTER_ID_COL])
+    #     for cluster_id in cluster_ids:
+    #         rows = manager.fetch_from_table(EMBEDDINGS_TABLE, [EMBEDDING_COL, FACE_ID_COL],
+    #                                         f'cluster_id = {cluster_id}')
+    #         print('hi')
+    #         break

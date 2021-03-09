@@ -21,6 +21,7 @@ def wait_for_any_input(prompt):
 
 
 # ----- MISC -----
+
 def clean_str(string, to_lower=True):
     clean_string = string.strip()
     if to_lower:
@@ -38,4 +39,13 @@ def get_every_nth_item(iterables, n=0):
     @param n: index of element to return from each stored iterable
     @return: nth element in each iterable stored in 'iterables'
     """
+    # TODO: Don't return a list, let the callers handle the casting
     return list(map(lambda iterable: iterable[n], iterables))
+
+
+def remove_items(iterable, items):
+    for item in items:
+        try:
+            iterable.remove(item)
+        except ValueError:
+            log_error(f'Item {item} not found, could not be removed')

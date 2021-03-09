@@ -1,8 +1,7 @@
 import torchvision
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
-from Logic.ProperLogic.core_algorithm import cluster_embeddings, CLASSIFICATION_THRESHOLD, MAX_NUM_CLUSTER_COMPS, \
-    MAX_CLUSTER_SIZE
+from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_logic import *
 from models import Models
 from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item, have_equal_type_names
@@ -98,9 +97,6 @@ class Commands:
     show_cluster = Command('showcluster', 'show a cluster')
 
 
-# TODO: This is just a mark
-# resnet(img_detected.unsqueeze(0))
-
 def initialize_commands():
     # TODO: Finish!
     # TODO: Add params?
@@ -112,19 +108,8 @@ def initialize_commands():
 
 
 def process_command(cmd, **kwargs):
-    # TODO: Add additional params in signature to pass to handler??
-    #       --> Check out Software Design Patterns??
-    # TODO: complete function(?)
-    # if command in 'add':  # select new faces
-    #     # TODO: complete section
-    #     add_new_embeddings()
-    #
-    # elif command in 'edit':  # edit existing faces (or rather, existing identities)
-    #     ...
-    #
-    # elif command in 'find':
-    #     ...
-
+    # TODO:  Check out Software Design Patterns for better params passing to handlers?
+    # TODO: complete function (what's unfinished?)
     output = cmd.handler(**kwargs)
     return output
 
@@ -162,32 +147,32 @@ def handler_add_new_embeddings(db_manager, clusters, **kwargs):
     2. Extract faces and store in DB
     3. Compute embeddings and store in DB
     """
-    # TODO: Finish implementing
-    # TODO: Make sure DB is filled correctly after this executes
-    # Img Selection + Face Extraction
-    faces = user_choose_imgs(db_manager)
+    # TODO: Finish implementing (what's missing?)
+    faces_with_ids = list(user_choose_imgs(db_manager))
+    faces = get_every_nth_item(faces_with_ids, 1)
     embeddings = list(faces_to_embeddings(faces))
-    clusters = cluster_embeddings(embeddings, CLASSIFICATION_THRESHOLD, MAX_NUM_CLUSTER_COMPS,
-                                  existing_clusters=clusters, max_cluster_size=MAX_CLUSTER_SIZE)
+    clusters = CoreAlgorithm.cluster_embeddings(embeddings, clusters)
     return clusters
 
 
 def faces_to_embeddings(faces):
-    # TODO: Implement
+    # TODO: Finish implementing (what's missing?)
     for face in faces:
-        yield Models.resnet(face.unsqueeze(0))
+        yield Models.resnet(TO_TENSOR(face).unsqueeze(0))
 
 
 def user_choose_imgs(db_manager):
+    # TODO: Refactor! (too many different tasks, function name non-descriptive)
     # TODO: Finish implementing (What's missing?)
     # TODO: Make user choose path
     # TODO: Disable dropping of existing tables
-    path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
+    # user_choose_path()
+    path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
     db_manager.create_tables(create_local=True,
                              path_to_local_db=DBManager.get_db_path(path, local=True),
                              drop_existing_tables=True)
-    faces = extract_faces(path, db_manager)
-    return faces
+    faces_with_ids = extract_faces(path, db_manager)
+    return faces_with_ids
 
 
 def user_choose_path():
@@ -202,16 +187,17 @@ def user_choose_path():
 def extract_faces(path, db_manager: DBManager):
     # TODO: Finish implementation(?)
     # TODO: Implement DB interactions
-    # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth like that)
-    # TODO: Store + update max_img_id and max_face_id somewhere?
-    # TODO: Acting on centralized tables necessary here?
+    # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
+    # TODO: Store + update max_img_id and max_face_id somewhere rather than (always) get them via DB query?
     # TODO: Outsource db interactions to input-output logic?
-    # TODO: What does max return as a default value??? --> None / (None, )
+    # TODO: Check if max_face_id maths checks out!
 
     path_to_local_db = DBManager.get_db_path(path, local=True)
+    # Note: 'MAX' returns None / (None, ) as a default value
     max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id_col, default=0,
                                         path_to_local_db=path_to_local_db)
-    max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.face_id_col, default=0)
+    first_max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.face_id_col, default=0)
+    max_face_id = first_max_face_id
 
     faces = []
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
@@ -230,7 +216,7 @@ def extract_faces(path, db_manager: DBManager):
         max_face_id += len(img_faces)
         db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db)
 
-    return faces
+    return enumerate(faces, start=first_max_face_id+1)
 
 
 def cut_out_faces(mtcnn, img):
@@ -294,34 +280,48 @@ def choose_args(indices, *args):
     return [arg for i, arg in enumerate(args) if i in indices]
 
 
-def load_img_tensors_from_dir(dir_path, output_file_name=False):
-    """
-    Yield all images in the given directory.
-    If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
-    in the set will be returned.
+# def load_img_embeddings_from_dir(dir_path, output_file_name=False):
+#     """
+#     Yield all images in the given directory.
+#     If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
+#     in the set will be returned.
+#
+#     :param output_file_name: Whether the tensor should be yielded together with the corresponding file name
+#     :param dir_path: Directory containing images
+#     :return: Yield(!) tuples of image_names and embeddings contained in this folder
+#     """
+#     # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}. Empty = no
+#     # filtering
+#     # TODO: Needed?
+#     # TODO: Finish implementing
+#     if not output_file_name:
+#         for img_name in get_img_names(dir_path):
+#             with Image.open(dir_path + os.path.sep + img_name) as img:
+#                 yield _to_tensor(img)
+#     else:
+#         for img_name in get_img_names(dir_path):
+#             with Image.open(dir_path + os.path.sep + img_name) as img:
+#                 yield img_name, _to_tensor(img)
 
-    :param output_file_name: Whether the tensor should be yielded together with the corresponding file name
-    :param dir_path: Directory containing images
-    :return: Yield(!) tuples of image_names and tensors contained in this folder
-    """
-    # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}. Empty = no
-    # filtering
-    # TODO: Needed?
+
+def handle_command_output(output, cmd, db_manager, clusters):
     # TODO: Finish implementing
-    if not output_file_name:
-        for img_name in get_img_names(dir_path):
-            with Image.open(dir_path + os.path.sep + img_name) as img:
-                yield _to_tensor(img)
+    if cmd == Commands.add:
+        # output is iterable of newly formed clusters
+        clusters.append(output)
+        attributes_row_dicts = [
+            {
+                Columns.cluster_id_col.col_name: cluster.cluster_id,
+                Columns.label_col.col_name: cluster.label,
+                Columns.center_col.col_name: cluster.center_point,
+            }
+            for cluster in clusters]
+        db_manager.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts)
+        # TODO: store also in embeddings table (also partially handled elsewhere? change?)
+
+
     else:
-        for img_name in get_img_names(dir_path):
-            with Image.open(dir_path + os.path.sep + img_name) as img:
-                yield img_name, _to_tensor(img)
-
-
-def handle_command_output(output, cmd, clusters):
-    # TODO: Implement
-    if cmd == Command['add']:
-        pass
+        raise NotImplementedError(f'No such command {cmd}, its output could not be handled.')
 
 
 def _to_tensor(img):
@@ -357,7 +357,8 @@ def is_img(obj_path, img_extensions=None):
 
 def _output_cluster_content(cluster_name, cluster_path):
     wait_for_any_input(f'Which face image in the cluster "{cluster_name}" would you like to view?')
-    # TODO: finish; output faces and (-> separate function?) allow choice of image
+    # TODO: finish
+    # TODO: output faces and (-> separate function?) allow choice of image
 
 
 # --- i/o helpers ---
@@ -379,8 +380,8 @@ def _user_choose_cluster(clusters_path, return_names=True):
 
 
 def prompt_cluster_choice(clusters_names):
+    # TODO: print limited number of clusters at a time (Enter=continue)
     temp_lim = 10
-    # TODO: print clusters limited number at a time (Enter=continue)
     clusters_names = clusters_names[:temp_lim]  # TODO: remove this line
     clusters_str = '\n'.join(map(lambda string: f'- {string}', clusters_names))
     wait_for_any_input('Which cluster would you like to view? (Press any key to continue.)')

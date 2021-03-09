@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 IMAGE_PATH = os.path.join('..', 'my_test', 'facenet_Test', 'subset_cplfw_test', 'preprocessed_faces_naive')
-TENSORS_PATH = 'stored_embeddings'
+embeddings_PATH = 'stored_embeddings'
 
 TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
@@ -30,16 +30,16 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 #       --> DB handles DB-internals, while this module use DB module to load and store stuff for other modules?
 # TODO: Remember to CREATE directories if they don't already exist! (Don't assume existence)
 # TODO: Separate extraction and loading of images!
-# TODO: Consistent naming embeddings vs. tensors
+# TODO: Consistent naming embeddings vs. embeddings
 # TODO: (Learn how to time stuff well! Wrapper?)
 
 
-def main(imgs_dir_path, tensors_dir_path):
+def main(imgs_dir_path, embeddings_dir_path):
     mtcnn = MTCNN(image_size=160, margin=0)
     resnet = InceptionResnetV1(pretrained='vggface2').eval()
 
-    _test_saving_embeddings(imgs_dir_path, tensors_dir_path, resnet)
-    _test_loading_embeddings(tensors_dir_path)
+    _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet)
+    _test_loading_embeddings(embeddings_dir_path)
 
 
 def load_clusters_from_db(db_manager):
@@ -51,16 +51,16 @@ def load_clusters_from_db(db_manager):
     return clusters
 
 
-def _test_saving_embeddings(imgs_dir_path, tensors_dir_path, resnet):
+def _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet):
     imgs_loader = load_imgs_from_path(imgs_dir_path)
-    save_embeddings_to_path(imgs_loader, resnet, tensors_dir_path)  # TODO: (?) put mtcnn in
+    save_embeddings_to_path(imgs_loader, resnet, embeddings_dir_path)  # TODO: (?) put mtcnn in
 
 
-def _test_loading_embeddings(tensors_dir_path):
-    tensors_loader = _load_tensors_from_path(tensors_dir_path, yield_paths=True)
+def _test_loading_embeddings(embeddings_dir_path):
+    embeddings_loader = _load_embeddings_from_path(embeddings_dir_path, yield_paths=True)
     dists = []
     prev_tensor = torch.zeros([1, 512])
-    for tensor_path, tensor in tensors_loader:
+    for tensor_path, tensor in embeddings_loader:
         dists.append(float(torch.dist(prev_tensor, tensor)))
         prev_tensor = tensor
 
@@ -94,7 +94,7 @@ def load_imgs_from_path(dir_path):
     in the set will be returned.
 
     :param dir_path: Directory containing images
-    :return: Yield(!) tuples of image_names and tensors contained in this folder
+    :return: Yield(!) tuples of image_names and embeddings contained in this folder
     """
     # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}
     img_names, num_imgs = get_and_count_img_names(dir_path)
@@ -147,65 +147,66 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
         _extract_face_and_save_embedding(img_name, img, should_extract_face)
 
 
-# TODO: Too specific of a function?
-# TODO: Merge with general save_embeddings function?
-# TODO: Move to core_algorithm module?
-def save_cluster_embeddings_to_path(embeddings, save_path):
-    # TODO: Use map or similar? Make more efficient?
-
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    elif not os.path.isdir(save_path):
-        raise OSError(f'non-directory object named {save_path} already exists, '
-                      'directory of same name cannot be created')
-    # TODO: possible 'race condition'?!
-    elif os.listdir(save_path):
-        # TODO: !!! handle possible naming conflicts!
-        # logging.warning('directory to save to not empty - potential naming conflict(s)!')
-        # TODO: Make this a choice! (Only temp??)
-        should_overwrite = 'y'
-        # input("Would you like to overwrite the directory? (Please enter 'y' or 'n'.)"
-        #                      ).lower().strip()
-        if not should_overwrite.startswith('y'):
-            raise RuntimeError('directory to save to not empty - potential naming conflict(s)!')
-        rmtree(save_path)  # TODO: Does it really delete the complete structure like it should?
-        os.makedirs(save_path)
-
-    for embedding_id, embedding in embeddings.items():
-        # TODO: Is it valid assumption that id is always either digit or 'proper' filename??
-        if embedding_id.isdigit() and not embedding_id.endswith('.pt'):
-            file_name = f'embedding_{embedding_id}.pt'
-        else:
-            file_name = embedding_id
-        embedding_save_path = os.path.join(save_path, file_name)
-
-        torch.save(embedding, embedding_save_path, pickle_protocol=pickle.DEFAULT_PROTOCOL)
-
-
-def load_tensors(tensors, from_path, yield_paths=False):
-    if from_path:
-        return _load_tensors_from_path(tensors, yield_paths)
-    return map(lambda tup: (str(tup[0]), tup[1]), enumerate(tensors))
+# # TODO: Too specific of a function?
+# # TODO: Merge with general save_embeddings function?
+# # TODO: Move to core_algorithm module?
+# def save_cluster_embeddings_to_path(embeddings, save_path):
+#     # TODO: Use map or similar? Make more efficient?
+#
+#     if not os.path.exists(save_path):
+#         os.makedirs(save_path)
+#     elif not os.path.isdir(save_path):
+#         raise OSError(f'non-directory object named {save_path} already exists, '
+#                       'directory of same name cannot be created')
+#     # TODO: possible 'race condition'?!
+#     elif os.listdir(save_path):
+#         # TODO: !!! handle possible naming conflicts!
+#         # logging.warning('directory to save to not empty - potential naming conflict(s)!')
+#         # TODO: Make this a choice! (Only temp??)
+#         should_overwrite = 'y'
+#         # input("Would you like to overwrite the directory? (Please enter 'y' or 'n'.)"
+#         #                      ).lower().strip()
+#         if not should_overwrite.startswith('y'):
+#             raise RuntimeError('directory to save to not empty - potential naming conflict(s)!')
+#         rmtree(save_path)  # TODO: Does it really delete the complete structure like it should?
+#         os.makedirs(save_path)
+#
+#     for embedding_id, embedding in embeddings.items():
+#         # TODO: Is it valid assumption that id is always either digit or 'proper' filename??
+#         if embedding_id.isdigit() and not embedding_id.endswith('.pt'):
+#             file_name = f'embedding_{embedding_id}.pt'
+#         else:
+#             file_name = embedding_id
+#         embedding_save_path = os.path.join(save_path, file_name)
+#
+#         torch.save(embedding, embedding_save_path, pickle_protocol=pickle.DEFAULT_PROTOCOL)
 
 
-def _load_tensors_from_path(tensors_path, yield_paths=False):
-    """
-    Yield all face embeddings (tensors) from given path/directory. They are preceded by their paths if yield_paths is
-    True.
+def load_embeddings(embeddings):
+    # TODO: Load from DB!
+    # if from_path:
+    #     return _load_embeddings_from_path(embeddings, yield_paths)
+    return map(lambda tup: (str(tup[0]), tup[1]), enumerate(embeddings))
 
-    :param :
-    :return:
-    """
-    file_names = filter(lambda obj_name: os.path.isfile(os.path.join(tensors_path, obj_name)),
-                        os.listdir(tensors_path))
-    file_paths = map(lambda file_name: os.path.join(tensors_path, file_name),
-                     file_names)
 
-    if yield_paths:
-        tensors_loader = map(lambda file_path: (file_path, torch.load(file_path)), file_paths)
-    else:
-        tensors_loader = map(torch.load, file_paths)
-    return tensors_loader
+# def _load_embeddings_from_path(embeddings_path, yield_paths=False):
+#     """
+#     Yield all face embeddings (embeddings) from given path/directory. They are preceded by their paths if yield_paths is
+#     True.
+#
+#     :param :
+#     :return:
+#     """
+#     file_names = filter(lambda obj_name: os.path.isfile(os.path.join(embeddings_path, obj_name)),
+#                         os.listdir(embeddings_path))
+#     file_paths = map(lambda file_name: os.path.join(embeddings_path, file_name),
+#                      file_names)
+#
+#     if yield_paths:
+#         embeddings_loader = map(lambda file_path: (file_path, torch.load(file_path)), file_paths)
+#     else:
+#         embeddings_loader = map(torch.load, file_paths)
+#     return embeddings_loader
 
 
 # ----- HELPER FUNCTIONS -----
@@ -223,7 +224,7 @@ def append_file_extension(file_name, extension):
 
 
 if __name__ == '__main__':
-    main(IMAGE_PATH, TENSORS_PATH)
-    # tensors = load_img_tensors_from_path(TENSORS_PATH)
-    # tensor = list(tensors)[0][1]
+    main(IMAGE_PATH, embeddings_PATH)
+    # embeddings = load_img_embeddings_from_path(embeddings_PATH)
+    # tensor = list(embeddings)[0][1]
     # ...

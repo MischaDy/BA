@@ -108,13 +108,6 @@ def initialize_commands():
     Commands.show_cluster.set_handler(handler_show_cluster)
 
 
-def process_command(cmd, **kwargs):
-    # TODO:  Check out Software Design Patterns for better params passing to handlers?
-    # TODO: complete function (what's unfinished?)
-    output = cmd.handler(**kwargs)
-    return output
-
-
 # ----- COMMAND PROCESSING -----
 
 def handler_edit_faces(**kwargs):

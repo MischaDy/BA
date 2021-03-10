@@ -172,7 +172,6 @@ class DBManager:
         @param path_to_local_db:
         @return:
         """
-        # TODO: Call data_to_bytes when appropriate. --> How to know??
         rows = DBManager.row_dicts_to_rows(table, row_dicts)
         store_in_local = Tables.is_local_table(table)
         cur = self.open_connection(store_in_local, path_to_local_db)

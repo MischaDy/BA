@@ -195,26 +195,3 @@ def _rstrip_underscored_part(string):
     if underscore_ind != -1:
         return string[:underscore_ind]
     return string
-
-
-# def remove_directory_trees(dir_tree_paths):
-#     # TODO: needed??
-#     for dir_tree_path in dir_tree_paths:
-#         shutil.rmtree(dir_tree_path, onerror=_handle_tree_removal_errors)
-#
-#
-# def _handle_tree_removal_errors(function, path, excinfo):
-#     # TODO: Needed?
-#     exc_type, _, traceback = excinfo
-#     if exc_type is FileNotFoundError:
-#         log_error(f'File or directory at {path} not found')
-#     elif exc_type is PermissionError:
-#         log_error(f'No permission to remove file or directory at {path}')
-#     elif exc_type is OSError:
-#         log_error(f'The following error occurred for the file or directory at {path}:' '\n' + str(traceback))
-#     else:
-#         raise
-
-
-if __name__ == '__main__':
-    CoreAlgorithm.cluster_embeddings(EMBEDDINGS_PATH, CLUSTERS_PATH)

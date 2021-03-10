@@ -116,7 +116,7 @@ class ColumnTypes(Enum):
     blob = 'BLOB'
 
     def __eq__(self, other):
-        return self.value == other.value
+        return have_equal_type_names(self, other) and self.value == other.value
 
 
 class ColumnDetails(Enum):
@@ -125,7 +125,7 @@ class ColumnDetails(Enum):
     image = 'image'
 
     def __eq__(self, other):
-        return self.value == other.value
+        return have_equal_type_names(self, other) and self.value == other.value
 
 
 class Columns:

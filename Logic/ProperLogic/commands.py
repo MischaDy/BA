@@ -4,7 +4,8 @@ from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_logic import *
 from models import Models
-from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item, have_equal_type_names
+from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item, have_equal_type_names, \
+    split_items
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
@@ -142,17 +143,35 @@ def handler_show_cluster(clusters_path, **kwargs):
 
 
 def handler_add_new_embeddings(db_manager, clusters, **kwargs):
-    """
-    1. User selects new images to extract faces out of
-    2. Extract faces and store in DB
-    3. Compute embeddings and store in DB
-    """
-    # TODO: Finish implementing (what's missing?)
-    faces_with_ids = list(user_choose_imgs(db_manager))
-    faces = get_every_nth_item(faces_with_ids, 1)
+    # TODO: Finish implementing
+    # TODO: Improve efficiency? (only one loop for row creation)
+    # Extract faces from user-chosen images and cluster them
+    face_ids, faces = split_items(list(user_choose_imgs(db_manager)))
     embeddings = list(faces_to_embeddings(faces))
-    clusters = CoreAlgorithm.cluster_embeddings(embeddings, clusters)
-    return clusters
+    new_clusters = CoreAlgorithm.cluster_embeddings(embeddings, clusters)
+    clusters.append(new_clusters)
+
+    # Store clusters in cluster_attributes table of DB
+    attributes_row_dicts = [
+        {
+            Columns.cluster_id_col.col_name: cluster.cluster_id,
+            Columns.label_col.col_name: cluster.label,
+            Columns.center_col.col_name: cluster.center_point,
+        }
+        for cluster in new_clusters]
+    db_manager.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts)
+
+    # Store embeddings in embeddings table of DB
+    embeddings_row_dicts = []
+    for cluster in new_clusters:
+        embeddings_row = [
+            {Columns.cluster_id_col.col_name: cluster.cluster_id,
+             Columns.embedding_col.col_name: embedding,
+             Columns.face_id_col.col_name: face_id}
+            for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
+        ]
+        embeddings_row_dicts.extend(embeddings_row)
+    db_manager.store_in_table(Tables.embeddings_table, embeddings_row_dicts)
 
 
 def faces_to_embeddings(faces):
@@ -302,26 +321,6 @@ def choose_args(indices, *args):
 #         for img_name in get_img_names(dir_path):
 #             with Image.open(dir_path + os.path.sep + img_name) as img:
 #                 yield img_name, _to_tensor(img)
-
-
-def handle_command_output(output, cmd, db_manager, clusters):
-    # TODO: Finish implementing
-    if cmd == Commands.add:
-        # output is iterable of newly formed clusters
-        clusters.append(output)
-        attributes_row_dicts = [
-            {
-                Columns.cluster_id_col.col_name: cluster.cluster_id,
-                Columns.label_col.col_name: cluster.label,
-                Columns.center_col.col_name: cluster.center_point,
-            }
-            for cluster in clusters]
-        db_manager.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts)
-        # TODO: store also in embeddings table (also partially handled elsewhere? change?)
-
-
-    else:
-        raise NotImplementedError(f'No such command {cmd}, its output could not be handled.')
 
 
 def _to_tensor(img):

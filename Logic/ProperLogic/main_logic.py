@@ -43,8 +43,8 @@ def run_program(terminating_tokes, path_to_central_dir):
     while cmd_name not in terminating_tokes:
         cmd_name = get_user_command()
         cmd = Command.get_command(cmd_name)
-        output = process_command(cmd, db_manager=db_manager, clusters=clusters)
-        handle_command_output(output, cmd, db_manager, clusters)
+        process_command(cmd, db_manager=db_manager, clusters=clusters)
+        # handle_command_output(output, cmd, db_manager, clusters)
 
 
 # ----- I/O -----

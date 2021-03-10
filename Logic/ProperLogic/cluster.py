@@ -54,10 +54,10 @@ class Cluster:
     def set_label(self, label):
         self.label = label
 
-    def get_embeddings(self, return_embeddings_ids=False):
-        if return_embeddings_ids:
-            return self.embeddings
-        return list(self.embeddings.values())
+    def get_embeddings(self, with_embedding_ids=False):
+        if with_embedding_ids:
+            return self.embeddings.items()
+        return self.embeddings.values()
 
     def get_size(self):
         return len(self.embeddings)
@@ -66,7 +66,7 @@ class Cluster:
         if embedding_id is None:
             Cluster.max_embedding_id += 1
             embedding_id = Cluster.max_embedding_id
-        if self.embeddings.get(embedding_id):
+        if self.embeddings.get(embedding_id) is not None:
             raise RuntimeError('embedding with given ID already exists in this cluster')
         self.embeddings[embedding_id] = embedding
 

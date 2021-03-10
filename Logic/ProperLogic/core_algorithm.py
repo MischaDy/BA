@@ -1,3 +1,5 @@
+from functools import partial
+
 from Logic.ProperLogic.database_logic import DBManager
 from Logic.ProperLogic.misc_helpers import log_error, remove_items
 from input_output_logic import *
@@ -39,7 +41,7 @@ class CoreAlgorithm:
     num_embeddings_to_classify = 100
 
     @classmethod
-    def cluster_embeddings(cls, embeddings, existing_clusters=None):
+    def cluster_embeddings(cls, embeddings, embedding_ids, existing_clusters=None):
         """
         Build clusters from face embeddings stored in the given path using the specified classification threshold.
         (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed
@@ -51,25 +53,23 @@ class CoreAlgorithm:
         :return:
         """
         # TODO: Improve efficiency?
-        # TODO: Fix embeddings loader / use DB
+        # TODO: Allow embeddings_ids to be none? Get next id via DB query?
+        # TODO: Allow embeddings_ids to be shorter than embeddings and 'fill up' remaining ids?
+        if len(embeddings) > len(embedding_ids):
+            raise ValueError(f'Too few ids for embeddings ({len(embedding_ids)} passed, but {len(embeddings)} needed)')
+
         if existing_clusters is None:
             existing_clusters = []
-        embeddings_loader = load_embeddings(embeddings)
-        try:
-            first_file_path, first_embedding = next(embeddings_loader)
-        except StopIteration as error:
-            log_error('No embeddings found in path')
-            raise error
-        first_file_name = os.path.split(first_file_path)[-1]
-
-        clusters = existing_clusters + [Cluster([first_embedding], [first_file_name])]
+        # TODO: list-casting needed here?
+        embeddings_with_ids = zip(embedding_ids, embeddings)
+        clusters = existing_clusters  # + [Cluster([first_embedding], [first_emb_id])]
 
         # iterate over remaining embeddings
         logging.info('START iteration over embeddings')
         time1 = default_timer()
         counter_vals = range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0 else count(2)
         counter = 0
-        for counter, (embedding_file_path, new_embedding) in zip(counter_vals, embeddings_loader):  # enumerate(embeddings_loader, start=2):
+        for counter, (embedding_id, new_embedding) in zip(counter_vals, embeddings_with_ids):
             if counter % 100 == 0:
                 logging.info(f' --- Current embedding number: {counter}')
 
@@ -80,32 +80,18 @@ class CoreAlgorithm:
 
             # find cluster containing the closest emb. to new_emb..
             shortest_emb_dist, closest_cluster = cls.find_closest_cluster_to_embedding(closest_clusters, new_embedding)
-            embedding_file_name = os.path.split(embedding_file_path)[-1]
 
             if shortest_emb_dist <= cls.classification_threshold:
-                closest_cluster.add_embedding(new_embedding, embedding_file_name)
+                closest_cluster.add_embedding(new_embedding, embedding_id)
                 distant_embeddings = cls.get_embs_too_far_from_center(closest_cluster)
                 if len(distant_embeddings) > 0 or cls.is_cluster_too_big(closest_cluster):
                     cls.split_cluster(closest_cluster, clusters, start_embeddings=distant_embeddings)
             else:
-                clusters.append(Cluster([new_embedding], [embedding_file_name]))
+                clusters.append(Cluster([new_embedding], [embedding_id]))
 
         logging.info(f' --- Last embedding number: {counter}')
         logging.info(f'END iteration over embeddings')
         logging.info(f'Time spent on embeddings: {default_timer() - time1}')
-
-        # if cluster_save_path is not None:
-        #     time1 = default_timer()
-        #     logging.info('\nSTART cluster saving')
-        #     for counter, cluster in enumerate(clusters, start=1):
-        #         if counter % 100 == 0:
-        #             logging.info(f' --- Current cluster number: {counter}')
-        #         cluster.save_cluster(cluster_save_path)
-        #     logging.info(f' --- Last cluster number: {counter}')
-        #     logging.info(f'END cluster saving')
-        #     logging.info(f'Time spent on saving clusters: {default_timer() - time1}')
-        # else:
-        #     return clusters
 
         return clusters
 
@@ -135,9 +121,8 @@ class CoreAlgorithm:
         shortest_emb_dist = float('inf')
         closest_cluster = None
         for cluster in clusters:
-            embeddings = cluster.get_embeddings()
-            emb_dists = map(lambda cluster_emb: Cluster.compute_dist(embedding, cluster_emb), embeddings)
-            min_cluster_emb_dist = min(emb_dists)
+            min_cluster_emb_dist = min(map(partial(Cluster.compute_dist, embedding),
+                                           cluster.get_embeddings()))
             if min_cluster_emb_dist < shortest_emb_dist:
                 shortest_emb_dist = min_cluster_emb_dist
                 closest_cluster = cluster
@@ -157,7 +142,7 @@ class CoreAlgorithm:
         # TODO: Compare with first embedding or with cluster center?
         # TODO: Implement DB interactions (here?)
         # TODO: Improve efficiency!
-        embeddings = closest_cluster.get_embeddings()
+        embeddings = list(closest_cluster.get_embeddings())
         if start_embeddings is not None:
             remove_items(embeddings, start_embeddings)
             embeddings = start_embeddings + embeddings

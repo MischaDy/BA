@@ -182,13 +182,6 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
 #         torch.save(embedding, embedding_save_path, pickle_protocol=pickle.DEFAULT_PROTOCOL)
 
 
-def load_embeddings(embeddings):
-    # TODO: Load from DB!
-    # if from_path:
-    #     return _load_embeddings_from_path(embeddings, yield_paths)
-    return map(lambda tup: (str(tup[0]), tup[1]), enumerate(embeddings))
-
-
 # def _load_embeddings_from_path(embeddings_path, yield_paths=False):
 #     """
 #     Yield all face embeddings (embeddings) from given path/directory. They are preceded by their paths if yield_paths is

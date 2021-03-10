@@ -46,8 +46,9 @@ def load_clusters_from_db(db_manager):
     # db_manager.fetch_from_table(len(db_manager), path_to_local_db=None, cols=None, cond='')
     # fetch_from_table(table_name, path_to_local_db=None, cols=None, cond='')
     cluster_parts = db_manager.get_cluster_parts()
-    clusters = [Cluster(embeddings=embeddings, embeddings_ids=embeddings_ids, cluster_id=id_, label=label, center_point=mean)
-                for id_, label, mean, embeddings, embeddings_ids in cluster_parts]
+    clusters = [Cluster(embeddings=[embedding], embeddings_ids=[embedding_id], cluster_id=cluster_id, label=label,
+                        center_point=center_point)
+                for cluster_id, label, center_point, embedding, embedding_id in cluster_parts]
     return clusters
 
 

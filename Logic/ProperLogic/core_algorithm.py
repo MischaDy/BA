@@ -49,9 +49,11 @@ class CoreAlgorithm:
 
         :param embeddings: Either a path (string) to the directory wherein embeddings are located or an iterable
         containing the embeddings
+        :param embedding_ids: Ordered iterable with the embedding ids. Must be at least as long as embeddings.
         :param existing_clusters:
         :return:
         """
+        # TODO: What should the output be? Should this be an in-place method??
         # TODO: Improve efficiency?
         # TODO: Allow embeddings_ids to be none? Get next id via DB query?
         # TODO: Allow embeddings_ids to be shorter than embeddings and 'fill up' remaining ids?

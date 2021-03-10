@@ -138,11 +138,11 @@ def handler_show_cluster(clusters_path, **kwargs):
 def handler_add_new_embeddings(db_manager, clusters, **kwargs):
     # TODO: Finish implementing
     # TODO: Improve efficiency? (only one loop for row creation)
+    # TODO: How to know, what to store in DB?? ---> Improve efficiency! Make sure, DB handles uniqueness correctly!
     # Extract faces from user-chosen images and cluster them
     face_ids, faces = split_items(list(user_choose_imgs(db_manager)))
     embeddings = list(faces_to_embeddings(faces))
-    new_clusters = CoreAlgorithm.cluster_embeddings(embeddings, clusters)
-    clusters.append(new_clusters)
+    CoreAlgorithm.cluster_embeddings(embeddings, face_ids, existing_clusters=clusters)
 
     # Store clusters in cluster_attributes table of DB
     attributes_row_dicts = [
@@ -151,12 +151,13 @@ def handler_add_new_embeddings(db_manager, clusters, **kwargs):
             Columns.label_col.col_name: cluster.label,
             Columns.center_col.col_name: cluster.center_point,
         }
-        for cluster in new_clusters]
+        for cluster in clusters
+    ]
     db_manager.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts)
 
     # Store embeddings in embeddings table of DB
     embeddings_row_dicts = []
-    for cluster in new_clusters:
+    for cluster in clusters:
         embeddings_row = [
             {Columns.cluster_id_col.col_name: cluster.cluster_id,
              Columns.embedding_col.col_name: embedding,

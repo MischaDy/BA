@@ -158,7 +158,7 @@ def handler_add_new_embeddings(db_manager, clusters, **kwargs):
 def faces_to_embeddings(faces):
     # TODO: Finish implementing (what's missing?)
     for face in faces:
-        yield Models.resnet(TO_TENSOR(face).unsqueeze(0))
+        yield Models.resnet(_to_tensor(face))
 
 
 def user_choose_imgs(db_manager):
@@ -185,7 +185,7 @@ def user_choose_path():
 
 
 def extract_faces(path, db_manager: DBManager):
-    # TODO: Finish implementation(?)
+    # TODO: Finish implementing (what's missing?)
     # TODO: Implement DB interactions
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
     # TODO: Store + update max_img_id and max_face_id somewhere rather than (always) get them via DB query?

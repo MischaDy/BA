@@ -2,6 +2,9 @@ import logging
 
 
 # ----- OOP -----
+import operator
+
+
 def have_equal_attrs(obj1, obj2):
     return obj1.__dict__ == obj2.__dict__
 
@@ -39,8 +42,9 @@ def get_every_nth_item(iterables, n=0):
     @param n: index of element to return from each stored iterable
     @return: nth element in each iterable stored in 'iterables'
     """
-    # TODO: Don't return a list, let the callers handle the casting
-    return list(map(lambda iterable: iterable[n], iterables))
+    # TODO: Don't return a list, let the callers handle the casting(?)
+    get_nth_item = operator.itemgetter(n)
+    return list(map(get_nth_item, iterables))
 
 
 def remove_items(iterable, items):

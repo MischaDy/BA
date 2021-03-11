@@ -4,10 +4,11 @@ from enum import Enum
 from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item
 
 
-# TODO: Comparison problems when using __get_true__attr??
+# TODO: Comparison problems when using _get_true__attr??
 def _get_true_attr(obj, enum_, obj_var_name=None):
+    # TODO: Fix comparison problems!
     if isinstance(obj, enum_):
-        return obj
+        return str(obj)
     elif isinstance(obj, str):
         return enum_[obj]
     name_error_str = "The variable" if obj_var_name is None else f"'{obj_var_name}'"

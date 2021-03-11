@@ -201,24 +201,22 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
 #     else:
 #         embeddings_loader = map(torch.load, file_paths)
 #     return embeddings_loader
-
-
-# ----- HELPER FUNCTIONS -----
-
-def get_file_extension(file_name):
-    return file_name.split(os.path.extsep)[-1]
-
-
-def strip_file_extension(file_name):
-    return os.path.extsep.join(file_name.split(os.path.extsep)[:-1])
-
-
-def append_file_extension(file_name, extension):
-    return file_name + os.path.extsep + extension
+# 
+#
+# # ----- HELPER FUNCTIONS -----
+#
+# def get_file_extension(file_name):
+#     ext_with_sep = os.path.splitext(file_name)[-1]
+#     return ext_with_sep.lstrip(os.path.extsep)
+#
+#
+# def strip_file_extension(file_name):
+#     return os.path.splitext(file_name)[0]
+#
+#
+# def append_file_extension(file_name, extension):
+#     return file_name + os.path.extsep + extension
 
 
 if __name__ == '__main__':
     main(IMAGE_PATH, embeddings_PATH)
-    # embeddings = load_img_embeddings_from_path(embeddings_PATH)
-    # tensor = list(embeddings)[0][1]
-    # ...

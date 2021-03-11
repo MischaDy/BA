@@ -142,7 +142,6 @@ class CoreAlgorithm:
         :param start_embeddings: Embeddings which to cluster first
         """
         # TODO: Compare with first embedding or with cluster center?
-        # TODO: Implement DB interactions (here?)
         # TODO: Improve efficiency!
         embeddings = list(closest_cluster.get_embeddings())
         if start_embeddings is not None:
@@ -179,21 +178,3 @@ class CoreAlgorithm:
                     max_dist_embs = (emb1, emb2)
         return max_dist_embs
 
-
-# ------- HELPERS -------
-
-def _are_same_person(embedding_name1, embedding_name2):
-    # TODO: Don't assume underscore based naming with digits at end as only difference!?
-    person1_numbered_name, _ = os.path.splitext(embedding_name1)
-    person2_numbered_name, _ = os.path.splitext(embedding_name2)
-    person1_name = _rstrip_underscored_part(person1_numbered_name)
-    person2_name = _rstrip_underscored_part(person2_numbered_name)
-    return person1_name == person2_name
-
-
-def _rstrip_underscored_part(string):
-    """Remove part after rightmost underscore in string if such a part exists."""
-    underscore_ind = string.rfind('_')
-    if underscore_ind != -1:
-        return string[:underscore_ind]
-    return string

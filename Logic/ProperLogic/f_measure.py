@@ -1,13 +1,12 @@
 import os
 
-from itertools import combinations, combinations_with_replacement, product
+import time
 
-from core_algorithm import _are_same_person
+from itertools import combinations, combinations_with_replacement, product
 
 import logging
 logging.basicConfig(level=logging.INFO)
 
-import time
 
 CLUSTERS_PATH = 'stored_clusters'
 
@@ -153,6 +152,25 @@ def _get_inter_clusters_embedding_pairs(clusters_path):
 
         embedding_pairs = product(cluster1_embeddings, cluster2_embeddings)
         yield embedding_pairs
+
+
+# ------- HELPERS -------
+
+def _are_same_person(embedding_name1, embedding_name2):
+    # TODO: Don't assume underscore based naming with digits at end as only difference!?
+    person1_numbered_name, _ = os.path.splitext(embedding_name1)
+    person2_numbered_name, _ = os.path.splitext(embedding_name2)
+    person1_name = _rstrip_underscored_part(person1_numbered_name)
+    person2_name = _rstrip_underscored_part(person2_numbered_name)
+    return person1_name == person2_name
+
+
+def _rstrip_underscored_part(string):
+    """Remove part after rightmost underscore in string if such a part exists."""
+    underscore_ind = string.rfind('_')
+    if underscore_ind != -1:
+        return string[:underscore_ind]
+    return string
 
 
 # # TODO: Useful??

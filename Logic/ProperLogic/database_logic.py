@@ -14,19 +14,16 @@ from Logic.ProperLogic.misc_helpers import clean_str
 
 # TODO: *Global* face_id - created in central table, then written to corresponding local table
 # TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
-# TODO: Refactor to programmatically connect columns and their properties (uniqueness etc.). But multiple columns???
-# TODO: When to close connection? Optimize?
 # TODO: (When to) use VACUUM?
 # TODO: Locking db necessary?
 # TODO: Backup necessary?
 # TODO: Use SQLAlchemy?
 
-# TODO: Append semi-colons everywhere?
 # TODO: FK faces -> embeddings other way around? Or remove completely?
 # TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names??
 
-# TODO: Guarantee that connection is closed at end of methods
-#       --> Using try (/ except) / finally??
+# TODO: When to close connection? Optimize?
+# TODO: Guarantee that connection is closed at end of methods (done?)
 
 # TODO: Make DBManager a singleton object?
 
@@ -83,19 +80,21 @@ class DBManager:
 
     def create_tables(self, create_local, path_to_local_db=None, drop_existing_tables=False):
         cur = self.open_connection(create_local, path_to_local_db)
-        if drop_existing_tables:
-            self._drop_tables(cur, create_local)
+        try:
+            if drop_existing_tables:
+                self._drop_tables(cur, create_local)
 
-        if create_local:
-            self._create_local_tables(cur)
-        else:
-            self._create_central_tables(cur)
-        self.commit_and_close_connection(create_local)
+            if create_local:
+                self._create_local_tables(cur)
+            else:
+                self._create_central_tables(cur)
+        finally:
+            self.commit_and_close_connection(create_local)
 
     @classmethod
     def _create_local_tables(cls, cur):
         # enable foreign keys
-        cur.execute('PRAGMA foreign_keys = ON')
+        cur.execute('PRAGMA foreign_keys = ON;')
 
         # create images table
         cur.execute(cls.__table_to_creating_sql(Tables.images_table))
@@ -174,10 +173,12 @@ class DBManager:
         """
         rows = DBManager.row_dicts_to_rows(table, row_dicts)
         store_in_local = Tables.is_local_table(table)
-        cur = self.open_connection(store_in_local, path_to_local_db)
         values_template = self._make_values_template(len(row_dicts[0]))
-        cur.executemany(f'INSERT INTO {table} VALUES ({values_template});', rows)
-        self.commit_and_close_connection(store_in_local)
+        cur = self.open_connection(store_in_local, path_to_local_db)
+        try:
+            cur.executemany(f'INSERT INTO {table} VALUES ({values_template});', rows)
+        finally:
+            self.commit_and_close_connection(store_in_local)
 
     def fetch_from_table(self, table, path_to_local_db=None, cols=None, cond=''):
         """
@@ -193,24 +194,38 @@ class DBManager:
             cols = table.get_column_names()
         cond_str = '' if len(cond) == 0 else f'WHERE {cond}'
         fetch_from_local = Tables.is_local_table(table)
-        cur = self.open_connection(fetch_from_local, path_to_local_db)
         cols_template = ','.join(cols)
-        sql_values = cur.execute(f'SELECT {cols_template} FROM {table} {cond_str}').fetchall()
-        self.commit_and_close_connection(fetch_from_local)
+        cur = self.open_connection(fetch_from_local, path_to_local_db)
+        try:
+            sql_values = cur.execute(f'SELECT {cols_template} FROM {table} {cond_str};').fetchall()
+        finally:
+            self.commit_and_close_connection(fetch_from_local)
         result = [DBManager.sql_value_to_data(value, col) for value, col in zip(sql_values, cols)]
         return result
 
     def get_cluster_parts(self):
+        # TODO: Refactor
         cur = self.open_connection(open_local=False)
-        cluster_parts = cur.execute(
-            f"SELECT {Columns.cluster_id_col}, {Columns.label_col},"
-            f" {Columns.center_col}, {Columns.embedding_col}, "
-            f"{Columns.face_id_col}"
-            f" FROM {Tables.embeddings_table} INNER JOIN {Tables.cluster_attributes_table}"
-            f" USING ({Columns.cluster_id_col});"
-        ).fetchall()
-        self.commit_and_close_connection(close_local=False)
-        return cluster_parts
+        try:
+            cluster_parts = cur.execute(
+                f"SELECT {Columns.cluster_id_col}, {Columns.label_col},"
+                f" {Columns.center_col}, {Columns.embedding_col}, "
+                f"{Columns.face_id_col}"
+                f" FROM {Tables.embeddings_table} INNER JOIN {Tables.cluster_attributes_table}"
+                f" USING ({Columns.cluster_id_col});"
+            ).fetchall()
+        finally:
+            self.commit_and_close_connection(close_local=False)
+        # convert center point and embedding to tensors rather than bytes
+        processed_cluster_parts = [
+            (cluster_id,
+             label,
+             self.bytes_to_tensor(center_point),
+             self.bytes_to_tensor(embedding),
+             face_id)
+            for cluster_id, label, center_point, embedding, face_id in cluster_parts
+        ]
+        return processed_cluster_parts
 
     def add_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
         # TODO: Implement + Change signature + use
@@ -235,10 +250,12 @@ class DBManager:
     def aggregate_col(self, table, col, func, path_to_local_db=None):
         aggregate_from_local = Tables.is_local_table(table)
         cur = self.open_connection(aggregate_from_local, path_to_local_db)
-        agg_value = cur.execute(
-            f"SELECT {func}({col}) FROM {table};"
-        ).fetchone()
-        self.commit_and_close_connection(aggregate_from_local)
+        try:
+            agg_value = cur.execute(
+                f"SELECT {func}({col}) FROM {table};"
+            ).fetchone()
+        finally:
+            self.commit_and_close_connection(aggregate_from_local)
         return agg_value
 
     def get_max_num(self, table, col, default=0, path_to_local_db=None):
@@ -291,8 +308,10 @@ class DBManager:
         @return:
         """
         details = _get_true_attr(details_obj, ColumnDetails, 'details_obj')
-        if details in (ColumnDetails.image, ColumnDetails.tensor):
-            value = DBManager.bytes_to_data(value, details)
+        if details == ColumnDetails.image:
+            value = DBManager.bytes_to_image(value)
+        elif details == ColumnDetails.tensor:
+            value = DBManager.bytes_to_tensor(value)
         elif details == ColumnDetails.date:
             value = DBManager.iso_string_to_date(value)
         return value
@@ -313,6 +332,14 @@ class DBManager:
         buffer.close()
         return data_bytes
 
+    @classmethod
+    def bytes_to_image(cls, data_bytes):
+        return cls.bytes_to_data(data_bytes, data_type=ColumnDetails.image)
+
+    @classmethod
+    def bytes_to_tensor(cls, data_bytes):
+        return cls.bytes_to_data(data_bytes, data_type=ColumnDetails.tensor)
+
     @staticmethod
     def bytes_to_data(data_bytes, data_type):
         """
@@ -322,14 +349,20 @@ class DBManager:
         :param data_type: String or ColumnDetails object denoting the original data type. One of 'tensor', 'image', or
         one of the corresponding ColumnDetails objects.
         """
+        # TODO: Does this comparison always work?
         type_str = _get_true_attr(data_type, ColumnDetails, 'data_type')
 
         buffer = io.BytesIO(data_bytes)
-        if type_str == 'tensor':
-            obj = torch.load(buffer)
-        else:
-            obj = Image.open(buffer).convert('RGBA')
-        buffer.close()
+        try:
+            if type_str == str(ColumnDetails.tensor):
+                obj = torch.load(buffer)
+            elif type_str == str(ColumnDetails.image):
+                obj = Image.open(buffer).convert('RGBA')
+            else:
+                raise ValueError(f"Unknown data type '{type_str}', expected '{str(ColumnDetails.tensor)}'"
+                                 f" or '{str(ColumnDetails.image)}'.")
+        finally:
+            buffer.close()
         return obj
 
     @staticmethod

@@ -1,7 +1,7 @@
 import os
 import pickle
 
-from shutil import rmtree
+# from shutil import rmtree
 
 import torch
 import torchvision
@@ -201,7 +201,7 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
 #     else:
 #         embeddings_loader = map(torch.load, file_paths)
 #     return embeddings_loader
-# 
+#
 #
 # # ----- HELPER FUNCTIONS -----
 #

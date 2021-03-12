@@ -9,7 +9,7 @@ import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, _get_true_attr
+from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails
 
 # TODO: *Global* face_id - created in central table, then written to corresponding local table
 # TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
@@ -299,20 +299,20 @@ class DBManager:
         return sep.join(chars_to_join)
 
     @staticmethod
-    def sql_value_to_data(value, details_obj):
+    def sql_value_to_data(value, details):
         """
 
         @param value:
-        @param details_obj: String or ColumnSchema
+        @param details: String or ColumnSchema
         @return:
         """
-        details = _get_true_attr(details_obj, ColumnDetails, 'details_obj')
         if details == ColumnDetails.image:
             value = DBManager.bytes_to_image(value)
         elif details == ColumnDetails.tensor:
             value = DBManager.bytes_to_tensor(value)
         elif details == ColumnDetails.date:
             value = DBManager.iso_string_to_date(value)
+        print("sql_value_to_data: Didn't match any ColumnDetails")
         return value
 
     @staticmethod
@@ -348,18 +348,15 @@ class DBManager:
         :param data_type: String or ColumnDetails object denoting the original data type. One of 'tensor', 'image', or
         one of the corresponding ColumnDetails objects.
         """
-        # TODO: Does this comparison always work?
-        type_str = _get_true_attr(data_type, ColumnDetails, 'data_type')
-
         buffer = io.BytesIO(data_bytes)
         try:
-            if type_str == str(ColumnDetails.tensor):
+            if data_type == ColumnDetails.tensor:
                 obj = torch.load(buffer)
-            elif type_str == str(ColumnDetails.image):
+            elif data_type == ColumnDetails.image:
                 obj = Image.open(buffer).convert('RGBA')
             else:
-                raise ValueError(f"Unknown data type '{type_str}', expected '{str(ColumnDetails.tensor)}'"
-                                 f" or '{str(ColumnDetails.image)}'.")
+                raise ValueError(f"Unknown data type '{data_type}', expected '{ColumnDetails.tensor}'"
+                                 f" or '{ColumnDetails.image}'.")
         finally:
             buffer.close()
         return obj

@@ -1,9 +1,8 @@
 import logging
+import operator
 
 
 # ----- OOP -----
-import operator
-from itertools import starmap
 
 
 def have_equal_attrs(obj1, obj2):

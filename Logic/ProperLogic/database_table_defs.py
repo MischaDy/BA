@@ -4,15 +4,15 @@ from enum import Enum
 from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item
 
 
-# TODO: Comparison problems when using _get_true__attr??
-def _get_true_attr(obj, enum_, obj_var_name=None):
-    # TODO: Fix comparison problems!
-    if isinstance(obj, enum_):
-        return str(obj)
-    elif isinstance(obj, str):
-        return enum_[obj]
-    name_error_str = "The variable" if obj_var_name is None else f"'{obj_var_name}'"
-    raise TypeError(f"{name_error_str} must be a string or a member of {enum_.__name__}, not {obj}")
+# # TODO: Comparison problems when using _get_true__attr??
+# def _get_true_attr(obj, enum_, obj_var_name=None):
+#     # TODO: Fix comparison problems!
+#     if isinstance(obj, enum_):
+#         return obj.name
+#     elif isinstance(obj, str):
+#         return enum_[obj]
+#     name_error_str = "The variable" if obj_var_name is None else f"'{obj_var_name}'"
+#     raise TypeError(f"{name_error_str} must be a string or a member of {enum_.__name__}, not {obj}")
 
 
 class TableSchema:
@@ -24,7 +24,7 @@ class TableSchema:
         self.constraints = constraints
 
     def __getitem__(self, item):
-        return _get_true_attr(item, ColumnSchema, 'item')
+        return ColumnSchema[item]
 
     def __str__(self):
         return self.name
@@ -85,14 +85,16 @@ class TableSchema:
 
 
 class ColumnSchema:
-    def __init__(self, col_name, col_type, col_constraint='', details=None):
-        if details is not None:
-            self.details = _get_true_attr(details, ColumnDetails, 'details')
-        else:
-            self.details = details
-        self.col_type = _get_true_attr(col_type, ColumnTypes, 'col_type')
+    def __init__(self, col_name, col_type, col_constraint='', col_details=None):
+        if col_details is not None and col_details not in ColumnDetails:
+            raise ValueError(f"Unknown column details '{col_details}'.")
+        if col_type is not None and col_type not in ColumnTypes:
+            raise ValueError(f"Unknown column type '{col_type}'.")
+
+        self.col_type = col_type
         self.col_name = col_name
         self.col_constraint = col_constraint
+        self.details = col_details
 
     def __str__(self):
         return self.col_name
@@ -119,6 +121,9 @@ class ColumnTypes(Enum):
     def __eq__(self, other):
         return have_equal_type_names(self, other) and self.value == other.value
 
+    def __str__(self):
+        return self.name
+
 
 class ColumnDetails(Enum):
     tensor = 'tensor'
@@ -128,17 +133,20 @@ class ColumnDetails(Enum):
     def __eq__(self, other):
         return have_equal_type_names(self, other) and self.value == other.value
 
+    def __str__(self):
+        return self.name
+
 
 class Columns:
-    center_col = ColumnSchema('center', ColumnTypes.blob, details=ColumnDetails.tensor)
+    center_col = ColumnSchema('center', ColumnTypes.blob, col_details=ColumnDetails.tensor)
     cluster_id_col = ColumnSchema('cluster_id', ColumnTypes.integer)
-    embedding_col = ColumnSchema('embedding', ColumnTypes.blob, details=ColumnDetails.tensor)
+    embedding_col = ColumnSchema('embedding', ColumnTypes.blob, col_details=ColumnDetails.tensor)
     face_id_col = ColumnSchema('face_id', ColumnTypes.integer)
     file_name_col = ColumnSchema('file_name', ColumnTypes.text)
     image_id_col = ColumnSchema('image_id', ColumnTypes.integer)
     label_col = ColumnSchema('label', ColumnTypes.text)
-    last_modified_col = ColumnSchema('last_modified', ColumnTypes.text, details=ColumnDetails.date)
-    thumbnail_col = ColumnSchema('thumbnail', ColumnTypes.blob, details=ColumnDetails.image)
+    last_modified_col = ColumnSchema('last_modified', ColumnTypes.text, col_details=ColumnDetails.date)
+    thumbnail_col = ColumnSchema('thumbnail', ColumnTypes.blob, col_details=ColumnDetails.image)
 
 
 class Tables:

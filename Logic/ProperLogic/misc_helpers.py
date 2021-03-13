@@ -13,6 +13,10 @@ def have_equal_type_names(obj1, obj2):
     return type(obj1).__name__ == type(obj2).__name__
 
 
+def is_instance_by_type_name(obj, class_):
+    return type(obj).__name__ == class_.__name__
+
+
 # ----- I/O -----
 
 def log_error(msg):
@@ -38,9 +42,9 @@ def get_every_nth_item(iterables, n=0):
 
     Example: get_every_nth_item(zip(range(3, 7), 'abcdefgh'), n=1) --> ['a', 'b', 'c', 'd']
 
-    @param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
-    @param n: index of element to return from each stored iterable
-    @return: nth element in each iterable stored in 'iterables'
+    :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
+    :param n: index of element to return from each stored iterable
+    :return: nth element in each iterable stored in 'iterables'
     """
     # TODO: Don't return a list, let the callers handle the casting(?)
     get_nth_item = operator.itemgetter(n)
@@ -56,8 +60,8 @@ def split_items(iterables):
 
     Example: get_every_nth_item(zip(range(3, 7), 'abcdefgh')) --> [[3, 4, 5, 6], ['a', 'b', 'c', 'd']]
 
-    @param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
-    @return: nth element in each iterable stored in 'iterables'
+    :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
+    :return: nth element in each iterable stored in 'iterables'
     """
     # TODO: Fix Docstring
     # TODO: Improve efficiency

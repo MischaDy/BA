@@ -12,8 +12,6 @@ CLUSTERS_PATH = 'stored_clusters'
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
-TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
-
 
 # TODO: Using ground-truths in clustering - put every emb. in new cluster!
 
@@ -46,12 +44,34 @@ def run_program(terminating_tokes, path_to_central_dir):
         cmd.handler(db_manager=db_manager, clusters=clusters)
 
 
+def test_program(path_to_central_dir):
+    path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
+    db_manager = DBManager(path_to_local_db)
+    db_manager.create_tables(create_local=False, drop_existing_tables=True)
+    clusters = load_clusters_from_db(db_manager)
+    initialize_commands()
+
+    cmd_name = get_user_command()
+    while cmd_name not in Command.terminating_tokens:
+        cmd = Command.get_command(cmd_name)
+        # TODO:  Check out Software Design Patterns for better params passing to handlers?
+        cmd.handler(db_manager=db_manager, clusters=clusters)
+        cmd_name = get_user_command()
+        cmd_name = 'exit'
+
+    path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs\local_db.sqlite'
+    rows = db_manager.fetch_from_table(Tables.faces_table, path)
+    thumbs = get_every_nth_item(rows, 2)
+    thumbs[0].show()
+
+
 # ----- I/O -----
 
 def get_user_command():
+    # TODO: Let user choose command
     command = 'add'  # _get_user_command_subfunc()
-    while command not in Command.commands.keys():
-        log_error('Unknown command, please try again.')
+    while command not in Command.commands.keys() and command not in Command.terminating_tokens:
+        log_error(f'Unknown command {command}, please try again.')
         command = _get_user_command_subfunc()
     return command
 
@@ -67,7 +87,9 @@ def print_command_options():
                          for cmd_name, cmd_desc in Command.get_command_descriptions())
     output = '\n'.join(cmd_options_lines) + '\n'
     print(output)
+    print(f"- To exit, type e.g. 'exit'.")
 
 
 if __name__ == '__main__':
-    run_program(TERMINATING_TOKENS, CLUSTERS_PATH)
+    # run_program(CLUSTERS_PATH)
+    test_program(CLUSTERS_PATH)

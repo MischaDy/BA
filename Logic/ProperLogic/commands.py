@@ -19,6 +19,7 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 
 class Command:
     # TODO: add 'help' command
+    terminating_tokens = ('halt', 'stop', 'quit', 'exit',)
     commands = {}
 
     def __init__(self, cmd_name, cmd_desc, handler=None, handler_params=None):
@@ -136,9 +137,11 @@ def handler_show_cluster(clusters_path, **kwargs):
 
 
 def handler_add_new_embeddings(db_manager, clusters, **kwargs):
-    # TODO: Finish implementing
+    # TODO: Finish implementing (what's missing?)
+    # TODO: Make sure, DB handles uniqueness correctly!
     # TODO: Improve efficiency? (only one loop for row creation)
-    # TODO: How to know, what to store in DB?? ---> Improve efficiency! Make sure, DB handles uniqueness correctly!
+    # TODO: How to know, what to store in DB(?)
+    # TODO: Improve DB efficiency(?)
     # Extract faces from user-chosen images and cluster them
     face_ids, faces = split_items(list(user_choose_imgs(db_manager)))
     embeddings = list(faces_to_embeddings(faces))
@@ -147,9 +150,9 @@ def handler_add_new_embeddings(db_manager, clusters, **kwargs):
     # Store clusters in cluster_attributes table of DB
     attributes_row_dicts = [
         {
-            Columns.cluster_id_col.col_name: cluster.cluster_id,
-            Columns.label_col.col_name: cluster.label,
-            Columns.center_col.col_name: cluster.center_point,
+            Columns.cluster_id.col_name: cluster.cluster_id,
+            Columns.label.col_name: cluster.label,
+            Columns.center.col_name: cluster.center_point,
         }
         for cluster in clusters
     ]
@@ -159,9 +162,9 @@ def handler_add_new_embeddings(db_manager, clusters, **kwargs):
     embeddings_row_dicts = []
     for cluster in clusters:
         embeddings_row = [
-            {Columns.cluster_id_col.col_name: cluster.cluster_id,
-             Columns.embedding_col.col_name: embedding,
-             Columns.face_id_col.col_name: face_id}
+            {Columns.cluster_id.col_name: cluster.cluster_id,
+             Columns.embedding.col_name: embedding,
+             Columns.face_id.col_name: face_id}
             for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
         ]
         embeddings_row_dicts.extend(embeddings_row)
@@ -179,12 +182,12 @@ def user_choose_imgs(db_manager):
     # TODO: Finish implementing (What's missing?)
     # TODO: Make user choose path
     # TODO: Disable dropping of existing tables
-    # user_choose_path()
-    path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
+    images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
+    path_to_local_db = DBManager.get_db_path(images_path, local=True)
     db_manager.create_tables(create_local=True,
-                             path_to_local_db=DBManager.get_db_path(path, local=True),
+                             path_to_local_db=path_to_local_db,
                              drop_existing_tables=True)
-    faces_with_ids = extract_faces(path, db_manager)
+    faces_with_ids = extract_faces(images_path, db_manager)
     return faces_with_ids
 
 
@@ -207,9 +210,9 @@ def extract_faces(path, db_manager: DBManager):
 
     path_to_local_db = DBManager.get_db_path(path, local=True)
     # Note: 'MAX' returns None / (None, ) as a default value
-    max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id_col, default=0,
+    max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id, default=0,
                                         path_to_local_db=path_to_local_db)
-    first_max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.face_id_col, default=0)
+    first_max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.face_id, default=0)
     max_face_id = first_max_face_id
 
     faces = []
@@ -218,13 +221,13 @@ def extract_faces(path, db_manager: DBManager):
         img_faces = cut_out_faces(Models.mtcnn, img)
         faces.extend(img_faces)
         last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
-        img_row = {Columns.image_id_col.col_name: img_id,
-                   Columns.file_name_col.col_name: img_name,
-                   Columns.last_modified_col.col_name: last_modified}
+        img_row = {Columns.image_id.col_name: img_id,
+                   Columns.file_name.col_name: img_name,
+                   Columns.last_modified.col_name: last_modified}
         db_manager.store_in_table(Tables.images_table, [img_row], path_to_local_db)
-        faces_rows = [{Columns.thumbnail_col.col_name: face,
-                       Columns.image_id_col.col_name: img_id,
-                       Columns.face_id_col.col_name: face_id}
+        faces_rows = [{Columns.thumbnail.col_name: face,
+                       Columns.image_id.col_name: img_id,
+                       Columns.face_id.col_name: face_id}
                       for face_id, face in enumerate(img_faces, start=max_face_id+1)]
         max_face_id += len(img_faces)
         db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db)
@@ -335,9 +338,9 @@ def get_img_names(dir_path, img_extensions=None):
 def is_img(obj_path, img_extensions=None):
     """
     
-    @param obj_path: Path to an object
-    @param img_extensions: Iterable of extensions. Default: 'jpg', 'jpeg' and 'png'.
-    @return: Whether obj_path ends with 
+    :param obj_path: Path to an object
+    :param img_extensions: Iterable of extensions. Default: 'jpg', 'jpeg' and 'png'.
+    :return: Whether obj_path ends with
     """
     if img_extensions is None:
         img_extensions = {'jpg', 'jpeg', 'png'}

@@ -37,30 +37,30 @@ class TableSchema:
     def get_columns(self):
         """
 
-        @return: The stored ColumnSchema objects.
+        :return: The stored ColumnSchema objects.
         """
         return list(self.get_column_dict().values())
 
     def get_column_names(self):
         """
 
-        @return: The names of the stored ColumnSchema objects.
+        :return: The names of the stored ColumnSchema objects.
         """
         return list(self.get_column_dict().keys())
 
     def get_column_dict(self):
         """
 
-        @return: The OrderedDict storing the (column_name, ColumnSchema)-pairs.
+        :return: The OrderedDict storing the (column_name, ColumnSchema)-pairs.
         """
         return self.columns
 
     def get_column_type(self, col_name):
         return self.get_column_dict()[col_name].col_type
 
-    def sort_dict_by_cols(self, row_dict, only_values=False):
+    def sort_dict_by_cols(self, row_dict, only_values=True):
         """
-        Return a list containing the items in row_dict, sorted by the order the corresponding keys appear in this
+        Return a list containing the elements in row_dict, sorted by the order the corresponding keys appear in this
         tables' columns. If only_values is True, the dict values rather than items are returned.
 
         Example:
@@ -68,20 +68,20 @@ class TableSchema:
         row_dict = {'last_name': 'Olafson', 'age': 29, 'first_name': 'Lina'}
         --> ['Lina', 'Olafson', 29]
 
-        @param row_dict:
-        @param only_values:
-        @return:
+        :param row_dict:
+        :param only_values:
+        :return:
         """
         # if isinstance(list(row_dict.keys())[0], str):
-        #     cols = self.get_column_names()
+        #     col_names = self.get_column_names()
         # else:
-        #     cols = self.get_columns()
+        #     col_names = self.get_columns()
         cols = self.get_column_names()
         sorted_row_items = sorted(row_dict.items(),
                                   key=lambda kv_pair: cols.index(kv_pair[0]))  # kv = key-value
-        if not only_values:
-            return sorted_row_items
-        return get_every_nth_item(sorted_row_items, n=1)
+        if only_values:
+            return get_every_nth_item(sorted_row_items, n=1)
+        return sorted_row_items
 
 
 class ColumnSchema:
@@ -94,7 +94,7 @@ class ColumnSchema:
         self.col_type = col_type
         self.col_name = col_name
         self.col_constraint = col_constraint
-        self.details = col_details
+        self.col_details = col_details
 
     def __str__(self):
         return self.col_name
@@ -106,7 +106,7 @@ class ColumnSchema:
 
     def with_constraint(self, col_constraint):
         # TODO: Make more general version of this method?
-        return ColumnSchema(self.col_name, self.col_type, col_constraint, self.details)
+        return ColumnSchema(self.col_name, self.col_type, col_constraint, self.col_details)
 
 
 # TODO: Fix comparisons of tables not being equal due to this class!
@@ -138,36 +138,40 @@ class ColumnDetails(Enum):
 
 
 class Columns:
-    center_col = ColumnSchema('center', ColumnTypes.blob, col_details=ColumnDetails.tensor)
-    cluster_id_col = ColumnSchema('cluster_id', ColumnTypes.integer)
-    embedding_col = ColumnSchema('embedding', ColumnTypes.blob, col_details=ColumnDetails.tensor)
-    face_id_col = ColumnSchema('face_id', ColumnTypes.integer)
-    file_name_col = ColumnSchema('file_name', ColumnTypes.text)
-    image_id_col = ColumnSchema('image_id', ColumnTypes.integer)
-    label_col = ColumnSchema('label', ColumnTypes.text)
-    last_modified_col = ColumnSchema('last_modified', ColumnTypes.text, col_details=ColumnDetails.date)
-    thumbnail_col = ColumnSchema('thumbnail', ColumnTypes.blob, col_details=ColumnDetails.image)
+    center = ColumnSchema('center', ColumnTypes.blob, col_details=ColumnDetails.tensor)
+    cluster_id = ColumnSchema('cluster_id', ColumnTypes.integer)
+    embedding = ColumnSchema('embedding', ColumnTypes.blob, col_details=ColumnDetails.tensor)
+    face_id = ColumnSchema('face_id', ColumnTypes.integer)
+    file_name = ColumnSchema('file_name', ColumnTypes.text)
+    image_id = ColumnSchema('image_id', ColumnTypes.integer)
+    label = ColumnSchema('label', ColumnTypes.text)
+    last_modified = ColumnSchema('last_modified', ColumnTypes.text, col_details=ColumnDetails.date)
+    thumbnail = ColumnSchema('thumbnail', ColumnTypes.blob, col_details=ColumnDetails.image)
+
+    @classmethod
+    def get_column(cls, col_name):
+        return cls.__dict__[col_name]
 
 
 class Tables:
     images_table = TableSchema(
         'images',
-        [Columns.image_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by faces table
-         Columns.file_name_col.with_constraint('NOT NULL'),
-         Columns.last_modified_col.with_constraint('NOT NULL')
+        [Columns.image_id.with_constraint('UNIQUE NOT NULL'),  # also used by faces table
+         Columns.file_name.with_constraint('NOT NULL'),
+         Columns.last_modified.with_constraint('NOT NULL')
          ],
-        [f'PRIMARY KEY ({Columns.image_id_col})'
+        [f'PRIMARY KEY ({Columns.image_id})'
          ]
     )
 
     faces_table = TableSchema(
         'faces',
-        [Columns.face_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.image_id_col.with_constraint('NOT NULL'),
-         Columns.thumbnail_col.with_constraint('NOT NULL')  # TODO: Which constraint should go here?
+        [Columns.face_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
+         Columns.image_id.with_constraint('NOT NULL'),
+         Columns.thumbnail.with_constraint('NOT NULL')  # TODO: Which constraint should go here?
          ],
-        [f'PRIMARY KEY ({Columns.face_id_col})',
-         f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {images_table} ({Columns.image_id_col})'
+        [f'PRIMARY KEY ({Columns.face_id})',
+         f'FOREIGN KEY ({Columns.image_id}) REFERENCES {images_table} ({Columns.image_id})'
          + ' ON DELETE CASCADE'
          ]
     )
@@ -176,21 +180,21 @@ class Tables:
 
     cluster_attributes_table = TableSchema(
         'cluster_attributes',
-        [Columns.cluster_id_col.with_constraint('NOT NULL'),  # also used by cluster attributes table
-         Columns.label_col,
-         Columns.center_col
+        [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by cluster attributes table
+         Columns.label,
+         Columns.center
          ],
-        [f'PRIMARY KEY ({Columns.cluster_id_col})']
+        [f'PRIMARY KEY ({Columns.cluster_id})']
     )
 
     embeddings_table = TableSchema(
         'embeddings',
-        [Columns.cluster_id_col.with_constraint('NOT NULL'),  # also used by cluster attributes table
-         Columns.face_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.embedding_col.with_constraint('NOT NULL')
+        [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by cluster attributes table
+         Columns.face_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
+         Columns.embedding.with_constraint('NOT NULL')
          ],
-        [f'PRIMARY KEY ({Columns.face_id_col})',
-         f'FOREIGN KEY ({Columns.cluster_id_col}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id_col})'
+        [f'PRIMARY KEY ({Columns.face_id})',
+         f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id})'
          + ' ON DELETE CASCADE'
          ]
     )

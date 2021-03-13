@@ -62,9 +62,8 @@ class CoreAlgorithm:
 
         if existing_clusters is None:
             existing_clusters = []
-        # TODO: list-casting needed here?
         embeddings_with_ids = zip(embedding_ids, embeddings)
-        clusters = existing_clusters  # + [Cluster([first_embedding], [first_emb_id])]
+        clusters = existing_clusters
 
         # iterate over remaining embeddings
         logging.info('START iteration over embeddings')
@@ -80,7 +79,7 @@ class CoreAlgorithm:
                                              key=lambda cluster: cluster.compute_dist_to_center(new_embedding))
             closest_clusters = clusters_by_center_dist[:cls.max_num_cluster_comps]
 
-            # find cluster containing the closest emb. to new_emb..
+            # find cluster containing the closest embedding to new_embedding
             shortest_emb_dist, closest_cluster = cls.find_closest_cluster_to_embedding(closest_clusters, new_embedding)
 
             if shortest_emb_dist <= cls.classification_threshold:
@@ -164,8 +163,8 @@ class CoreAlgorithm:
     def find_most_distant_embeddings(embeddings):
         """
         Return the two embeddings which have the greatest distance between them.
-        @param embeddings:
-        @return:
+        :param embeddings:
+        :return:
         """
         # TODO: Improve efficiency
         max_dist = -1

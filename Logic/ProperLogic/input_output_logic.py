@@ -43,8 +43,8 @@ def main(imgs_dir_path, embeddings_dir_path):
 
 
 def load_clusters_from_db(db_manager):
-    # db_manager.fetch_from_table(len(db_manager), path_to_local_db=None, cols=None, cond='')
-    # fetch_from_table(table_name, path_to_local_db=None, cols=None, cond='')
+    # db_manager.fetch_from_table(len(db_manager), path_to_local_db=None, col_names=None, cond='')
+    # fetch_from_table(table_name, path_to_local_db=None, col_names=None, cond='')
     cluster_parts = db_manager.get_cluster_parts()
     clusters = [Cluster(embeddings=[embedding], embeddings_ids=[embedding_id], cluster_id=cluster_id, label=label,
                         center_point=center_point)

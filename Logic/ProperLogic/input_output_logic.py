@@ -58,7 +58,7 @@ def _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet):
 
 
 def _test_loading_embeddings(embeddings_dir_path):
-    embeddings_loader = _load_embeddings_from_path(embeddings_dir_path, yield_paths=True)
+    embeddings_loader = ...  # _load_embeddings_from_path(embeddings_dir_path, yield_paths=True)
     dists = []
     prev_tensor = torch.zeros([1, 512])
     for tensor_path, tensor in embeddings_loader:

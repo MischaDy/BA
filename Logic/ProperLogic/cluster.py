@@ -139,3 +139,12 @@ class Cluster:
     #                                         f'cluster_id = {cluster_id}')
     #         print('hi')
     #         break
+
+
+class Clusters(list):
+    def get_cluster_by_id(self, cluster_id):
+        # TODO: Which error to raise?
+        try:
+            return next(filter(lambda c: c.cluster_id == cluster_id, self))
+        except StopIteration:
+            raise RuntimeError("no cluster with id '{cluster_id}' found")

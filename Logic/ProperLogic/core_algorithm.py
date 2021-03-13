@@ -1,12 +1,13 @@
 from functools import partial
+from typing import Union, Tuple
 
+from Logic.ProperLogic.cluster import Clusters
 from Logic.ProperLogic.database_logic import DBManager
-from Logic.ProperLogic.misc_helpers import log_error, remove_items
+from Logic.ProperLogic.misc_helpers import remove_items
 from input_output_logic import *
 
 from itertools import count
 
-from timeit import default_timer
 import logging
 logging.basicConfig(level=logging.INFO)
 
@@ -38,7 +39,7 @@ class CoreAlgorithm:
     max_num_cluster_comps = max_num_total_comps // max_cluster_size  # maximum number of clusters to compute distance to
 
     # TODO: remove
-    num_embeddings_to_classify = 100
+    num_embeddings_to_classify = -1
 
     @classmethod
     def cluster_embeddings(cls, embeddings, embedding_ids, existing_clusters=None):
@@ -53,26 +54,21 @@ class CoreAlgorithm:
         :param existing_clusters:
         :return:
         """
-        # TODO: What should the output be? Should this be an in-place method??
         # TODO: Improve efficiency?
         # TODO: Allow embeddings_ids to be none? Get next id via DB query?
         # TODO: Allow embeddings_ids to be shorter than embeddings and 'fill up' remaining ids?
         if len(embeddings) > len(embedding_ids):
             raise ValueError(f'Too few ids for embeddings ({len(embedding_ids)} passed, but {len(embeddings)} needed)')
+        embeddings_with_ids = zip(embedding_ids, embeddings)
 
         if existing_clusters is None:
-            existing_clusters = []
-        embeddings_with_ids = zip(embedding_ids, embeddings)
-        clusters = existing_clusters
+            existing_clusters = Clusters()
+        clusters = Clusters(existing_clusters)
+        new_clusters_ids, modified_clusters_ids, removed_clusters_ids = set(), set(), set()
 
         # iterate over remaining embeddings
-        logging.info('START iteration over embeddings')
-        time1 = default_timer()
         counter_vals = range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0 else count(2)
-        counter = 0
         for counter, (embedding_id, new_embedding) in zip(counter_vals, embeddings_with_ids):
-            if counter % 100 == 0:
-                logging.info(f' --- Current embedding number: {counter}')
 
             # sort clusters by distance from their center to embedding; only consider closest clusters
             clusters_by_center_dist = sorted(clusters,
@@ -84,17 +80,21 @@ class CoreAlgorithm:
 
             if shortest_emb_dist <= cls.classification_threshold:
                 closest_cluster.add_embedding(new_embedding, embedding_id)
+                if closest_cluster.cluster_id not in new_clusters_ids:
+                    modified_clusters_ids.add(closest_cluster.cluster_id)
+
                 distant_embeddings = cls.get_embs_too_far_from_center(closest_cluster)
                 if len(distant_embeddings) > 0 or cls.is_cluster_too_big(closest_cluster):
-                    cls.split_cluster(closest_cluster, clusters, start_embeddings=distant_embeddings)
+                    cls.split_cluster(closest_cluster, clusters, distant_embeddings, new_clusters_ids=new_clusters_ids,
+                                      removed_clusters_ids=removed_clusters_ids)
             else:
-                clusters.append(Cluster([new_embedding], [embedding_id]))
-
-        logging.info(f' --- Last embedding number: {counter}')
-        logging.info(f'END iteration over embeddings')
-        logging.info(f'Time spent on embeddings: {default_timer() - time1}')
-
-        return clusters
+                new_cluster = Cluster([new_embedding], [embedding_id])
+                clusters.append(new_cluster)
+                new_clusters_ids.add(new_cluster.cluster_id)
+        id_sets = (new_clusters_ids, modified_clusters_ids, removed_clusters_ids)
+        new_clusters, modified_clusters, removed_clusters = (map(clusters.get_cluster_by_id, id_set)
+                                                             for id_set in id_sets)
+        return new_clusters, modified_clusters, removed_clusters
 
     @classmethod
     def is_cluster_too_big(cls, cluster):
@@ -108,7 +108,7 @@ class CoreAlgorithm:
                            cluster.get_embeddings()))
 
     @classmethod
-    def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True):
+    def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True) -> Union[Cluster, Tuple[float, Cluster]]:
         """
         Determine closest cluster to current embedding, i.e. the one which stores the closest embedding to
         the current embedding.
@@ -132,24 +132,32 @@ class CoreAlgorithm:
         return closest_cluster
 
     @classmethod
-    def split_cluster(cls, closest_cluster, clusters, start_embeddings=None):
+    def split_cluster(cls, cluster_to_split, clusters, start_embeddings=None, new_clusters_ids=None,
+                      removed_clusters_ids=None):
         """
         Recluster given cluster without further (indirectly recursive) splitting.
 
-        :param closest_cluster: ...
+        :param cluster_to_split: Cluster to be split
         :param clusters: Iterable of currently assigned clusters
         :param start_embeddings: Embeddings which to cluster first
+        :param new_clusters_ids:
+        :param removed_clusters_ids:
         """
+        # TODO: Update docstring!
         # TODO: Compare with first embedding or with cluster center?
         # TODO: Improve efficiency!
-        embeddings = list(closest_cluster.get_embeddings())
+        embeddings = list(cluster_to_split.get_embeddings())
         if start_embeddings is not None:
             remove_items(embeddings, start_embeddings)
             embeddings = start_embeddings + embeddings
+        if new_clusters_ids is None:
+            new_clusters_ids = set()
+        if removed_clusters_ids is None:
+            removed_clusters_ids = set()
 
         cluster_start_emb1, cluster_start_emb2 = cls.find_most_distant_embeddings(embeddings)
         remove_items(embeddings, [cluster_start_emb1, cluster_start_emb2])
-        label = closest_cluster.label
+        label = cluster_to_split.label
         new_cluster1, new_cluster2 = Cluster(cluster_start_emb1, label=label), Cluster(cluster_start_emb2, label=label)
         for embedding in embeddings:
             dist_to_emb1, dist_to_emb2 = map(embedding.dist, [cluster_start_emb1, cluster_start_emb2])
@@ -157,7 +165,10 @@ class CoreAlgorithm:
             closer_cluster.add_embedding(embedding)
 
         clusters.extend([new_cluster1, new_cluster2])
-        clusters.remove(closest_cluster)
+        clusters.remove(cluster_to_split)
+        new_clusters_ids.add(new_cluster1.cluster_id)
+        new_clusters_ids.add(new_cluster2.cluster_id)
+        removed_clusters_ids.add(cluster_to_split.cluster_id)
 
     @staticmethod
     def find_most_distant_embeddings(embeddings):
@@ -167,6 +178,8 @@ class CoreAlgorithm:
         :return:
         """
         # TODO: Improve efficiency
+        if not len(embeddings) > 1:
+            raise ValueError("'embeddings' must contain at least 2 embeddings")
         max_dist = -1
         max_dist_embs = (None, None)
         for ind1, emb1 in enumerate(embeddings):

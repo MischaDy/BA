@@ -23,9 +23,6 @@ class TableSchema:
         self.columns = OrderedDict((col.col_name, col) for col in columns)
         self.constraints = constraints
 
-    def __getitem__(self, item):
-        return ColumnSchema[item]
-
     def __str__(self):
         return self.name
 
@@ -107,6 +104,10 @@ class ColumnSchema:
     def with_constraint(self, col_constraint):
         # TODO: Make more general version of this method?
         return ColumnSchema(self.col_name, self.col_type, col_constraint, self.col_details)
+
+    # @classmethod
+    # def get_column_schema(cls, col_schema_name):
+    #     return cls.__dict__[col_schema_name]
 
 
 # TODO: Fix comparisons of tables not being equal due to this class!

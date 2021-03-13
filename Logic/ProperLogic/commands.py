@@ -15,7 +15,8 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 # INPUT_SIZE = [112, 112]
 
 
-# TODO: Make enum-style Commands class like for ColumnSchema etc.?
+# TODO: Make handlers class
+# TODO: Split this file?
 
 class Command:
     # TODO: add 'help' command
@@ -91,7 +92,6 @@ class Command:
 
 
 class Commands:
-    # TODO: Make enum?
     add = Command('add', 'select new faces')
     edit = Command('edit', 'edit existing faces')
     find = Command('find', 'find individual')
@@ -100,7 +100,7 @@ class Commands:
 
 
 def initialize_commands():
-    # TODO: Finish!
+    # TODO: Finish implementing! (what's missing?)
     # TODO: Add params?
     Commands.add.set_handler(handler_add_new_embeddings)
     Commands.edit.set_handler(handler_edit_faces)
@@ -136,7 +136,7 @@ def handler_show_cluster(clusters_path, **kwargs):
         should_continue = clean_str(input('Choose another cluster?\n'))
 
 
-def handler_add_new_embeddings(db_manager, clusters, **kwargs):
+def handler_add_new_embeddings(db_manager: DBManager, clusters, **kwargs):
     # TODO: Finish implementing (what's missing?)
     # TODO: Make sure, DB handles uniqueness correctly!
     # TODO: Improve efficiency? (only one loop for row creation)
@@ -145,30 +145,9 @@ def handler_add_new_embeddings(db_manager, clusters, **kwargs):
     # Extract faces from user-chosen images and cluster them
     face_ids, faces = split_items(list(user_choose_imgs(db_manager)))
     embeddings = list(faces_to_embeddings(faces))
-    CoreAlgorithm.cluster_embeddings(embeddings, face_ids, existing_clusters=clusters)
-
-    # Store clusters in cluster_attributes table of DB
-    attributes_row_dicts = [
-        {
-            Columns.cluster_id.col_name: cluster.cluster_id,
-            Columns.label.col_name: cluster.label,
-            Columns.center.col_name: cluster.center_point,
-        }
-        for cluster in clusters
-    ]
-    db_manager.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts)
-
-    # Store embeddings in embeddings table of DB
-    embeddings_row_dicts = []
-    for cluster in clusters:
-        embeddings_row = [
-            {Columns.cluster_id.col_name: cluster.cluster_id,
-             Columns.embedding.col_name: embedding,
-             Columns.face_id.col_name: face_id}
-            for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
-        ]
-        embeddings_row_dicts.extend(embeddings_row)
-    db_manager.store_in_table(Tables.embeddings_table, embeddings_row_dicts)
+    cluster_changes = CoreAlgorithm.cluster_embeddings(embeddings, face_ids, existing_clusters=clusters)
+    new_clusters, modified_clusters, removed_clusters = cluster_changes
+    db_manager.store_clusters(new_clusters, modified_clusters, removed_clusters)
 
 
 def faces_to_embeddings(faces):
@@ -183,7 +162,7 @@ def user_choose_imgs(db_manager):
     # TODO: Make user choose path
     # TODO: Disable dropping of existing tables
     images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
-    path_to_local_db = DBManager.get_db_path(images_path, local=True)
+    path_to_local_db = db_manager.get_db_path(images_path, local=True)
     db_manager.create_tables(create_local=True,
                              path_to_local_db=path_to_local_db,
                              drop_existing_tables=True)
@@ -202,13 +181,14 @@ def user_choose_path():
 
 def extract_faces(path, db_manager: DBManager):
     # TODO: Finish implementing (what's missing?)
+    # TODO: Refactor (extract functions)?
     # TODO: Implement DB interactions
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
     # TODO: Store + update max_img_id and max_face_id somewhere rather than (always) get them via DB query?
     # TODO: Outsource db interactions to input-output logic?
     # TODO: Check if max_face_id maths checks out!
 
-    path_to_local_db = DBManager.get_db_path(path, local=True)
+    path_to_local_db = db_manager.get_db_path(path, local=True)
     # Note: 'MAX' returns None / (None, ) as a default value
     max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id, default=0,
                                         path_to_local_db=path_to_local_db)
@@ -395,14 +375,10 @@ def get_clusters_gen(clusters_path, return_names=True):
     # return only paths
     return get_every_nth_item(clusters_names_and_paths, n=1)
 
-# ----- MISC -----
 
+# ----- MISC -----
 
 handlers = {
     'add': handler_add_new_embeddings,
     'showcluster': handler_show_cluster,
-}
-
-handlers_params = {
-    'showcluster': [],
 }

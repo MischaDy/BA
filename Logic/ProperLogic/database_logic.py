@@ -26,7 +26,7 @@ from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, 
 # TODO: Guarantee that connection is closed at end of methods (done?)
 
 # TODO: Make DBManager a singleton object?
-from Logic.ProperLogic.misc_helpers import have_equal_type_names, is_instance_by_type_name
+from Logic.ProperLogic.misc_helpers import is_instance_by_type_name
 
 """
 ----- DB SCHEMA -----
@@ -97,7 +97,7 @@ class DBManager:
         cur.execute('PRAGMA foreign_keys = ON;')
 
         # create images table
-        cur.execute(cls.__table_to_creating_sql(Tables.images_table))
+        cur.execute(cls.build_create_table_sql(Tables.images_table))
         # cur.execute(
         #     f"CREATE TABLE IF NOT EXISTS {Tables.images_table} ("
         #     f"{Columns.image_id} {Columns.image_id.col_type.value} UNIQUE NOT NULL, "
@@ -108,7 +108,7 @@ class DBManager:
         # )
 
         # create faces table
-        cur.execute(cls.__table_to_creating_sql(Tables.faces_table))
+        cur.execute(cls.build_create_table_sql(Tables.faces_table))
         # cur.execute(
         #     f"CREATE TABLE IF NOT EXISTS {Tables.faces_table} ("
         #     f"{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, "
@@ -121,16 +121,28 @@ class DBManager:
         # )
 
     @staticmethod
-    def __table_to_creating_sql(table):
+    def build_create_table_sql(table):
         constraints_sql = ", ".join(table.constraints)
         creating_sql = (
             f"CREATE TABLE IF NOT EXISTS {table} ("
-            + ", ".join(f"{col.col_name} {col.col_type.value} {col.col_constraint}" for col in table.get_columns())
+            + ", ".join(f"{col} {col.col_type.value} {col.col_constraint}" for col in table.get_columns())
             + (", " if constraints_sql else "")
             + constraints_sql
             + ");"
         )
         return creating_sql
+
+    @staticmethod
+    def build_on_conflict_sql(update_cols, update_exprs, conflict_target_cols=None, add_noop_where=False):
+        if conflict_target_cols is None:
+            conflict_target_cols = []
+        noop_where = 'WHERE true' if add_noop_where else ''
+        conflict_target = f"({', '.join(conflict_target_cols)})"
+        update_targets = (f'{update_col} = {update_expr}'
+                          for update_col, update_expr in zip(update_cols, update_exprs))
+        update_clause = ', '.join(update_targets)
+        on_conflict = f'{noop_where} ON CONFLICT {conflict_target} DO UPDATE SET {update_clause}'
+        return on_conflict
 
     @classmethod
     def _create_central_tables(cls, cur):
@@ -138,7 +150,7 @@ class DBManager:
         cur.execute('PRAGMA foreign_keys = ON;')
 
         # create embeddings table
-        cur.execute(cls.__table_to_creating_sql(Tables.embeddings_table))
+        cur.execute(cls.build_create_table_sql(Tables.embeddings_table))
         # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
         #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
         #             f'{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, '
@@ -149,7 +161,7 @@ class DBManager:
         #             ')')
 
         # create cluster attributes table
-        cur.execute(cls.__table_to_creating_sql(Tables.cluster_attributes_table))
+        cur.execute(cls.build_create_table_sql(Tables.cluster_attributes_table))
         # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
         #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
         #             f'{Columns.label} {Columns.label.col_type.value}, '
@@ -163,22 +175,105 @@ class DBManager:
         for table in tables:
             cur.execute(f'DROP TABLE IF EXISTS {table};')
 
-    def store_in_table(self, table, row_dicts, path_to_local_db=None):
+    def store_in_table(self, table, row_dicts, on_conflict='', path_to_local_db=None):
         """
 
         :param table:
         :param row_dicts: iterable of dicts storing (col_name, col_value)-pairs
+        :param on_conflict:
         :param path_to_local_db:
         :return:
         """
-        rows = DBManager.row_dicts_to_rows(table, row_dicts)
+        # TODO: Make sure, all funcs using this method know about the conflict clause!
+        rows = self.row_dicts_to_rows(table, row_dicts)
         store_in_local = Tables.is_local_table(table)
         values_template = self._make_values_template(len(row_dicts[0]))
         cur = self.open_connection(store_in_local, path_to_local_db)
         try:
-            cur.executemany(f'INSERT INTO {table} VALUES ({values_template});', rows)
+            cur.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
         finally:
             self.commit_and_close_connection(store_in_local)
+
+    def store_clusters(self, clusters):
+        """
+        Store the data in clusters in the central DB-tables ('cluster_attributes' and 'embeddings').
+
+        :param clusters: Iterable of clusters to store.
+        :return: None
+        """
+        # Store in cluster_attributes table
+        # Use on conflict clause for when cluster label and/or center change
+        attrs_update_cols = [Columns.label, Columns.center]
+        attrs_update_exprs = [f'excluded.{Columns.label}', f'excluded.{Columns.center}']
+        attrs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.cluster_id],
+                                                       update_cols=attrs_update_cols,
+                                                       update_exprs=attrs_update_exprs)
+        attributes_row_dicts = self.make_attr_row_dicts(clusters)
+        self.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict)
+
+        # Store in embeddings table
+        # Use on conflict clause for when cluster id changes
+        embs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.face_id],
+                                                      update_cols=[Columns.cluster_id],
+                                                      update_exprs=[f'excluded.{Columns.cluster_id}'])
+        embeddings_row_dicts = self.make_embs_row_dicts(clusters)
+        self.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict)
+
+    def remove_clusters(self, clusters_to_remove):
+        """
+        Removes the data in clusters from the central DB-tables ('cluster_attributes' and 'embeddings').
+
+        :param clusters_to_remove: Iterable of clusters to remove.
+        :return: None
+        """
+        # TODO: Implement!
+        raise NotImplementedError('Implement this!')
+        # Remove clusters
+        attributes_row_dicts = self.make_attr_row_dicts(clusters_to_remove)
+        self.delete_from_table(Tables.cluster_attributes_table, attributes_row_dicts)
+
+        embeddings_row_dicts = self.make_embs_row_dicts(clusters_to_remove)
+        self.delete_from_table(Tables.embeddings_table, embeddings_row_dicts)
+
+    def delete_from_table(self, table, where_clause, path_to_local_db=None):
+        """
+
+        :param table:
+        :param where_clause:
+        :param path_to_local_db:
+        :return:
+        """
+        delete_from_local = Tables.is_local_table(table)
+        cur = self.open_connection(delete_from_local, path_to_local_db)
+        try:
+            cur.execute(f'DELETE FROM {table} {where_clause};')
+        finally:
+            self.commit_and_close_connection(delete_from_local)
+
+    @staticmethod
+    def make_attr_row_dicts(clusters):
+        attributes_row_dicts = [
+            {
+                Columns.cluster_id.col_name: cluster.cluster_id,
+                Columns.label.col_name: cluster.label,
+                Columns.center.col_name: cluster.center_point,
+            }
+            for cluster in clusters
+        ]
+        return attributes_row_dicts
+
+    @staticmethod
+    def make_embs_row_dicts(clusters):
+        embeddings_row_dicts = []
+        for cluster in clusters:
+            embeddings_row = [
+                {Columns.cluster_id.col_name: cluster.cluster_id,
+                 Columns.embedding.col_name: embedding,
+                 Columns.face_id.col_name: face_id}
+                for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
+            ]
+            embeddings_row_dicts.extend(embeddings_row)
+        return embeddings_row_dicts
 
     def fetch_from_table(self, table, path_to_local_db=None, col_names=None, cond=''):
         """
@@ -200,7 +295,7 @@ class DBManager:
             rows = cur.execute(f'SELECT {cols_template} FROM {table} {cond_str};').fetchall()
         finally:
             self.commit_and_close_connection(fetch_from_local)
-        result = [[DBManager.sql_value_to_data(value, col_name)
+        result = [[self.sql_value_to_data(value, col_name)
                   for value, col_name in zip(row, col_names)]
                   for row in rows]
         # TODO: Make result generator? Refactor? More elegant solution?
@@ -302,8 +397,8 @@ class DBManager:
         chars_to_join = length * char_to_join if len(char_to_join) == 1 else char_to_join
         return sep.join(chars_to_join)
 
-    @staticmethod
-    def sql_value_to_data(value, column):
+    @classmethod
+    def sql_value_to_data(cls, value, column):
         """
 
         :param value:
@@ -316,12 +411,12 @@ class DBManager:
             raise TypeError(f"'column' must be a string or ColumnSchema, not '{type(column)}'.")
         col_details = column.col_details
         if col_details == ColumnDetails.image:
-            value = DBManager.bytes_to_image(value)
+            value = cls.bytes_to_image(value)
         elif col_details == ColumnDetails.tensor:
-            value = DBManager.bytes_to_tensor(value)
+            value = cls.bytes_to_tensor(value)
         elif col_details == ColumnDetails.date:
-            value = DBManager.iso_string_to_date(value)
-        logging.log("sql_value_to_data: Didn't match any ColumnDetails")
+            value = cls.iso_string_to_date(value)
+        logging.info("sql_value_to_data: Didn't match any ColumnDetails")
         return value
 
     @staticmethod

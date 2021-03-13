@@ -29,7 +29,7 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 # TODO: Give option to just start clustering completely anew (rebuilding db completely)?
 
 
-def run_program(terminating_tokes, path_to_central_dir):
+def run_program(path_to_central_dir):
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
     db_manager = DBManager(path_to_local_db)
     db_manager.create_tables(create_local=False, drop_existing_tables=True)
@@ -37,14 +37,14 @@ def run_program(terminating_tokes, path_to_central_dir):
     initialize_commands()
 
     cmd_name = ''
-    while cmd_name not in terminating_tokes:
+    while cmd_name not in Command.terminating_tokens:
         cmd_name = get_user_command()
         cmd = Command.get_command(cmd_name)
         # TODO:  Check out Software Design Patterns for better params passing to handlers?
         cmd.handler(db_manager=db_manager, clusters=clusters)
 
 
-def test_program(path_to_central_dir):
+def demo_program(path_to_central_dir):
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
     db_manager = DBManager(path_to_local_db)
     db_manager.create_tables(create_local=False, drop_existing_tables=True)
@@ -91,5 +91,5 @@ def print_command_options():
 
 
 if __name__ == '__main__':
-    # run_program(CLUSTERS_PATH)
-    test_program(CLUSTERS_PATH)
+    run_program(CLUSTERS_PATH)
+    # demo_program(CLUSTERS_PATH)

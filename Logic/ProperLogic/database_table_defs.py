@@ -202,6 +202,13 @@ class Tables:
 
     central_tables = (embeddings_table, cluster_attributes_table)
 
+    temp_cluster_ids_table = TableSchema(
+        'temp_cluster_ids',
+        [Columns.cluster_id]
+    )
+
+    temp_tables = (temp_cluster_ids_table, )
+
     @classmethod
     def is_local_table(cls, table):
         # TODO: Use _get_true_attr here?

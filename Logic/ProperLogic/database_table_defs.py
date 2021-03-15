@@ -221,7 +221,7 @@ class Tables:
 
         if table in cls.local_tables:
             return True
-        elif table in cls.central_tables:
+        elif table in cls.central_tables or table in cls.temp_tables:
             return False
         raise ValueError(f"table '{table}' not found (its type, {type(table)}, might not be TableSchema)")
 

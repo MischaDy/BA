@@ -205,13 +205,13 @@ def extract_faces(path, db_manager: DBManager):
         img_row = {Columns.image_id.col_name: img_id,
                    Columns.file_name.col_name: img_name,
                    Columns.last_modified.col_name: last_modified}
-        db_manager.store_in_table(Tables.images_table, [img_row], path_to_local_db)
+        db_manager.store_in_table(Tables.images_table, [img_row], path_to_local_db=path_to_local_db)
         faces_rows = [{Columns.thumbnail.col_name: face,
                        Columns.image_id.col_name: img_id,
                        Columns.face_id.col_name: face_id}
                       for face_id, face in enumerate(img_faces, start=max_face_id+1)]
         max_face_id += len(img_faces)
-        db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db)
+        db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db=path_to_local_db)
 
     return enumerate(faces, start=first_max_face_id+1)
 

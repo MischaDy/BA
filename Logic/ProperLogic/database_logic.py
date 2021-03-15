@@ -146,7 +146,7 @@ class DBManager:
         if conflict_target_cols is None:
             conflict_target_cols = []
         noop_where = 'WHERE true' if add_noop_where else ''
-        conflict_target = f"({', '.join(conflict_target_cols)})"
+        conflict_target = f"({', '.join(map(str, conflict_target_cols))})"
         update_targets = (f'{update_col} = {update_expr}'
                           for update_col, update_expr in zip(update_cols, update_exprs))
         update_clause = ', '.join(update_targets)
@@ -195,6 +195,8 @@ class DBManager:
         """
         # TODO: Make sure, all funcs using this method know about the conflict clause!
         rows = self.row_dicts_to_rows(table, row_dicts)
+        if not rows:
+            return
         store_in_local = Tables.is_local_table(table)
         values_template = self._make_values_template(len(row_dicts[0]))
 

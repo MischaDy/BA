@@ -10,6 +10,7 @@ import torch
 from PIL import Image
 import io
 
+from Logic.ProperLogic.cluster import Clusters
 from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema
 
 # TODO: *Global* face_id - created in central table, then written to corresponding local table
@@ -92,6 +93,13 @@ class DBManager:
             self.commit_and_close_connection(create_local)
 
     @classmethod
+    def _create_temp_table(cls, cur, temp_table=None):
+        if temp_table is None:
+            temp_table = Tables.temp_cluster_ids_table
+        create_table_sql = cls.build_create_table_sql(temp_table, create_temp=True)
+        cur.execute(create_table_sql)
+
+    @classmethod
     def _create_local_tables(cls, cur):
         # enable foreign keys
         cur.execute('PRAGMA foreign_keys = ON;')
@@ -121,10 +129,11 @@ class DBManager:
         # )
 
     @staticmethod
-    def build_create_table_sql(table):
+    def build_create_table_sql(table, create_temp=False):
+        temp_clause = 'TEMP' if create_temp else ''
         constraints_sql = ", ".join(table.constraints)
         creating_sql = (
-            f"CREATE TABLE IF NOT EXISTS {table} ("
+            f"CREATE {temp_clause} TABLE IF NOT EXISTS {table} ("
             + ", ".join(f"{col} {col.col_type.value} {col.col_constraint}" for col in table.get_columns())
             + (", " if constraints_sql else "")
             + constraints_sql
@@ -175,7 +184,7 @@ class DBManager:
         for table in tables:
             cur.execute(f'DROP TABLE IF EXISTS {table};')
 
-    def store_in_table(self, table, row_dicts, on_conflict='', path_to_local_db=None):
+    def store_in_table(self, table, row_dicts, on_conflict='', cur=None, path_to_local_db=None, close_connection=True):
         """
 
         :param table:
@@ -188,9 +197,18 @@ class DBManager:
         rows = self.row_dicts_to_rows(table, row_dicts)
         store_in_local = Tables.is_local_table(table)
         values_template = self._make_values_template(len(row_dicts[0]))
-        cur = self.open_connection(store_in_local, path_to_local_db)
-        try:
+
+        if cur is None:
+            cur = self.open_connection(store_in_local, path_to_local_db)
+
+        def execute():
             cur.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
+
+        if not close_connection:
+            execute()
+            return
+        try:
+            execute()
         finally:
             self.commit_and_close_connection(store_in_local)
 
@@ -226,27 +244,52 @@ class DBManager:
         :param clusters_to_remove: Iterable of clusters to remove.
         :return: None
         """
-        # TODO: Implement!
-        raise NotImplementedError('Implement this!')
-        # Remove clusters
-        attributes_row_dicts = self.make_attr_row_dicts(clusters_to_remove)
-        self.delete_from_table(Tables.cluster_attributes_table, attributes_row_dicts)
+        temp_table = Tables.temp_cluster_ids_table
+        embs_table = Tables.embeddings_table
+        attrs_table = Tables.cluster_attributes_table
 
-        embeddings_row_dicts = self.make_embs_row_dicts(clusters_to_remove)
-        self.delete_from_table(Tables.embeddings_table, embeddings_row_dicts)
+        embs_condition = f'{embs_table}.{Columns.cluster_id} IN {temp_table}'
+        attrs_condition = f'{attrs_table}.{Columns.cluster_id} IN {temp_table}'
 
-    def delete_from_table(self, table, where_clause, path_to_local_db=None):
+        cluster_ids_to_remove = map(lambda c: c.cluster_id, clusters_to_remove)
+        rows_dicts = [{Columns.cluster_id.col_name: cluster_id}
+                      for cluster_id in cluster_ids_to_remove]
+
+        is_local_table = Tables.is_local_table(temp_table)
+        close_connection = False
+        cur = self.open_connection(open_local=is_local_table)
+        try:
+            self._create_temp_table(cur, temp_table)
+            self.store_in_table(temp_table, rows_dicts, cur=cur, close_connection=close_connection)
+            self.delete_from_table(embs_table, condition=embs_condition, cur=cur, close_connection=close_connection)
+            self.delete_from_table(attrs_table, condition=attrs_condition, cur=cur, close_connection=close_connection)
+        finally:
+            self.commit_and_close_connection(close_local=is_local_table)
+
+    def delete_from_table(self, table, with_clause_part='', condition='', cur=None, path_to_local_db=None,
+                          close_connection=True):
         """
 
         :param table:
-        :param where_clause:
+        :param with_clause_part:
+        :param condition:
         :param path_to_local_db:
         :return:
         """
         delete_from_local = Tables.is_local_table(table)
-        cur = self.open_connection(delete_from_local, path_to_local_db)
+        with_clause = f'WITH {with_clause_part}' if with_clause_part else ''
+        where_clause = f'WHERE {condition}' if condition else ''
+        if cur is None:
+            cur = self.open_connection(delete_from_local, path_to_local_db)
+
+        def execute():
+            cur.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
+
+        if not close_connection:
+            execute()
+            return
         try:
-            cur.execute(f'DELETE FROM {table} {where_clause};')
+            execute()
         finally:
             self.commit_and_close_connection(delete_from_local)
 

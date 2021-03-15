@@ -143,8 +143,12 @@ class Cluster:
 
 class Clusters(list):
     def get_cluster_by_id(self, cluster_id):
+        return self.get_clusters_by_ids([cluster_id])
+
+    def get_clusters_by_ids(self, cluster_ids):
+        # TODO: Improve efficiency! (Make dict with id as key?)
         # TODO: Which error to raise?
         try:
-            return next(filter(lambda c: c.cluster_id == cluster_id, self))
+            return next(filter(lambda c: c.cluster_id in cluster_ids, self))
         except StopIteration:
-            raise RuntimeError("no cluster with id '{cluster_id}' found")
+            raise RuntimeError(f"no clusters with an id in '{cluster_ids}' found")

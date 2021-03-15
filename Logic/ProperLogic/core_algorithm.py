@@ -64,7 +64,7 @@ class CoreAlgorithm:
         if existing_clusters is None:
             existing_clusters = Clusters()
         clusters = Clusters(existing_clusters)
-        new_clusters_ids, modified_clusters_ids, removed_clusters_ids = set(), set(), set()
+        modified_clusters_ids, removed_clusters_ids = set(), set()
 
         # iterate over remaining embeddings
         counter_vals = range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0 else count(2)
@@ -80,21 +80,21 @@ class CoreAlgorithm:
 
             if shortest_emb_dist <= cls.classification_threshold:
                 closest_cluster.add_embedding(new_embedding, embedding_id)
-                if closest_cluster.cluster_id not in new_clusters_ids:
-                    modified_clusters_ids.add(closest_cluster.cluster_id)
+                modified_clusters_ids.add(closest_cluster.cluster_id)
 
                 distant_embeddings = cls.get_embs_too_far_from_center(closest_cluster)
                 if len(distant_embeddings) > 0 or cls.is_cluster_too_big(closest_cluster):
-                    cls.split_cluster(closest_cluster, clusters, distant_embeddings, new_clusters_ids=new_clusters_ids,
+                    cls.split_cluster(closest_cluster, clusters, distant_embeddings,
+                                      modified_clusters_ids=modified_clusters_ids,
                                       removed_clusters_ids=removed_clusters_ids)
             else:
                 new_cluster = Cluster([new_embedding], [embedding_id])
                 clusters.append(new_cluster)
-                new_clusters_ids.add(new_cluster.cluster_id)
-        id_sets = (new_clusters_ids, modified_clusters_ids, removed_clusters_ids)
-        new_clusters, modified_clusters, removed_clusters = (map(clusters.get_cluster_by_id, id_set)
-                                                             for id_set in id_sets)
-        return new_clusters, modified_clusters, removed_clusters
+                modified_clusters_ids.add(new_cluster.cluster_id)
+        id_sets = (modified_clusters_ids, removed_clusters_ids)
+        modified_clusters, removed_clusters = (map(clusters.get_cluster_by_id, id_set)
+                                               for id_set in id_sets)
+        return modified_clusters, removed_clusters
 
     @classmethod
     def is_cluster_too_big(cls, cluster):
@@ -132,7 +132,7 @@ class CoreAlgorithm:
         return closest_cluster
 
     @classmethod
-    def split_cluster(cls, cluster_to_split, clusters, start_embeddings=None, new_clusters_ids=None,
+    def split_cluster(cls, cluster_to_split, clusters, start_embeddings=None, modified_clusters_ids=None,
                       removed_clusters_ids=None):
         """
         Recluster given cluster without further (indirectly recursive) splitting.
@@ -140,7 +140,7 @@ class CoreAlgorithm:
         :param cluster_to_split: Cluster to be split
         :param clusters: Iterable of currently assigned clusters
         :param start_embeddings: Embeddings which to cluster first
-        :param new_clusters_ids:
+        :param modified_clusters_ids:
         :param removed_clusters_ids:
         """
         # TODO: Update docstring!
@@ -150,8 +150,8 @@ class CoreAlgorithm:
         if start_embeddings is not None:
             remove_items(embeddings, start_embeddings)
             embeddings = start_embeddings + embeddings
-        if new_clusters_ids is None:
-            new_clusters_ids = set()
+        if modified_clusters_ids is None:
+            modified_clusters_ids = set()
         if removed_clusters_ids is None:
             removed_clusters_ids = set()
 
@@ -166,8 +166,8 @@ class CoreAlgorithm:
 
         clusters.extend([new_cluster1, new_cluster2])
         clusters.remove(cluster_to_split)
-        new_clusters_ids.add(new_cluster1.cluster_id)
-        new_clusters_ids.add(new_cluster2.cluster_id)
+        modified_clusters_ids.add(new_cluster1.cluster_id)
+        modified_clusters_ids.add(new_cluster2.cluster_id)
         removed_clusters_ids.add(cluster_to_split.cluster_id)
 
     @staticmethod

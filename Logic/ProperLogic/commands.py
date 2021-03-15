@@ -145,9 +145,10 @@ def handler_add_new_embeddings(db_manager: DBManager, clusters, **kwargs):
     # Extract faces from user-chosen images and cluster them
     face_ids, faces = split_items(list(user_choose_imgs(db_manager)))
     embeddings = list(faces_to_embeddings(faces))
-    cluster_changes = CoreAlgorithm.cluster_embeddings(embeddings, face_ids, existing_clusters=clusters)
-    new_clusters, modified_clusters, removed_clusters = cluster_changes
-    db_manager.store_clusters(new_clusters, modified_clusters, removed_clusters)
+    modified_clusters, removed_clusters = CoreAlgorithm.cluster_embeddings(embeddings, face_ids,
+                                                                           existing_clusters=clusters)
+    db_manager.remove_clusters(removed_clusters)
+    db_manager.store_clusters(modified_clusters)
 
 
 def faces_to_embeddings(faces):

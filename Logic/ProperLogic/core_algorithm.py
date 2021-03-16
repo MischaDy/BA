@@ -1,10 +1,10 @@
+import os
 from functools import partial
 from typing import Union, Tuple
 
-from Logic.ProperLogic.cluster import Clusters
+from Logic.ProperLogic.cluster import Clusters, Cluster
 from Logic.ProperLogic.database_logic import DBManager
 from Logic.ProperLogic.misc_helpers import remove_items
-from input_output_logic import *
 
 from itertools import count, combinations
 
@@ -83,8 +83,7 @@ class CoreAlgorithm:
                 modified_clusters_ids.add(closest_cluster.cluster_id)
 
                 is_cluster_too_big = cls.is_cluster_too_big(closest_cluster)
-                # If cluster too big or some embeddings too far from center: split cluster!
-                if is_cluster_too_big or len(cls.get_embs_too_far_from_center(closest_cluster)) > 0:
+                if is_cluster_too_big or cls.exists_emb_too_far_from_center(closest_cluster):
                     new_clusters = cls.split_cluster(closest_cluster)
                     clusters.remove(closest_cluster)
                     removed_clusters_ids.add(closest_cluster.cluster_id)
@@ -104,12 +103,21 @@ class CoreAlgorithm:
     def is_cluster_too_big(cls, cluster):
         return cls.max_cluster_size is not None and cluster.get_size() >= cls.max_cluster_size
 
+    # @classmethod
+    # def get_embs_too_far_from_center(cls, cluster):
+    #     if cls.reclustering_threshold is None:
+    #         return []
+    #     return filter(lambda emb: cluster.compute_dist_to_center(emb) > cls.reclustering_threshold,
+    #                   cluster.get_embeddings())
+
     @classmethod
-    def get_embs_too_far_from_center(cls, cluster):
+    def exists_emb_too_far_from_center(cls, cluster):
         if cls.reclustering_threshold is None:
-            return []
-        return filter(lambda emb: cluster.compute_dist_to_center(emb) > cls.reclustering_threshold,
-                      cluster.get_embeddings())
+            return False
+
+        def is_too_far_from_center(emb):
+            return cluster.compute_dist_to_center(emb) > cls.reclustering_threshold
+        return any(map(is_too_far_from_center, cluster.get_embeddings()))
 
     @classmethod
     def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True) -> Union[Cluster, Tuple[float, Cluster]]:

@@ -5,6 +5,7 @@ import os
 import sqlite3
 import time
 from functools import partial
+from itertools import starmap
 
 import torch
 from PIL import Image
@@ -330,6 +331,8 @@ class DBManager:
         :return:
         """
         # TODO: allow for multiple conditions(?)
+        # TODO: Refactor?
+        # TODO: More elegant solution?
         if col_names is None or '*' in col_names:
             col_names = table.get_column_names()
         cond_str = '' if len(cond) == 0 else f'WHERE {cond}'
@@ -340,11 +343,11 @@ class DBManager:
             rows = cur.execute(f'SELECT {cols_template} FROM {table} {cond_str};').fetchall()
         finally:
             self.commit_and_close_connection(fetch_from_local)
-        result = [[self.sql_value_to_data(value, col_name)
-                  for value, col_name in zip(row, col_names)]
-                  for row in rows]
-        # TODO: Make result generator? Refactor? More elegant solution?
-        return result
+
+        # cast row of query results to row of usable data
+        for row in rows:
+            processed_row = starmap(self.sql_value_to_data, zip(row, col_names))
+            yield tuple(processed_row)
 
     def get_cluster_parts(self):
         # TODO: Refactor
@@ -409,7 +412,7 @@ class DBManager:
         return default
 
     def get_imgs_attrs(self, path_to_local_db=None):
-        col_names = [Columns.file_name.col_name, Columns.image_id.col_name]
+        col_names = [Columns.file_name.col_name, Columns.last_modified.col_name]
         rows = self.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db,
                                      col_names=col_names)
         return rows

@@ -66,6 +66,8 @@ def split_items(iterables, use_longest=False, fillvalue=None):
     """
     # TODO: Improve efficiency
     # return list(starmap(get_every_nth_item, zip(iterables, range())))
+    if len(iterables) == 0:
+        return []
     len_aggregator = max if use_longest else min
     num_splits = len_aggregator(map(len, iterables))
     splits = [[] for _ in range(num_splits)]

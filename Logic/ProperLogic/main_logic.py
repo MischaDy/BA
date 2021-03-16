@@ -2,11 +2,16 @@
 Program containing the main application logic.
 """
 
-from commands import *
+import os
+
+from Logic.ProperLogic.commands import initialize_commands, Command
+from Logic.ProperLogic.database_table_defs import Tables
 from database_logic import DBManager
 from input_output_logic import load_clusters_from_db
-from misc_helpers import clean_str, log_error, wait_for_any_input
+from misc_helpers import clean_str, log_error, wait_for_any_input, get_every_nth_item
 
+
+# TODO: How to properly store/use these globals and paths?
 EMBEDDINGS_PATH = 'Logic/ProperLogic/stored_embeddings'
 CLUSTERS_PATH = 'stored_clusters'
 
@@ -27,19 +32,22 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 # TODO: Handle db errors with rollbacks etc.!
 # TODO: Give option to just start clustering completely anew (rebuilding db completely)?
 
+# TODO:  Check out Software Design Patterns for better params passing to handlers?
+
 
 def run_program(path_to_central_dir):
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
     db_manager = DBManager(path_to_local_db)
-    db_manager.create_tables(create_local=False, drop_existing_tables=True)
+    db_manager.create_tables(create_local=False, drop_existing_tables=False)
     clusters = load_clusters_from_db(db_manager)
     initialize_commands()
 
     cmd_name = ''
     while cmd_name not in Command.terminating_tokens:
+        # TODO: What in this loop is printing some number?
+        # TODO: Why is 'babies-easy.jpg' added twice into images table?
         cmd_name = get_user_command()
         cmd = Command.get_command(cmd_name)
-        # TODO:  Check out Software Design Patterns for better params passing to handlers?
         cmd.handler(db_manager=db_manager, clusters=clusters)
 
 
@@ -90,4 +98,3 @@ def print_command_options():
 
 if __name__ == '__main__':
     run_program(CLUSTERS_PATH)
-    # demo_program(CLUSTERS_PATH)

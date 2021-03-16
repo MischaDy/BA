@@ -1,8 +1,14 @@
+import datetime
+import os
+from functools import partial
+
 import torchvision
+from PIL import Image
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
-from Logic.ProperLogic.database_logic import *
+from Logic.ProperLogic.database_logic import DBManager
+from Logic.ProperLogic.database_table_defs import Tables, Columns
 from models import Models
 from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item, have_equal_type_names, \
     split_items
@@ -112,6 +118,7 @@ def initialize_commands():
 
 def handler_edit_faces(**kwargs):
     # TODO: Implement
+    # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
     pass
 
 
@@ -137,7 +144,10 @@ def handler_show_cluster(clusters_path, **kwargs):
 
 def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
     # Extract faces from user-chosen images and cluster them
-    face_ids, faces = split_items(list(user_choose_imgs(db_manager)))
+    faces_with_ids = list(user_choose_imgs(db_manager))
+    if not faces_with_ids:
+        return
+    face_ids, faces = split_items(faces_with_ids)
     embeddings = list(faces_to_embeddings(faces))
     modified_clusters, removed_clusters = CoreAlgorithm.cluster_embeddings(embeddings, face_ids,
                                                                            existing_clusters=clusters)
@@ -153,12 +163,12 @@ def faces_to_embeddings(faces):
 def user_choose_imgs(db_manager):
     # TODO: Refactor! (too many different tasks, function name non-descriptive)
     # TODO: Make user choose path
-    # TODO: Disable dropping of existing tables
+    # TODO: (Permanently) disable dropping of existing tables
     images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
     path_to_local_db = db_manager.get_db_path(images_path, local=True)
     db_manager.create_tables(create_local=True,
                              path_to_local_db=path_to_local_db,
-                             drop_existing_tables=True)
+                             drop_existing_tables=False)
     faces_with_ids = extract_faces(images_path, db_manager)
     return faces_with_ids
 
@@ -172,7 +182,7 @@ def user_choose_path():
     return path  # IMG_PATH
 
 
-def extract_faces(path, db_manager: DBManager, check_if_known=False):
+def extract_faces(path, db_manager: DBManager, check_if_known=True):
     # TODO: Refactor (extract functions)?
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
     # TODO: Store + update max_img_id and max_face_id somewhere rather than (always) get them via DB query?
@@ -181,7 +191,7 @@ def extract_faces(path, db_manager: DBManager, check_if_known=False):
 
     path_to_local_db = db_manager.get_db_path(path, local=True)
 
-    imgs_names_and_date = set(db_manager.get_imgs_attrs())
+    imgs_names_and_date = set(db_manager.get_imgs_attrs(path_to_local_db=path_to_local_db))
 
     # Note: 'MAX' returns None / (None, ) as a default value
     max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id, default=0,
@@ -290,8 +300,10 @@ def get_img_names(dir_path, img_extensions=None):
     Yield all image file paths in dir_path.
     """
     # TODO: Implement recursive option?
-    obj_paths = map(lambda obj_name: os.path.join(dir_path, obj_name), os.listdir(dir_path))
-    image_paths = filter(lambda obj_path: is_img(obj_path, img_extensions), obj_paths)
+    # TODO: Put function outside?
+    def is_img_known_extensions(obj_name):
+        return is_img(os.path.join(dir_path, obj_name), img_extensions)
+    image_paths = filter(is_img_known_extensions, os.listdir(dir_path))
     return image_paths
 
 

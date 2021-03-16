@@ -172,7 +172,7 @@ def user_choose_path():
     return path  # IMG_PATH
 
 
-def extract_faces(path, db_manager: DBManager):
+def extract_faces(path, db_manager: DBManager, check_if_known=False):
     # TODO: Refactor (extract functions)?
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
     # TODO: Store + update max_img_id and max_face_id somewhere rather than (always) get them via DB query?
@@ -180,6 +180,9 @@ def extract_faces(path, db_manager: DBManager):
     # TODO: Check if max_face_id maths checks out!
 
     path_to_local_db = db_manager.get_db_path(path, local=True)
+
+    imgs_names_and_date = set(db_manager.get_imgs_attrs())
+
     # Note: 'MAX' returns None / (None, ) as a default value
     max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id, default=0,
                                         path_to_local_db=path_to_local_db)
@@ -188,12 +191,20 @@ def extract_faces(path, db_manager: DBManager):
 
     faces = []
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
-    for img_id, (img_path, img_name, img) in enumerate(img_loader, start=max_img_id+1):
+    img_id = max_img_id + 1
+    for img_path, img_name, img in img_loader:
         # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
-        # TODO: Don't process images already stored! --> Extension (later?): But give option to overwrite
+
+        # Check if image already stored --> Don't process again!
+        last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
+
+        # this *is* the check if the image is known!
+        # known = name and last modified as a pair known for this directory
+        if check_if_known and (img_name, last_modified) in imgs_names_and_date:
+            continue
+
         img_faces = cut_out_faces(Models.mtcnn, img)
         faces.extend(img_faces)
-        last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
         img_row = {Columns.image_id.col_name: img_id,
                    Columns.file_name.col_name: img_name,
                    Columns.last_modified.col_name: last_modified}
@@ -204,6 +215,7 @@ def extract_faces(path, db_manager: DBManager):
                       for face_id, face in enumerate(img_faces, start=max_face_id+1)]
         max_face_id += len(img_faces)
         db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db=path_to_local_db)
+        img_id += 1
 
     return enumerate(faces, start=first_max_face_id+1)
 

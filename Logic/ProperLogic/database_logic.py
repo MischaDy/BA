@@ -43,6 +43,7 @@ cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
 
 
+# TODO: Make all methods class/static
 class DBManager:
     db_files_path = 'database'
     central_db_file_name = 'central_db.sqlite'
@@ -55,6 +56,7 @@ class DBManager:
         self.local_db_connection = None
 
     def __del__(self):
+        # TODO: Needed?
         # Closing the connection to the database file
         for conn in (self.local_db_connection, self.central_db_connection):
             try:
@@ -405,6 +407,12 @@ class DBManager:
         if isinstance(max_num, int) or isinstance(max_num, float):
             return max_num
         return default
+
+    def get_imgs_attrs(self, path_to_local_db=None):
+        col_names = [Columns.file_name.col_name, Columns.image_id.col_name]
+        rows = self.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db,
+                                     col_names=col_names)
+        return rows
 
     @classmethod
     def get_db_path(cls, path, local=True):

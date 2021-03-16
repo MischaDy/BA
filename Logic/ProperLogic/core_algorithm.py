@@ -6,7 +6,7 @@ from Logic.ProperLogic.database_logic import DBManager
 from Logic.ProperLogic.misc_helpers import remove_items
 from input_output_logic import *
 
-from itertools import count
+from itertools import count, combinations
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -82,11 +82,15 @@ class CoreAlgorithm:
                 closest_cluster.add_embedding(new_embedding, embedding_id)
                 modified_clusters_ids.add(closest_cluster.cluster_id)
 
-                distant_embeddings = cls.get_embs_too_far_from_center(closest_cluster)
-                if len(distant_embeddings) > 0 or cls.is_cluster_too_big(closest_cluster):
-                    cls.split_cluster(closest_cluster, clusters, distant_embeddings,
-                                      modified_clusters_ids=modified_clusters_ids,
-                                      removed_clusters_ids=removed_clusters_ids)
+                is_cluster_too_big = cls.is_cluster_too_big(closest_cluster)
+                # If cluster too big or some embeddings too far from center: split cluster!
+                if is_cluster_too_big or len(cls.get_embs_too_far_from_center(closest_cluster)) > 0:
+                    new_clusters = cls.split_cluster(closest_cluster)
+                    clusters.remove(closest_cluster)
+                    removed_clusters_ids.add(closest_cluster.cluster_id)
+                    clusters.extend(new_clusters)
+                    for new_cluster in new_clusters:
+                        modified_clusters_ids.add(new_cluster.cluster_id)
             else:
                 new_cluster = Cluster([new_embedding], [embedding_id])
                 clusters.append(new_cluster)
@@ -104,8 +108,8 @@ class CoreAlgorithm:
     def get_embs_too_far_from_center(cls, cluster):
         if cls.reclustering_threshold is None:
             return []
-        return list(filter(lambda emb: cluster.compute_dist_to_center(emb) > cls.reclustering_threshold,
-                           cluster.get_embeddings()))
+        return filter(lambda emb: cluster.compute_dist_to_center(emb) > cls.reclustering_threshold,
+                      cluster.get_embeddings())
 
     @classmethod
     def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True) -> Union[Cluster, Tuple[float, Cluster]]:
@@ -132,43 +136,33 @@ class CoreAlgorithm:
         return closest_cluster
 
     @classmethod
-    def split_cluster(cls, cluster_to_split, clusters, start_embeddings=None, modified_clusters_ids=None,
-                      removed_clusters_ids=None):
+    def split_cluster(cls, cluster_to_split):
         """
-        Recluster given cluster without further (indirectly recursive) splitting.
+        Split cluster into two new clusters as follows:
+        1. Find two embeddings e1, e2 in the cluster with the greatest distance between them.
+        2. Create a new cluster C1, C2 for each of the two.
+        3. For each embedding e of the remaining embeddings:
+               Add e to the cluster (C1 or C2) whose center is closer to it.
+
+        The given cluster must contain at least 2 embeddings.
 
         :param cluster_to_split: Cluster to be split
-        :param clusters: Iterable of currently assigned clusters
-        :param start_embeddings: Embeddings which to cluster first
-        :param modified_clusters_ids:
-        :param removed_clusters_ids:
+        :return: Two new clusters containing embeddings of old one
         """
-        # TODO: Update docstring!
-        # TODO: Compare with first embedding or with cluster center?
         # TODO: Improve efficiency!
         embeddings = list(cluster_to_split.get_embeddings())
-        if start_embeddings is not None:
-            remove_items(embeddings, start_embeddings)
-            embeddings = start_embeddings + embeddings
-        if modified_clusters_ids is None:
-            modified_clusters_ids = set()
-        if removed_clusters_ids is None:
-            removed_clusters_ids = set()
-
         cluster_start_emb1, cluster_start_emb2 = cls.find_most_distant_embeddings(embeddings)
         remove_items(embeddings, [cluster_start_emb1, cluster_start_emb2])
         label = cluster_to_split.label
         new_cluster1, new_cluster2 = Cluster(cluster_start_emb1, label=label), Cluster(cluster_start_emb2, label=label)
         for embedding in embeddings:
-            dist_to_emb1, dist_to_emb2 = map(embedding.dist, [cluster_start_emb1, cluster_start_emb2])
-            closer_cluster = new_cluster1 if dist_to_emb1 < dist_to_emb2 else new_cluster2
-            closer_cluster.add_embedding(embedding)
-
-        clusters.extend([new_cluster1, new_cluster2])
-        clusters.remove(cluster_to_split)
-        modified_clusters_ids.add(new_cluster1.cluster_id)
-        modified_clusters_ids.add(new_cluster2.cluster_id)
-        removed_clusters_ids.add(cluster_to_split.cluster_id)
+            dist_to_cluster1 = new_cluster1.compute_dist_to_center(embedding)
+            dist_to_cluster2 = new_cluster2.compute_dist_to_center(embedding)
+            if dist_to_cluster1 < dist_to_cluster2:
+                new_cluster1.add_embedding(embedding)
+            else:
+                new_cluster2.add_embedding(embedding)
+        return new_cluster1, new_cluster2
 
     @staticmethod
     def find_most_distant_embeddings(embeddings):
@@ -177,16 +171,17 @@ class CoreAlgorithm:
         :param embeddings:
         :return:
         """
-        # TODO: Improve efficiency
+        # TODO: Improve efficiency?
         if not len(embeddings) > 1:
             raise ValueError("'embeddings' must contain at least 2 embeddings")
-        max_dist = -1
-        max_dist_embs = (None, None)
-        for ind1, emb1 in enumerate(embeddings):
-            for emb2 in embeddings[ind1+1:]:
-                cur_dist = Cluster.compute_dist(emb1, emb2)
-                if cur_dist > max_dist:
-                    max_dist = cur_dist
-                    max_dist_embs = (emb1, emb2)
-        return max_dist_embs
+        # max_dist = -1
+        # max_dist_embs = (None, None)
+        # for ind1, emb1 in enumerate(embeddings):
+        #     for emb2 in embeddings[ind1+1:]:
+        #         cur_dist = Cluster.compute_dist(emb1, emb2)
+        #         if cur_dist > max_dist:
+        #             max_dist = cur_dist
+        #             max_dist_embs = (emb1, emb2)
+        embs_pairs = combinations(embeddings, r=2)
+        return max(embs_pairs, key=Cluster.compute_dist)
 

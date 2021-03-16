@@ -3,6 +3,8 @@ import operator
 
 
 # ----- OOP -----
+from functools import partial
+from itertools import zip_longest
 
 
 def have_equal_attrs(obj1, obj2):
@@ -38,20 +40,19 @@ def clean_str(string, to_lower=True):
 
 def get_every_nth_item(iterables, n=0):
     """
-    Return nth element (zero-indexed!) in each iterable stored in the iterable.
+    Yield nth element (zero-indexed!) in each iterable stored in the iterable.
 
     Example: get_every_nth_item(zip(range(3, 7), 'abcdefgh'), n=1) --> ['a', 'b', 'c', 'd']
 
     :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
     :param n: index of element to return from each stored iterable
-    :return: nth element in each iterable stored in 'iterables'
+    :return: Generator of nth element in each iterable stored in 'iterables'
     """
-    # TODO: Don't return a list, let the callers handle the casting(?)
     get_nth_item = operator.itemgetter(n)
-    return list(map(get_nth_item, iterables))
+    return map(get_nth_item, iterables)
 
 
-def split_items(iterables):
+def split_items(iterables, use_longest=False, fillvalue=None):
     """
     shortest iterable determines stuff!
 
@@ -63,15 +64,23 @@ def split_items(iterables):
     :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
     :return: nth element in each iterable stored in 'iterables'
     """
-    # TODO: Fix Docstring
     # TODO: Improve efficiency
     # return list(starmap(get_every_nth_item, zip(iterables, range())))
-    min_iterable_len = min(map(len, iterables))
-    output = [[] for _ in range(min_iterable_len)]
+    len_aggregator = max if use_longest else min
+    num_splits = len_aggregator(map(len, iterables))
+    splits = [[] for _ in range(num_splits)]
+
+    if use_longest:
+        def zip_func(iterable):
+            return zip_longest(splits, iterable, fillvalue=fillvalue)
+    else:
+        def zip_func(iterable):
+            return zip(splits, iterable)
+
     for iterable in iterables:
-        for i, item in enumerate(iterable):
-            output[i].append(item)
-    return output
+        for split, item in zip_func(iterable):
+            split.append(item)
+    return splits
 
 
 def remove_items(iterable, items):

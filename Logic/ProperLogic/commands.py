@@ -9,6 +9,7 @@ from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
+# TODO: Where to put these?
 TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
 
@@ -92,7 +93,7 @@ class Command:
 
 
 class Commands:
-    add = Command('add', 'select new faces')
+    process_imgs = Command('processimgs', 'select new faces')
     edit = Command('edit', 'edit existing faces')
     find = Command('find', 'find individual')
     reclassify = Command('reclassify', 'reclassify individuals')
@@ -100,9 +101,7 @@ class Commands:
 
 
 def initialize_commands():
-    # TODO: Finish implementing! (what's missing?)
-    # TODO: Add params?
-    Commands.add.set_handler(handler_add_new_embeddings)
+    Commands.process_imgs.set_handler(handler_process_image_dir)
     Commands.edit.set_handler(handler_edit_faces)
     Commands.find.set_handler(handler_find_person)
     Commands.reclassify.set_handler(handler_reclassify)
@@ -136,12 +135,7 @@ def handler_show_cluster(clusters_path, **kwargs):
         should_continue = clean_str(input('Choose another cluster?\n'))
 
 
-def handler_add_new_embeddings(db_manager: DBManager, clusters, **kwargs):
-    # TODO: Finish implementing (what's missing?)
-    # TODO: Make sure, DB handles uniqueness correctly!
-    # TODO: Improve efficiency? (only one loop for row creation)
-    # TODO: How to know, what to store in DB(?)
-    # TODO: Improve DB efficiency(?)
+def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
     # Extract faces from user-chosen images and cluster them
     face_ids, faces = split_items(list(user_choose_imgs(db_manager)))
     embeddings = list(faces_to_embeddings(faces))
@@ -152,14 +146,12 @@ def handler_add_new_embeddings(db_manager: DBManager, clusters, **kwargs):
 
 
 def faces_to_embeddings(faces):
-    # TODO: Finish implementing (what's missing?)
     for face in faces:
         yield Models.resnet(_to_tensor(face))
 
 
 def user_choose_imgs(db_manager):
     # TODO: Refactor! (too many different tasks, function name non-descriptive)
-    # TODO: Finish implementing (What's missing?)
     # TODO: Make user choose path
     # TODO: Disable dropping of existing tables
     images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
@@ -181,9 +173,7 @@ def user_choose_path():
 
 
 def extract_faces(path, db_manager: DBManager):
-    # TODO: Finish implementing (what's missing?)
     # TODO: Refactor (extract functions)?
-    # TODO: Implement DB interactions
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
     # TODO: Store + update max_img_id and max_face_id somewhere rather than (always) get them via DB query?
     # TODO: Outsource db interactions to input-output logic?
@@ -199,6 +189,8 @@ def extract_faces(path, db_manager: DBManager):
     faces = []
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
     for img_id, (img_path, img_name, img) in enumerate(img_loader, start=max_img_id+1):
+        # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
+        # TODO: Don't process images already stored! --> Extension (later?): But give option to overwrite
         img_faces = cut_out_faces(Models.mtcnn, img)
         faces.extend(img_faces)
         last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
@@ -277,30 +269,6 @@ def choose_args(indices, *args):
     return [arg for i, arg in enumerate(args) if i in indices]
 
 
-# def load_img_embeddings_from_dir(dir_path, output_file_name=False):
-#     """
-#     Yield all images in the given directory.
-#     If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
-#     in the set will be returned.
-#
-#     :param output_file_name: Whether the tensor should be yielded together with the corresponding file name
-#     :param dir_path: Directory containing images
-#     :return: Yield(!) tuples of image_names and embeddings contained in this folder
-#     """
-#     # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}. Empty = no
-#     # filtering
-#     # TODO: Needed?
-#     # TODO: Finish implementing
-#     if not output_file_name:
-#         for img_name in get_img_names(dir_path):
-#             with Image.open(dir_path + os.path.sep + img_name) as img:
-#                 yield _to_tensor(img)
-#     else:
-#         for img_name in get_img_names(dir_path):
-#             with Image.open(dir_path + os.path.sep + img_name) as img:
-#                 yield img_name, _to_tensor(img)
-
-
 def _to_tensor(img):
     return TO_TENSOR(img).unsqueeze(0)
 
@@ -309,7 +277,6 @@ def get_img_names(dir_path, img_extensions=None):
     """
     Yield all image file paths in dir_path.
     """
-    # TODO: Finish implementing
     # TODO: Implement recursive option?
     obj_paths = map(lambda obj_name: os.path.join(dir_path, obj_name), os.listdir(dir_path))
     image_paths = filter(lambda obj_path: is_img(obj_path, img_extensions), obj_paths)
@@ -342,7 +309,7 @@ def _output_cluster_content(cluster_name, cluster_path):
 
 def _user_choose_cluster(clusters_path, return_names=True):
     clusters_names_and_paths = list(get_clusters_gen(clusters_path, return_names=True))
-    clusters_names = get_every_nth_item(clusters_names_and_paths, n=0)
+    clusters_names = list(get_every_nth_item(clusters_names_and_paths, n=0))
     prompt_cluster_choice(clusters_names)
     chosen_cluster_name = input()
     while chosen_cluster_name not in clusters_names:
@@ -380,6 +347,6 @@ def get_clusters_gen(clusters_path, return_names=True):
 # ----- MISC -----
 
 handlers = {
-    'add': handler_add_new_embeddings,
+    'processimgs': handler_process_image_dir,
     'showcluster': handler_show_cluster,
 }

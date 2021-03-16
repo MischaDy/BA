@@ -1,8 +1,6 @@
 import os
 import pickle
 
-# from shutil import rmtree
-
 import torch
 import torchvision
 
@@ -30,7 +28,6 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 #       --> DB handles DB-internals, while this module use DB module to load and store stuff for other modules?
 # TODO: Remember to CREATE directories if they don't already exist! (Don't assume existence)
 # TODO: Separate extraction and loading of images!
-# TODO: Consistent naming embeddings vs. embeddings
 # TODO: (Learn how to time stuff well! Wrapper?)
 
 
@@ -43,8 +40,6 @@ def main(imgs_dir_path, embeddings_dir_path):
 
 
 def load_clusters_from_db(db_manager):
-    # db_manager.fetch_from_table(len(db_manager), path_to_local_db=None, col_names=None, cond='')
-    # fetch_from_table(table_name, path_to_local_db=None, col_names=None, cond='')
     cluster_parts = db_manager.get_cluster_parts()
     clusters = [Cluster(embeddings=[embedding], embeddings_ids=[embedding_id], cluster_id=cluster_id, label=label,
                         center_point=center_point)
@@ -117,14 +112,6 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
     :return:
     """
 
-    # img_old_clooney = Image.open("age_imgs/old-george-clooney.jpg")
-    #
-    # # Get cropped and pre-whitened image tensor
-    # img_old_cropped = mtcnn(img_old_clooney, save_path="age_testrun_imgs/img_old_cropped.jpg")  # mtcnn
-    #
-    # # Calculate embedding (unsqueeze to add batch dimension)
-    # img_old_embedding = resnet(img_old_cropped.unsqueeze(0))
-
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     elif not os.path.isdir(save_path):
@@ -146,76 +133,6 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
         if counter % 50 == 0:
             logging.info(f"extract & save loop number: {counter}")
         _extract_face_and_save_embedding(img_name, img, should_extract_face)
-
-
-# # TODO: Too specific of a function?
-# # TODO: Merge with general save_embeddings function?
-# # TODO: Move to core_algorithm module?
-# def save_cluster_embeddings_to_path(embeddings, save_path):
-#     # TODO: Use map or similar? Make more efficient?
-#
-#     if not os.path.exists(save_path):
-#         os.makedirs(save_path)
-#     elif not os.path.isdir(save_path):
-#         raise OSError(f'non-directory object named {save_path} already exists, '
-#                       'directory of same name cannot be created')
-#     # TODO: possible 'race condition'?!
-#     elif os.listdir(save_path):
-#         # TODO: !!! handle possible naming conflicts!
-#         # logging.warning('directory to save to not empty - potential naming conflict(s)!')
-#         # TODO: Make this a choice! (Only temp??)
-#         should_overwrite = 'y'
-#         # input("Would you like to overwrite the directory? (Please enter 'y' or 'n'.)"
-#         #                      ).lower().strip()
-#         if not should_overwrite.startswith('y'):
-#             raise RuntimeError('directory to save to not empty - potential naming conflict(s)!')
-#         rmtree(save_path)  # TODO: Does it really delete the complete structure like it should?
-#         os.makedirs(save_path)
-#
-#     for embedding_id, embedding in embeddings.items():
-#         # TODO: Is it valid assumption that id is always either digit or 'proper' filename??
-#         if embedding_id.isdigit() and not embedding_id.endswith('.pt'):
-#             file_name = f'embedding_{embedding_id}.pt'
-#         else:
-#             file_name = embedding_id
-#         embedding_save_path = os.path.join(save_path, file_name)
-#
-#         torch.save(embedding, embedding_save_path, pickle_protocol=pickle.DEFAULT_PROTOCOL)
-
-
-# def _load_embeddings_from_path(embeddings_path, yield_paths=False):
-#     """
-#     Yield all face embeddings (embeddings) from given path/directory. They are preceded by their paths if yield_paths is
-#     True.
-#
-#     :param :
-#     :return:
-#     """
-#     file_names = filter(lambda obj_name: os.path.isfile(os.path.join(embeddings_path, obj_name)),
-#                         os.listdir(embeddings_path))
-#     file_paths = map(lambda file_name: os.path.join(embeddings_path, file_name),
-#                      file_names)
-#
-#     if yield_paths:
-#         embeddings_loader = map(lambda file_path: (file_path, torch.load(file_path)), file_paths)
-#     else:
-#         embeddings_loader = map(torch.load, file_paths)
-#     return embeddings_loader
-#
-#
-# # ----- HELPER FUNCTIONS -----
-#
-# def get_file_extension(file_name):
-#     ext_with_sep = os.path.splitext(file_name)[-1]
-#     return ext_with_sep.lstrip(os.path.extsep)
-#
-#
-# def strip_file_extension(file_name):
-#     return os.path.splitext(file_name)[0]
-#
-#
-# def append_file_extension(file_name, extension):
-#     return file_name + os.path.extsep + extension
 
 
 if __name__ == '__main__':

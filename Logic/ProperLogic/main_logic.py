@@ -21,7 +21,6 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 # TODO: Add comments & docstrings
 # TODO: Always allow option to leave current menu item / loop rather than continue!
 # TODO: Consistent paths!
-# TODO: How should local tables be referenced?
 
 # TODO: Use property decorator?
 
@@ -54,7 +53,6 @@ def demo_program(path_to_central_dir):
     cmd_name = get_user_command()
     while cmd_name not in Command.terminating_tokens:
         cmd = Command.get_command(cmd_name)
-        # TODO:  Check out Software Design Patterns for better params passing to handlers?
         cmd.handler(db_manager=db_manager, clusters=clusters)
         cmd_name = get_user_command()
         cmd_name = 'exit'
@@ -69,7 +67,7 @@ def demo_program(path_to_central_dir):
 
 def get_user_command():
     # TODO: Let user choose command
-    command = 'add'  # _get_user_command_subfunc()
+    command = 'processimgs'  # _get_user_command_subfunc()
     while command not in Command.commands.keys() and command not in Command.terminating_tokens:
         log_error(f'Unknown command {command}, please try again.')
         command = _get_user_command_subfunc()

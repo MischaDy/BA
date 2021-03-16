@@ -6,7 +6,6 @@ from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_att
 
 # # TODO: Comparison problems when using _get_true__attr??
 # def _get_true_attr(obj, enum_, obj_var_name=None):
-#     # TODO: Fix comparison problems!
 #     if isinstance(obj, enum_):
 #         return obj.name
 #     elif isinstance(obj, str):
@@ -69,15 +68,11 @@ class TableSchema:
         :param only_values:
         :return:
         """
-        # if isinstance(list(row_dict.keys())[0], str):
-        #     col_names = self.get_column_names()
-        # else:
-        #     col_names = self.get_columns()
         cols = self.get_column_names()
         sorted_row_items = sorted(row_dict.items(),
                                   key=lambda kv_pair: cols.index(kv_pair[0]))  # kv = key-value
         if only_values:
-            return get_every_nth_item(sorted_row_items, n=1)
+            return list(get_every_nth_item(sorted_row_items, n=1))
         return sorted_row_items
 
 
@@ -110,8 +105,6 @@ class ColumnSchema:
     #     return cls.__dict__[col_schema_name]
 
 
-# TODO: Fix comparisons of tables not being equal due to this class!
-#       --> Fixed?
 class ColumnTypes(Enum):
     null = 'NULL'
     integer = 'INT'
@@ -169,7 +162,7 @@ class Tables:
         'faces',
         [Columns.face_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
          Columns.image_id.with_constraint('NOT NULL'),
-         Columns.thumbnail.with_constraint('NOT NULL')  # TODO: Which constraint should go here?
+         Columns.thumbnail.with_constraint('NOT NULL')
          ],
         [f'PRIMARY KEY ({Columns.face_id})',
          f'FOREIGN KEY ({Columns.image_id}) REFERENCES {images_table} ({Columns.image_id})'
@@ -211,7 +204,6 @@ class Tables:
 
     @classmethod
     def is_local_table(cls, table):
-        # TODO: Use _get_true_attr here?
         if isinstance(table, str):
             if table in cls.get_table_names(local=True):
                 return True

@@ -10,10 +10,8 @@ import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.cluster import Clusters
 from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema
 
-# TODO: *Global* face_id - created in central table, then written to corresponding local table
 # TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
 # TODO: (When to) use VACUUM?
 # TODO: Locking db necessary?
@@ -371,15 +369,15 @@ class DBManager:
         return processed_cluster_parts
 
     def add_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: Implement + Change signature + use
+        # TODO: implement + change signature + use
         pass
 
     def remove_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: Implement + Change signature + use
+        # TODO: implement + change signature + use
         pass
 
     def check_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: Change signature + use
+        # TODO: implement + change signature + use
         try:
             self.commit_and_close_connection(False)
             central_cur = self.central_db_connection.cursor()

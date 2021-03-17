@@ -1,33 +1,32 @@
 # Credits: https://sebastianraschka.com/Articles/2014_sqlite_in_python_tutorial.html
+import datetime
+import logging
 import os
 import sqlite3
 import time
-from collections import OrderedDict
-from enum import Enum
 from functools import partial
+from itertools import starmap
 
 import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.misc_helpers import clean_str, have_equal_attrs, have_equal_type_names, get_every_nth_item
+from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema
 
-# TODO: *Global* face_id - created in central table, then written to corresponding local table
 # TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
-# TODO: Refactor to programmatically connect columns and their properties (uniqueness etc.). But multiple columns???
-#       --> Make Tables class
-# TODO: When to close connection? Optimize?
 # TODO: (When to) use VACUUM?
 # TODO: Locking db necessary?
 # TODO: Backup necessary?
 # TODO: Use SQLAlchemy?
 
-# TODO: Append semi-colons everywhere?
 # TODO: FK faces -> embeddings other way around? Or remove completely?
 # TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names??
 
-# TODO: How to ensure correct order of values for table?
+# TODO: When to close connection? Optimize?
+# TODO: Guarantee that connection is closed at end of methods (done?)
 
+# TODO: Make DBManager a singleton object?
+from Logic.ProperLogic.misc_helpers import is_instance_by_type_name
 
 """
 ----- DB SCHEMA -----
@@ -39,201 +38,13 @@ images(INT image_id, TEXT file_name, INT last_modified)
 faces(INT face_id, INT image_id, BLOB thumbnail)
 
 --- Centralized Tables ---
+
 embeddings(INT cluster_id, INT face_id, BLOB face_embedding)
 cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
 
 
-class TableSchema:
-    def __init__(self, name, columns, constraints=None):
-        if constraints is None:
-            constraints = []
-        self.name = name
-        self.columns = OrderedDict((col.col_name, col) for col in columns)
-        self.constraints = constraints
-
-    def __getitem__(self, item):
-        if isinstance(item, str):
-            return self.columns[item]
-        elif isinstance(item, ColumnSchema):
-            return self.columns[item.col_name]
-        return TypeError(f'Item {item} must be of type str or ColumnSchema')
-
-    def __str__(self):
-        return self.name
-
-    def __eq__(self, other):
-        if not have_equal_type_names(self, other):
-            return NotImplemented
-        return have_equal_attrs(self, other)
-
-    def get_columns(self):
-        """
-
-        @return: The stored ColumnSchema objects.
-        """
-        return list(self.get_column_dict().values())
-
-    def get_column_names(self):
-        """
-
-        @return: The names of the stored ColumnSchema objects.
-        """
-        return list(self.get_column_dict().keys())
-
-    def get_column_dict(self):
-        """
-
-        @return: The OrderedDict storing the (column_name, ColumnSchema)-pairs.
-        """
-        return self.columns
-
-    def get_column_type(self, col_name):
-        return self.get_column_dict()[col_name].col_type
-
-    def sort_dict_by_cols(self, row_dict, only_values=False):
-        """
-        Return a list containing the items in row_dict, sorted by the order the corresponding keys appear in this
-        tables' columns. If only_values is True, the dict values rather than items are returned.
-
-        Example:
-        self = TableSchema(first_name, last_name, age)
-        row_dict = {'last_name': 'Olafson', 'age': 29, 'first_name': 'Lina'}
-        --> ['Lina', 'Olafson', 29]
-
-        @param row_dict:
-        @return:
-        """
-        # if isinstance(list(row_dict.keys())[0], str):
-        #     cols = self.get_column_names()
-        # else:
-        #     cols = self.get_columns()
-        cols = self.get_column_names()
-        sorted_row_items = sorted(row_dict.items(),
-                                  key=lambda kv_pair: cols.index(kv_pair[0]))  # kv = key-value
-        if not only_values:
-            return sorted_row_items
-        return get_every_nth_item(sorted_row_items, n=1)
-
-
-class ColumnSchema:
-    def __init__(self, col_name, col_type, col_constraint=''):
-        if isinstance(col_type, ColumnTypes):
-            self.col_type = col_type
-        elif isinstance(col_type, str):
-            self.col_type = ColumnTypes[col_type]
-        else:
-            raise TypeError(f"'col_type' must be a string or a member of ColumnTypes, not {col_type}")
-
-        self.col_name = col_name
-        self.col_constraint = col_constraint
-
-    def __str__(self):
-        return self.col_name
-
-    def __eq__(self, other):
-        if not have_equal_type_names(self, other):
-            return NotImplemented
-        return have_equal_attrs(self, other)
-
-    def with_constraint(self, col_constraint):
-        return ColumnSchema(self.col_name, self.col_type, col_constraint)
-
-
-# TODO: Fix comparisons of tables not being equal due to this class!
-class ColumnTypes(Enum):
-    null = 'NULL'
-    integer = 'INT'
-    real = 'REAL'
-    text = 'TEXT'
-    blob = 'BLOB'
-
-
-class Columns:
-    center_col = ColumnSchema('center', ColumnTypes.blob)
-    cluster_id_col = ColumnSchema('cluster_id', ColumnTypes.integer)
-    embedding_col = ColumnSchema('embedding', ColumnTypes.blob)
-    face_id_col = ColumnSchema('face_id', ColumnTypes.integer)
-    file_name_col = ColumnSchema('file_name', ColumnTypes.text)
-    image_id_col = ColumnSchema('image_id', ColumnTypes.integer)
-    label_col = ColumnSchema('label', ColumnTypes.text)
-    last_modified_col = ColumnSchema('last_modified', ColumnTypes.integer)
-    thumbnail_col = ColumnSchema('thumbnail', ColumnTypes.blob)
-
-
-class Tables:
-    images_table = TableSchema(
-        'images',
-        [Columns.image_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by faces table
-         Columns.file_name_col.with_constraint('NOT NULL'),
-         Columns.last_modified_col.with_constraint('NOT NULL')
-         ],
-        [f'PRIMARY KEY ({Columns.image_id_col})'
-         ]
-    )
-
-    faces_table = TableSchema(
-        'faces',
-        [Columns.face_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.image_id_col.with_constraint('NOT NULL'),
-         Columns.thumbnail_col.with_constraint('NOT NULL')  # TODO: Which constraint should go here?
-         ],
-        [f'PRIMARY KEY ({Columns.face_id_col})',
-         f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {images_table} ({Columns.image_id_col})'
-         + ' ON DELETE CASCADE'
-         ]
-    )
-
-    local_tables = (images_table, faces_table)
-
-    cluster_attributes_table = TableSchema(
-        'cluster_attributes',
-        [Columns.cluster_id_col.with_constraint('NOT NULL'),  # also used by cluster attributes table
-         Columns.label_col,
-         Columns.center_col
-         ],
-        [f'PRIMARY KEY ({Columns.cluster_id_col})']
-    )
-
-    embeddings_table = TableSchema(
-        'embeddings',
-        [Columns.cluster_id_col.with_constraint('NOT NULL'),  # also used by cluster attributes table
-         Columns.face_id_col.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.embedding_col.with_constraint('NOT NULL')
-         ],
-        [f'PRIMARY KEY ({Columns.face_id_col})',
-         f'FOREIGN KEY ({Columns.cluster_id_col}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id_col})'
-         + ' ON DELETE CASCADE'
-         ]
-    )
-
-    central_tables = (embeddings_table, cluster_attributes_table)
-
-    @classmethod
-    def is_local_table(cls, table):
-        if isinstance(table, str):
-            if table in cls.get_table_names(local=True):
-                return True
-            elif table in cls.get_table_names(local=False):
-                return False
-            raise ValueError(f"table '{table}' not found")
-
-        if table in cls.local_tables:
-            return True
-        elif table in cls.central_tables:
-            return False
-        raise ValueError(f"table '{table}' not found (its type, {type(table)}, might not be TableSchema)")
-
-    @classmethod
-    def get_table_names(cls, local):
-        tables = cls.local_tables if local else cls.central_tables
-        return map(lambda t: t.name, tables)
-
-# TODO: Guarantee that connection is closed at end of methods
-#       --> Using try (/ except) / finally??
-
-
-# TODO: Make singleton object?
+# TODO: Make all methods class/static
 class DBManager:
     db_files_path = 'database'
     central_db_file_name = 'central_db.sqlite'
@@ -246,6 +57,7 @@ class DBManager:
         self.local_db_connection = None
 
     def __del__(self):
+        # TODO: Needed?
         # Closing the connection to the database file
         for conn in (self.local_db_connection, self.central_db_connection):
             try:
@@ -270,55 +82,77 @@ class DBManager:
 
     def create_tables(self, create_local, path_to_local_db=None, drop_existing_tables=False):
         cur = self.open_connection(create_local, path_to_local_db)
-        if drop_existing_tables:
-            self._drop_tables(cur, create_local)
+        try:
+            if drop_existing_tables:
+                self._drop_tables(cur, create_local)
 
-        if create_local:
-            self._create_local_tables(cur)
-        else:
-            self._create_central_tables(cur)
-        self.commit_and_close_connection(create_local)
+            if create_local:
+                self._create_local_tables(cur)
+            else:
+                self._create_central_tables(cur)
+        finally:
+            self.commit_and_close_connection(create_local)
+
+    @classmethod
+    def _create_temp_table(cls, cur, temp_table=None):
+        if temp_table is None:
+            temp_table = Tables.temp_cluster_ids_table
+        create_table_sql = cls.build_create_table_sql(temp_table, create_temp=True)
+        cur.execute(create_table_sql)
 
     @classmethod
     def _create_local_tables(cls, cur):
         # enable foreign keys
-        cur.execute('PRAGMA foreign_keys = ON')
+        cur.execute('PRAGMA foreign_keys = ON;')
 
         # create images table
-        cur.execute(cls.__table_to_creating_sql(Tables.images_table))
+        cur.execute(cls.build_create_table_sql(Tables.images_table))
         # cur.execute(
         #     f"CREATE TABLE IF NOT EXISTS {Tables.images_table} ("
-        #     f"{Columns.image_id_col} {Columns.image_id_col.col_type.value} UNIQUE NOT NULL, "
-        #     f"{Columns.file_name_col} {Columns.file_name_col.col_type.value} NOT NULL, "
-        #     f"{Columns.last_modified_col} {Columns.last_modified_col.col_type.value} NOT NULL, "
-        #     f"PRIMARY KEY ({Columns.image_id_col})"
+        #     f"{Columns.image_id} {Columns.image_id.col_type.value} UNIQUE NOT NULL, "
+        #     f"{Columns.file_name} {Columns.file_name.col_type.value} NOT NULL, "
+        #     f"{Columns.last_modified} {Columns.last_modified.col_type.value} NOT NULL, "
+        #     f"PRIMARY KEY ({Columns.image_id})"
         #     ")"
         # )
 
         # create faces table
-        cur.execute(cls.__table_to_creating_sql(Tables.faces_table))
+        cur.execute(cls.build_create_table_sql(Tables.faces_table))
         # cur.execute(
         #     f"CREATE TABLE IF NOT EXISTS {Tables.faces_table} ("
-        #     f"{Columns.face_id_col} {Columns.face_id_col.col_type.value} UNIQUE NOT NULL, "
-        #     f"{Columns.image_id_col} {Columns.image_id_col.col_type.value} NOT NULL, "
-        #     f"{Columns.thumbnail_col} {Columns.thumbnail_col.col_type.value}, "
-        #     f"PRIMARY KEY ({Columns.face_id_col})"
-        #     f"FOREIGN KEY ({Columns.image_id_col}) REFERENCES {Tables.images_table} ({Columns.image_id_col})"
+        #     f"{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, "
+        #     f"{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, "
+        #     f"{Columns.thumbnail} {Columns.thumbnail.col_type.value}, "
+        #     f"PRIMARY KEY ({Columns.face_id})"
+        #     f"FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})"
         #     " ON DELETE CASCADE"
         #     ")"
         # )
 
     @staticmethod
-    def __table_to_creating_sql(table):
+    def build_create_table_sql(table, create_temp=False):
+        temp_clause = 'TEMP' if create_temp else ''
         constraints_sql = ", ".join(table.constraints)
         creating_sql = (
-            f"CREATE TABLE IF NOT EXISTS {table} ("
-            + ", ".join(f"{col.col_name} {col.col_type.value} {col.col_constraint}" for col in table.get_columns())
+            f"CREATE {temp_clause} TABLE IF NOT EXISTS {table} ("
+            + ", ".join(f"{col} {col.col_type.value} {col.col_constraint}" for col in table.get_columns())
             + (", " if constraints_sql else "")
             + constraints_sql
             + ");"
         )
         return creating_sql
+
+    @staticmethod
+    def build_on_conflict_sql(update_cols, update_exprs, conflict_target_cols=None, add_noop_where=False):
+        if conflict_target_cols is None:
+            conflict_target_cols = []
+        noop_where = 'WHERE true' if add_noop_where else ''
+        conflict_target = f"({', '.join(map(str, conflict_target_cols))})"
+        update_targets = (f'{update_col} = {update_expr}'
+                          for update_col, update_expr in zip(update_cols, update_exprs))
+        update_clause = ', '.join(update_targets)
+        on_conflict = f'{noop_where} ON CONFLICT {conflict_target} DO UPDATE SET {update_clause}'
+        return on_conflict
 
     @classmethod
     def _create_central_tables(cls, cur):
@@ -326,23 +160,23 @@ class DBManager:
         cur.execute('PRAGMA foreign_keys = ON;')
 
         # create embeddings table
-        cur.execute(cls.__table_to_creating_sql(Tables.embeddings_table))
+        cur.execute(cls.build_create_table_sql(Tables.embeddings_table))
         # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
-        #             f'{Columns.cluster_id_col} {Columns.cluster_id_col.col_type.value} NOT NULL, '
-        #             f'{Columns.face_id_col} {Columns.face_id_col.col_type.value} UNIQUE NOT NULL, '
-        #             f'{Columns.embedding_col} {Columns.embedding_col.col_type.value} NOT NULL, '
-        #             f'PRIMARY KEY ({Columns.face_id_col}), '
-        #             f'FOREIGN KEY ({Columns.cluster_id_col}) REFERENCES {Tables.cluster_attributes_table} ({Columns.cluster_id_col})'
+        #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
+        #             f'{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, '
+        #             f'{Columns.embedding} {Columns.embedding.col_type.value} NOT NULL, '
+        #             f'PRIMARY KEY ({Columns.face_id}), '
+        #             f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {Tables.cluster_attributes_table} ({Columns.cluster_id})'
         #             ' ON DELETE CASCADE'
         #             ')')
 
         # create cluster attributes table
-        cur.execute(cls.__table_to_creating_sql(Tables.cluster_attributes_table))
+        cur.execute(cls.build_create_table_sql(Tables.cluster_attributes_table))
         # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
-        #             f'{Columns.cluster_id_col} {Columns.cluster_id_col.col_type.value} NOT NULL, '
-        #             f'{Columns.label_col} {Columns.label_col.col_type.value}, '
-        #             f'{Columns.center_col} {Columns.center_col.col_type.value}, '
-        #             f'PRIMARY KEY ({Columns.cluster_id_col})'
+        #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
+        #             f'{Columns.label} {Columns.label.col_type.value}, '
+        #             f'{Columns.center} {Columns.center.col_type.value}, '
+        #             f'PRIMARY KEY ({Columns.cluster_id})'
         #             ')')
 
     @staticmethod
@@ -351,56 +185,204 @@ class DBManager:
         for table in tables:
             cur.execute(f'DROP TABLE IF EXISTS {table};')
 
-    def store_in_table(self, table, row_dicts, path_to_local_db=None):
+    def store_in_table(self, table, row_dicts, on_conflict='', cur=None, path_to_local_db=None, close_connection=True):
         """
 
-        @param table:
-        @param row_dicts: iterable of dicts storing (col_name, col_value)-pairs
-        @param path_to_local_db:
-        @return:
+        :param table:
+        :param row_dicts: iterable of dicts storing (col_name, col_value)-pairs
+        :param on_conflict:
+        :param path_to_local_db:
+        :return:
         """
-        # TODO: Call data_to_bytes when appropriate. --> How to know??
-        rows = DBManager.row_dicts_to_rows(table, row_dicts)
+        # TODO: Make sure, all funcs using this method know about the conflict clause!
+        rows = self.row_dicts_to_rows(table, row_dicts)
+        if not rows:
+            return
         store_in_local = Tables.is_local_table(table)
-        cur = self.open_connection(store_in_local, path_to_local_db)
         values_template = self._make_values_template(len(row_dicts[0]))
-        cur.executemany(f'INSERT INTO {table} VALUES ({values_template});', rows)
-        self.commit_and_close_connection(store_in_local)
 
-    def fetch_from_table(self, table_name, path_to_local_db=None, cols=None, cond=''):
-        # TODO: Call bytes_to_data when appropriate. --> How to know??
-        if cols is None:
-            cols = ['*']
+        if cur is None:
+            cur = self.open_connection(store_in_local, path_to_local_db)
+
+        def execute():
+            cur.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
+
+        if not close_connection:
+            execute()
+            return
+        try:
+            execute()
+        finally:
+            self.commit_and_close_connection(store_in_local)
+
+    def store_clusters(self, clusters):
+        """
+        Store the data in clusters in the central DB-tables ('cluster_attributes' and 'embeddings').
+
+        :param clusters: Iterable of clusters to store.
+        :return: None
+        """
+        # Store in cluster_attributes table
+        # Use on conflict clause for when cluster label and/or center change
+        attrs_update_cols = [Columns.label, Columns.center]
+        attrs_update_exprs = [f'excluded.{Columns.label}', f'excluded.{Columns.center}']
+        attrs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.cluster_id],
+                                                       update_cols=attrs_update_cols,
+                                                       update_exprs=attrs_update_exprs)
+        attributes_row_dicts = self.make_attr_row_dicts(clusters)
+        self.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict)
+
+        # Store in embeddings table
+        # Use on conflict clause for when cluster id changes
+        embs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.face_id],
+                                                      update_cols=[Columns.cluster_id],
+                                                      update_exprs=[f'excluded.{Columns.cluster_id}'])
+        embeddings_row_dicts = self.make_embs_row_dicts(clusters)
+        self.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict)
+
+    def remove_clusters(self, clusters_to_remove):
+        """
+        Removes the data in clusters from the central DB-tables ('cluster_attributes' and 'embeddings').
+
+        :param clusters_to_remove: Iterable of clusters to remove.
+        :return: None
+        """
+        temp_table = Tables.temp_cluster_ids_table
+        embs_table = Tables.embeddings_table
+        attrs_table = Tables.cluster_attributes_table
+
+        embs_condition = f'{embs_table}.{Columns.cluster_id} IN {temp_table}'
+        attrs_condition = f'{attrs_table}.{Columns.cluster_id} IN {temp_table}'
+
+        cluster_ids_to_remove = map(lambda c: c.cluster_id, clusters_to_remove)
+        rows_dicts = [{Columns.cluster_id.col_name: cluster_id}
+                      for cluster_id in cluster_ids_to_remove]
+
+        is_local_table = Tables.is_local_table(temp_table)
+        close_connection = False
+        cur = self.open_connection(open_local=is_local_table)
+        try:
+            self._create_temp_table(cur, temp_table)
+            self.store_in_table(temp_table, rows_dicts, cur=cur, close_connection=close_connection)
+            self.delete_from_table(embs_table, condition=embs_condition, cur=cur, close_connection=close_connection)
+            self.delete_from_table(attrs_table, condition=attrs_condition, cur=cur, close_connection=close_connection)
+        finally:
+            self.commit_and_close_connection(close_local=is_local_table)
+
+    def delete_from_table(self, table, with_clause_part='', condition='', cur=None, path_to_local_db=None,
+                          close_connection=True):
+        """
+
+        :param table:
+        :param with_clause_part:
+        :param condition:
+        :param path_to_local_db:
+        :return:
+        """
+        delete_from_local = Tables.is_local_table(table)
+        with_clause = f'WITH {with_clause_part}' if with_clause_part else ''
+        where_clause = f'WHERE {condition}' if condition else ''
+        if cur is None:
+            cur = self.open_connection(delete_from_local, path_to_local_db)
+
+        def execute():
+            cur.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
+
+        if not close_connection:
+            execute()
+            return
+        try:
+            execute()
+        finally:
+            self.commit_and_close_connection(delete_from_local)
+
+    @staticmethod
+    def make_attr_row_dicts(clusters):
+        attributes_row_dicts = [
+            {
+                Columns.cluster_id.col_name: cluster.cluster_id,
+                Columns.label.col_name: cluster.label,
+                Columns.center.col_name: cluster.center_point,
+            }
+            for cluster in clusters
+        ]
+        return attributes_row_dicts
+
+    @staticmethod
+    def make_embs_row_dicts(clusters):
+        embeddings_row_dicts = []
+        for cluster in clusters:
+            embeddings_row = [
+                {Columns.cluster_id.col_name: cluster.cluster_id,
+                 Columns.embedding.col_name: embedding,
+                 Columns.face_id.col_name: face_id}
+                for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
+            ]
+            embeddings_row_dicts.extend(embeddings_row)
+        return embeddings_row_dicts
+
+    def fetch_from_table(self, table, path_to_local_db=None, col_names=None, cond=''):
+        """
+
+        :param table:
+        :param path_to_local_db:
+        :param col_names: An iterable of column names, or an iterable containing only the string '*' (default).
+        :param cond:
+        :return:
+        """
+        # TODO: allow for multiple conditions(?)
+        # TODO: Refactor?
+        # TODO: More elegant solution?
+        if col_names is None or '*' in col_names:
+            col_names = table.get_column_names()
         cond_str = '' if len(cond) == 0 else f'WHERE {cond}'
-        fetch_from_local = Tables.is_local_table(table_name)
+        fetch_from_local = Tables.is_local_table(table)
+        cols_template = ','.join(col_names)
         cur = self.open_connection(fetch_from_local, path_to_local_db)
-        cols_template = ','.join(cols)
-        result = cur.execute(f'SELECT {cols_template} FROM {table_name} {cond_str}').fetchall()
-        self.commit_and_close_connection(fetch_from_local)
-        return result
+        try:
+            rows = cur.execute(f'SELECT {cols_template} FROM {table} {cond_str};').fetchall()
+        finally:
+            self.commit_and_close_connection(fetch_from_local)
+
+        # cast row of query results to row of usable data
+        for row in rows:
+            processed_row = starmap(self.sql_value_to_data, zip(row, col_names))
+            yield tuple(processed_row)
 
     def get_cluster_parts(self):
+        # TODO: Refactor
         cur = self.open_connection(open_local=False)
-        cluster_parts = cur.execute(
-            f"SELECT {Columns.cluster_id_col}, {Columns.label_col},"
-            f" {Columns.center_col}, {Columns.embedding_col}, "
-            f"{Columns.face_id_col}"
-            f" FROM {Tables.embeddings_table} INNER JOIN {Tables.cluster_attributes_table}"
-            f" USING ({Columns.cluster_id_col});"
-        ).fetchall()
-        self.commit_and_close_connection(close_local=False)
-        return cluster_parts
+        try:
+            cluster_parts = cur.execute(
+                f"SELECT {Columns.cluster_id}, {Columns.label},"
+                f" {Columns.center}, {Columns.embedding}, "
+                f"{Columns.face_id}"
+                f" FROM {Tables.embeddings_table} INNER JOIN {Tables.cluster_attributes_table}"
+                f" USING ({Columns.cluster_id});"
+            ).fetchall()
+        finally:
+            self.commit_and_close_connection(close_local=False)
+        # convert center point and embedding to tensors rather than bytes
+        processed_cluster_parts = [
+            (cluster_id,
+             label,
+             self.bytes_to_tensor(center_point),
+             self.bytes_to_tensor(embedding),
+             face_id)
+            for cluster_id, label, center_point, embedding, face_id in cluster_parts
+        ]
+        return processed_cluster_parts
 
     def add_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: Implement + Change signature + use
+        # TODO: implement + change signature + use
         pass
 
     def remove_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: Implement + Change signature + use
+        # TODO: implement + change signature + use
         pass
 
     def check_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: Change signature + use
+        # TODO: implement + change signature + use
         try:
             self.commit_and_close_connection(False)
             central_cur = self.central_db_connection.cursor()
@@ -414,10 +396,12 @@ class DBManager:
     def aggregate_col(self, table, col, func, path_to_local_db=None):
         aggregate_from_local = Tables.is_local_table(table)
         cur = self.open_connection(aggregate_from_local, path_to_local_db)
-        agg_value = cur.execute(
-            f"SELECT {func}({col}) FROM {table};"
-        ).fetchone()
-        self.commit_and_close_connection(aggregate_from_local)
+        try:
+            agg_value = cur.execute(
+                f"SELECT {func}({col}) FROM {table};"
+            ).fetchone()
+        finally:
+            self.commit_and_close_connection(aggregate_from_local)
         return agg_value
 
     def get_max_num(self, table, col, default=0, path_to_local_db=None):
@@ -427,6 +411,12 @@ class DBManager:
             return max_num
         return default
 
+    def get_imgs_attrs(self, path_to_local_db=None):
+        col_names = [Columns.file_name.col_name, Columns.last_modified.col_name]
+        rows = self.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db,
+                                     col_names=col_names)
+        return rows
+
     @classmethod
     def get_db_path(cls, path, local=True):
         if local:
@@ -435,7 +425,6 @@ class DBManager:
 
     @classmethod
     def row_dicts_to_rows(cls, table, row_dicts):
-        # TODO: Handle date -> int(?)!
         sort_dict_by_cols = partial(table.sort_dict_by_cols, only_values=False)
         sorted_item_rows = list(map(sort_dict_by_cols,
                                     row_dicts))
@@ -448,7 +437,9 @@ class DBManager:
             #                zip(is_blob_col, col_values)))
             row = []
             for col_name, col_value in item_row:
-                if table.get_column_type(col_name) == ColumnTypes.blob:
+                if isinstance(col_value, datetime.datetime):
+                    row.append(cls.date_to_iso_string(col_value))
+                elif table.get_column_type(col_name) == ColumnTypes.blob:
                     row.append(cls.data_to_bytes(col_value))
                 else:
                     row.append(col_value)
@@ -459,6 +450,28 @@ class DBManager:
     def _make_values_template(length, char_to_join='?', sep=','):
         chars_to_join = length * char_to_join if len(char_to_join) == 1 else char_to_join
         return sep.join(chars_to_join)
+
+    @classmethod
+    def sql_value_to_data(cls, value, column):
+        """
+
+        :param value:
+        :param column: str or ColumnSchema
+        :return:
+        """
+        if isinstance(column, str):
+            column = Columns.get_column(column)
+        elif not is_instance_by_type_name(column, ColumnSchema):
+            raise TypeError(f"'column' must be a string or ColumnSchema, not '{type(column)}'.")
+        col_details = column.col_details
+        if col_details == ColumnDetails.image:
+            value = cls.bytes_to_image(value)
+        elif col_details == ColumnDetails.tensor:
+            value = cls.bytes_to_tensor(value)
+        elif col_details == ColumnDetails.date:
+            value = cls.iso_string_to_date(value)
+        logging.info("sql_value_to_data: Didn't match any ColumnDetails")
+        return value
 
     @staticmethod
     def data_to_bytes(data):
@@ -476,25 +489,43 @@ class DBManager:
         buffer.close()
         return data_bytes
 
+    @classmethod
+    def bytes_to_image(cls, data_bytes):
+        return cls.bytes_to_data(data_bytes, data_type=ColumnDetails.image)
+
+    @classmethod
+    def bytes_to_tensor(cls, data_bytes):
+        return cls.bytes_to_data(data_bytes, data_type=ColumnDetails.tensor)
+
     @staticmethod
     def bytes_to_data(data_bytes, data_type):
         """
         Convert the BLOB bytes from the DB to either a tensor or an image, depending on the data_type argument.
 
         :param data_bytes: Bytes from storing either a PyTorch Tensor or a PILLOW Image.
-        :param data_type: String denoting the original data type. One of: 'tensor', 'image'.
+        :param data_type: String or ColumnDetails object denoting the original data type. One of 'tensor', 'image', or
+        one of the corresponding ColumnDetails objects.
         """
-        type_str = clean_str(data_type)
-        if type_str not in ('tensor', 'image'):
-            raise ValueError("data_type must be one of 'tensor', 'image'")
-
         buffer = io.BytesIO(data_bytes)
-        if type_str == 'tensor':
-            obj = torch.load(buffer)
-        else:
-            obj = Image.open(buffer).convert('RGBA')
-        buffer.close()
+        try:
+            if data_type == ColumnDetails.tensor:
+                obj = torch.load(buffer)
+            elif data_type == ColumnDetails.image:
+                obj = Image.open(buffer).convert('RGBA')
+            else:
+                raise ValueError(f"Unknown data type '{data_type}', expected '{ColumnDetails.tensor}'"
+                                 f" or '{ColumnDetails.image}'.")
+        finally:
+            buffer.close()
         return obj
+
+    @staticmethod
+    def date_to_iso_string(date):
+        return date.isoformat().replace('T', ' ')
+
+    @staticmethod
+    def iso_string_to_date(string):
+        return datetime.datetime.fromisoformat(string)
 
     # def main(self):
     #     # connecting to the database file
@@ -566,19 +597,19 @@ class DBManager:
         #
         # # create embeddings table
         # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
-        #                  f'{Columns.image_id_col} {Columns.image_id_col.col_type.value} NOT NULL, '
-        #                  f'{Columns.thumbnail_col} {Columns.thumbnail_col.col_type.value}, '
-        #                  f'{Columns.embedding_col} {Columns.embedding_col.col_type.value}, '
-        #                  f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {Tables.images_table} ({Columns.image_id_col})'
+        #                  f'{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, '
+        #                  f'{Columns.thumbnail} {Columns.thumbnail.col_type.value}, '
+        #                  f'{Columns.embedding} {Columns.embedding.col_type.value}, '
+        #                  f'FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})'
         #                  ' ON DELETE CASCADE'
         #                  ')')
         #
         # # create cluster attributes table
         # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
-        #                  f'{Columns.image_id_col} {Columns.image_id_col.col_type.value} NOT NULL, '
-        #                  f'{Columns.thumbnail_col} {Columns.thumbnail_col.col_type.value}, '
-        #                  f'{Columns.embedding_col} {Columns.embedding_col.col_type.value}, '
-        #                  f'FOREIGN KEY ({Columns.image_id_col}) REFERENCES {Tables.images_table} ({Columns.image_id_col})'
+        #                  f'{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, '
+        #                  f'{Columns.thumbnail} {Columns.thumbnail.col_type.value}, '
+        #                  f'{Columns.embedding} {Columns.embedding.col_type.value}, '
+        #                  f'FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})'
         #                  ' ON DELETE CASCADE'
         #                  ')')
 

@@ -32,7 +32,7 @@ def wait_for_any_input(prompt):
 # ----- MISC -----
 
 def clean_str(string, to_lower=True):
-    clean_string = string.strip()
+    clean_string = ' '.join(string.strip().split())
     if to_lower:
         return clean_string.lower()
     return clean_string.upper()

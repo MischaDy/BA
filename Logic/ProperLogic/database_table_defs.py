@@ -4,6 +4,20 @@ from enum import Enum
 from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item
 
 
+# TODO: Change DB Schema!
+#       --> Remove faces table, add img_id col to embeddings_table, add cross-db FK to images table (do? and how?)
+#       --> Does embeddings_table need an extra id for each? Where is that used? Can rowid be used instead?
+#           --> Probably wouldn't hurt!
+#       --> Add column to embeddings_table to record whether label assignment (stored in cluster_attributes) is
+#           user- or algorithm-based
+#       --> Make own table for labels so clusters and embeddings can have separate labels???
+#           OR: Store label itself in embeddings_table to indicate that it came from user (other rows: NULL)
+#           OR: Store embeddings label separate table
+#           --> Choice: Extra-table! Least space use, uses embedding_ids (making them more useful themselves)
+#                       Duplicates some labels, but few and storing labels separately from clusters is kinda the
+#                       point!
+
+
 # # TODO: Comparison problems when using _get_true__attr??
 # def _get_true_attr(obj, enum_, obj_var_name=None):
 #     if isinstance(obj, enum_):

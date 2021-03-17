@@ -128,9 +128,11 @@ def handler_label_clusters(**kwargs):
 
 
 def handler_edit_faces(clusters, **kwargs):
-    # TODO: Implement
-    # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
     # TODO: Finish implementing
+    # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
+
+    # TODO: Make sure user-selected labels are treated correctly in clustering!
+
     continue_cluster = ''
     while not continue_cluster.startswith('n'):
         cluster = user_choose_cluster(clusters)

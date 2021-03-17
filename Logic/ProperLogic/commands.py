@@ -223,7 +223,7 @@ def extract_faces(path, db_manager: DBManager, check_if_known=True):
     # Note: 'MAX' returns None / (None, ) as a default value
     max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id, default=0,
                                         path_to_local_db=path_to_local_db)
-    first_max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.face_id, default=0)
+    first_max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.embedding_id, default=0)
     max_face_id = first_max_face_id
 
     faces = []
@@ -248,7 +248,7 @@ def extract_faces(path, db_manager: DBManager, check_if_known=True):
         db_manager.store_in_table(Tables.images_table, [img_row], path_to_local_db=path_to_local_db)
         faces_rows = [{Columns.thumbnail.col_name: face,
                        Columns.image_id.col_name: img_id,
-                       Columns.face_id.col_name: face_id}
+                       Columns.embedding_id.col_name: face_id}
                       for face_id, face in enumerate(img_faces, start=max_face_id+1)]
         max_face_id += len(img_faces)
         db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db=path_to_local_db)

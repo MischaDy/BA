@@ -134,6 +134,7 @@ class ColumnTypes(Enum):
 
 
 class ColumnDetails(Enum):
+    # TODO: Store in better way?
     tensor = 'tensor'
     date = 'date'
     image = 'image'
@@ -149,7 +150,7 @@ class Columns:
     center = ColumnSchema('center', ColumnTypes.blob, col_details=ColumnDetails.tensor)
     cluster_id = ColumnSchema('cluster_id', ColumnTypes.integer)
     embedding = ColumnSchema('embedding', ColumnTypes.blob, col_details=ColumnDetails.tensor)
-    face_id = ColumnSchema('face_id', ColumnTypes.integer)
+    embedding_id = ColumnSchema('embedding_id', ColumnTypes.integer)
     file_name = ColumnSchema('file_name', ColumnTypes.text)
     image_id = ColumnSchema('image_id', ColumnTypes.integer)
     label = ColumnSchema('label', ColumnTypes.text)
@@ -174,11 +175,11 @@ class Tables:
 
     faces_table = TableSchema(
         'faces',
-        [Columns.face_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
+        [Columns.embedding_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
          Columns.image_id.with_constraint('NOT NULL'),
          Columns.thumbnail.with_constraint('NOT NULL')
          ],
-        [f'PRIMARY KEY ({Columns.face_id})',
+        [f'PRIMARY KEY ({Columns.embedding_id})',
          f'FOREIGN KEY ({Columns.image_id}) REFERENCES {images_table} ({Columns.image_id})'
          + ' ON DELETE CASCADE'
          ]
@@ -198,10 +199,10 @@ class Tables:
     embeddings_table = TableSchema(
         'embeddings',
         [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by cluster attributes table
-         Columns.face_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
+         Columns.embedding_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
          Columns.embedding.with_constraint('NOT NULL')
          ],
-        [f'PRIMARY KEY ({Columns.face_id})',
+        [f'PRIMARY KEY ({Columns.embedding_id})',
          f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id})'
          + ' ON DELETE CASCADE'
          ]

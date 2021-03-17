@@ -35,11 +35,11 @@ from Logic.ProperLogic.misc_helpers import is_instance_by_type_name
 --- Local Tables ---
 
 images(INT image_id, TEXT file_name, INT last_modified)
-faces(INT face_id, INT image_id, BLOB thumbnail)
+faces(INT embedding_id, INT image_id, BLOB thumbnail)
 
 --- Centralized Tables ---
 
-embeddings(INT cluster_id, INT face_id, BLOB face_embedding)
+embeddings(INT cluster_id, INT embedding_id, BLOB face_embedding)
 cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
 
@@ -120,10 +120,10 @@ class DBManager:
         cur.execute(cls.build_create_table_sql(Tables.faces_table))
         # cur.execute(
         #     f"CREATE TABLE IF NOT EXISTS {Tables.faces_table} ("
-        #     f"{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, "
+        #     f"{Columns.embedding_id} {Columns.embedding_id.col_type.value} UNIQUE NOT NULL, "
         #     f"{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, "
         #     f"{Columns.thumbnail} {Columns.thumbnail.col_type.value}, "
-        #     f"PRIMARY KEY ({Columns.face_id})"
+        #     f"PRIMARY KEY ({Columns.embedding_id})"
         #     f"FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})"
         #     " ON DELETE CASCADE"
         #     ")"
@@ -163,9 +163,9 @@ class DBManager:
         cur.execute(cls.build_create_table_sql(Tables.embeddings_table))
         # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
         #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
-        #             f'{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, '
+        #             f'{Columns.embedding_id} {Columns.embedding_id.col_type.value} UNIQUE NOT NULL, '
         #             f'{Columns.embedding} {Columns.embedding.col_type.value} NOT NULL, '
-        #             f'PRIMARY KEY ({Columns.face_id}), '
+        #             f'PRIMARY KEY ({Columns.embedding_id}), '
         #             f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {Tables.cluster_attributes_table} ({Columns.cluster_id})'
         #             ' ON DELETE CASCADE'
         #             ')')
@@ -234,7 +234,7 @@ class DBManager:
 
         # Store in embeddings table
         # Use on conflict clause for when cluster id changes
-        embs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.face_id],
+        embs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.embedding_id],
                                                       update_cols=[Columns.cluster_id],
                                                       update_exprs=[f'excluded.{Columns.cluster_id}'])
         embeddings_row_dicts = self.make_embs_row_dicts(clusters)
@@ -315,7 +315,7 @@ class DBManager:
             embeddings_row = [
                 {Columns.cluster_id.col_name: cluster.cluster_id,
                  Columns.embedding.col_name: embedding,
-                 Columns.face_id.col_name: face_id}
+                 Columns.embedding_id.col_name: face_id}
                 for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
             ]
             embeddings_row_dicts.extend(embeddings_row)
@@ -356,7 +356,7 @@ class DBManager:
             cluster_parts = cur.execute(
                 f"SELECT {Columns.cluster_id}, {Columns.label},"
                 f" {Columns.center}, {Columns.embedding}, "
-                f"{Columns.face_id}"
+                f"{Columns.embedding_id}"
                 f" FROM {Tables.embeddings_table} INNER JOIN {Tables.cluster_attributes_table}"
                 f" USING ({Columns.cluster_id});"
             ).fetchall()

@@ -22,6 +22,11 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 # INPUT_SIZE = [112, 112]
 
 
+# TODO: Remove
+DROP_CENTRAL_TABLES = False
+DROP_LOCAL_TABLES = False
+
+
 # TODO: Make handlers class
 # TODO: Split this file?
 
@@ -151,8 +156,8 @@ def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
     embeddings = list(faces_to_embeddings(faces))
     modified_clusters, removed_clusters = CoreAlgorithm.cluster_embeddings(embeddings, face_ids,
                                                                            existing_clusters=clusters)
-    db_manager.remove_clusters(removed_clusters)
-    db_manager.store_clusters(modified_clusters)
+    db_manager.remove_clusters(list(removed_clusters))
+    db_manager.store_clusters(list(modified_clusters))
 
 
 def faces_to_embeddings(faces):
@@ -168,7 +173,7 @@ def user_choose_imgs(db_manager):
     path_to_local_db = db_manager.get_db_path(images_path, local=True)
     db_manager.create_tables(create_local=True,
                              path_to_local_db=path_to_local_db,
-                             drop_existing_tables=False)
+                             drop_existing_tables=DROP_LOCAL_TABLES)
     faces_with_ids = extract_faces(images_path, db_manager)
     return faces_with_ids
 

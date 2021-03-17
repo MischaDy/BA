@@ -94,9 +94,8 @@ class CoreAlgorithm:
                 new_cluster = Cluster([new_embedding], [embedding_id])
                 clusters.append(new_cluster)
                 modified_clusters_ids.add(new_cluster.cluster_id)
-        id_sets = (modified_clusters_ids, removed_clusters_ids)
-        modified_clusters, removed_clusters = (map(clusters.get_cluster_by_id, id_set)
-                                               for id_set in id_sets)
+        modified_clusters = clusters.get_clusters_by_ids(modified_clusters_ids)
+        removed_clusters = clusters.get_clusters_by_ids(removed_clusters_ids)
         return modified_clusters, removed_clusters
 
     @classmethod

@@ -64,7 +64,7 @@ def split_items(iterables, use_longest=False, fillvalue=None):
     :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
     :return: nth element in each iterable stored in 'iterables'
     """
-    # TODO: Improve efficiency
+    # TODO: Improve efficiency, fix docstring, refactor(?)
     # return list(starmap(get_every_nth_item, zip(iterables, range())))
     if len(iterables) == 0:
         return []
@@ -73,15 +73,13 @@ def split_items(iterables, use_longest=False, fillvalue=None):
     splits = [[] for _ in range(num_splits)]
 
     if use_longest:
-        def zip_func(iterable):
-            return zip_longest(splits, iterable, fillvalue=fillvalue)
+        for iterable in iterables:
+            for split, item in zip_longest(splits, iterable, fillvalue=fillvalue):
+                split.append(item)
     else:
-        def zip_func(iterable):
-            return zip(splits, iterable)
-
-    for iterable in iterables:
-        for split, item in zip_func(iterable):
-            split.append(item)
+        for iterable in iterables:
+            for split, item in zip(splits, iterable):
+                split.append(item)
     return splits
 
 

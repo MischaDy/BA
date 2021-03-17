@@ -100,12 +100,13 @@ class Cluster:
 
 class Clusters(list):
     def get_cluster_by_id(self, cluster_id):
-        return self.get_clusters_by_ids([cluster_id])
+        cluster_list = self.get_clusters_by_ids([cluster_id])
+        try:
+            return next(cluster_list)
+        except StopIteration:
+            log_error(f"no cluster with an id in '{cluster_id}' found")
+            return None
 
     def get_clusters_by_ids(self, cluster_ids):
         # TODO: Improve efficiency! (Make dict with id as key?)
-        # TODO: Which error to raise?
-        try:
-            return next(filter(lambda c: c.cluster_id in cluster_ids, self))
-        except StopIteration:
-            raise RuntimeError(f"no clusters with an id in '{cluster_ids}' found")
+        return filter(lambda c: c.cluster_id in cluster_ids, self)

@@ -1,3 +1,5 @@
+import operator
+
 from Logic.ProperLogic.misc_helpers import log_error
 import torch
 
@@ -110,3 +112,13 @@ class Clusters(list):
     def get_clusters_by_ids(self, cluster_ids):
         # TODO: Improve efficiency! (Make dict with id as key?)
         return filter(lambda c: c.cluster_id in cluster_ids, self)
+
+    def get_cluster_ids(self):
+        return self.get_cluster_attrs('cluster_id')
+
+    def get_cluster_labels(self):
+        return self.get_cluster_attrs('label')
+
+    def get_cluster_attrs(self, attr):
+        attr_gettr = operator.attrgetter(attr)
+        return map(attr_gettr, self)

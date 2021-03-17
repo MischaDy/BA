@@ -165,7 +165,7 @@ class Columns:
 class Tables:
     images_table = TableSchema(
         'images',
-        [Columns.image_id.with_constraint('UNIQUE NOT NULL'),  # also used by faces table
+        [Columns.image_id.with_constraint('UNIQUE NOT NULL'),
          Columns.file_name.with_constraint('NOT NULL'),
          Columns.last_modified.with_constraint('NOT NULL')
          ],
@@ -173,23 +173,11 @@ class Tables:
          ]
     )
 
-    faces_table = TableSchema(
-        'faces',
-        [Columns.embedding_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.image_id.with_constraint('NOT NULL'),
-         Columns.thumbnail.with_constraint('NOT NULL')
-         ],
-        [f'PRIMARY KEY ({Columns.embedding_id})',
-         f'FOREIGN KEY ({Columns.image_id}) REFERENCES {images_table} ({Columns.image_id})'
-         + ' ON DELETE CASCADE'
-         ]
-    )
-
-    local_tables = (images_table, faces_table)
+    local_tables = (images_table,)
 
     cluster_attributes_table = TableSchema(
         'cluster_attributes',
-        [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by cluster attributes table
+        [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by embeddings table
          Columns.label,
          Columns.center
          ],
@@ -199,13 +187,17 @@ class Tables:
     embeddings_table = TableSchema(
         'embeddings',
         [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by cluster attributes table
-         Columns.embedding_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.embedding.with_constraint('NOT NULL')
+         Columns.image_id.with_constraint('NOT NULL'),
+         Columns.embedding_id.with_constraint('UNIQUE NOT NULL'),
+         Columns.embedding.with_constraint('NOT NULL'),
+         Columns.thumbnail.with_constraint('NOT NULL'),
          ],
         [f'PRIMARY KEY ({Columns.embedding_id})',
          f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id})'
-         + ' ON DELETE CASCADE'
-         ]
+         + ' ON DELETE CASCADE',
+         # f'FOREIGN KEY ({Columns.image_id}) REFERENCES {images_table} ({Columns.image_id})'
+         # + ' ON DELETE CASCADE'
+         ],
     )
 
     central_tables = (embeddings_table, cluster_attributes_table)

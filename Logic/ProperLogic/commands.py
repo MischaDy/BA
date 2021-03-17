@@ -171,10 +171,11 @@ def handler_show_cluster(clusters_path, **kwargs):
 def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
     # Extract faces from user-chosen images and cluster them
-    faces_with_ids = list(user_choose_imgs(db_manager))
-    if not faces_with_ids:
+    faces_rows = list(user_choose_imgs(db_manager))
+    if not faces_rows:
         return
-    face_ids, faces = split_items(faces_with_ids)
+    # TODO: Implement correct processing of faces_rows!
+    face_ids, faces = split_items(faces_rows)
     embeddings = list(faces_to_embeddings(faces))
     modified_clusters, removed_clusters = CoreAlgorithm.cluster_embeddings(embeddings, face_ids,
                                                                            existing_clusters=clusters)
@@ -196,8 +197,8 @@ def user_choose_imgs(db_manager):
     db_manager.create_tables(create_local=True,
                              path_to_local_db=path_to_local_db,
                              drop_existing_tables=DROP_LOCAL_TABLES)
-    faces_with_ids = extract_faces(images_path, db_manager)
-    return faces_with_ids
+    faces_rows = extract_faces(images_path, db_manager)
+    return faces_rows
 
 
 def user_choose_path():
@@ -210,7 +211,7 @@ def user_choose_path():
 
 
 def extract_faces(path, db_manager: DBManager, check_if_known=True):
-    # TODO: Refactor (extract functions)?
+    # TODO: Refactor (extract functions)? + rename
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
     # TODO: Store + update max_img_id and max_face_id somewhere rather than (always) get them via DB query?
     # TODO: Outsource db interactions to input-output logic?
@@ -223,38 +224,33 @@ def extract_faces(path, db_manager: DBManager, check_if_known=True):
     # Note: 'MAX' returns None / (None, ) as a default value
     max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id, default=0,
                                         path_to_local_db=path_to_local_db)
-    first_max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.embedding_id, default=0)
-    max_face_id = first_max_face_id
+    max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.embedding_id, default=0)
 
-    faces = []
+    faces_rows = []
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
     img_id = max_img_id + 1
     for img_path, img_name, img in img_loader:
         # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
-
         # Check if image already stored --> Don't process again!
-        last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
-
-        # this *is* the check if the image is known!
         # known = name and last modified as a pair known for this directory
+        last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
         if check_if_known and (img_name, last_modified) in imgs_names_and_date:
             continue
 
         img_faces = cut_out_faces(Models.mtcnn, img)
-        faces.extend(img_faces)
         img_row = {Columns.image_id.col_name: img_id,
                    Columns.file_name.col_name: img_name,
                    Columns.last_modified.col_name: last_modified}
         db_manager.store_in_table(Tables.images_table, [img_row], path_to_local_db=path_to_local_db)
-        faces_rows = [{Columns.thumbnail.col_name: face,
-                       Columns.image_id.col_name: img_id,
-                       Columns.embedding_id.col_name: face_id}
-                      for face_id, face in enumerate(img_faces, start=max_face_id+1)]
+        cur_faces_rows = [{Columns.thumbnail.col_name: face,
+                           Columns.image_id.col_name: img_id,
+                           Columns.embedding_id.col_name: embedding_id}
+                          for embedding_id, face in enumerate(img_faces, start=max_face_id+1)]
+        faces_rows.extend(cur_faces_rows)
         max_face_id += len(img_faces)
-        db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db=path_to_local_db)
         img_id += 1
 
-    return enumerate(faces, start=first_max_face_id+1)
+    return faces_rows
 
 
 def cut_out_faces(mtcnn, img):

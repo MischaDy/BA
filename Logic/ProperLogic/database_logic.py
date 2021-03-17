@@ -107,27 +107,6 @@ class DBManager:
 
         # create images table
         cur.execute(cls.build_create_table_sql(Tables.images_table))
-        # cur.execute(
-        #     f"CREATE TABLE IF NOT EXISTS {Tables.images_table} ("
-        #     f"{Columns.image_id} {Columns.image_id.col_type.value} UNIQUE NOT NULL, "
-        #     f"{Columns.file_name} {Columns.file_name.col_type.value} NOT NULL, "
-        #     f"{Columns.last_modified} {Columns.last_modified.col_type.value} NOT NULL, "
-        #     f"PRIMARY KEY ({Columns.image_id})"
-        #     ")"
-        # )
-
-        # create faces table
-        cur.execute(cls.build_create_table_sql(Tables.faces_table))
-        # cur.execute(
-        #     f"CREATE TABLE IF NOT EXISTS {Tables.faces_table} ("
-        #     f"{Columns.embedding_id} {Columns.embedding_id.col_type.value} UNIQUE NOT NULL, "
-        #     f"{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, "
-        #     f"{Columns.thumbnail} {Columns.thumbnail.col_type.value}, "
-        #     f"PRIMARY KEY ({Columns.embedding_id})"
-        #     f"FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})"
-        #     " ON DELETE CASCADE"
-        #     ")"
-        # )
 
     @staticmethod
     def build_create_table_sql(table, create_temp=False):
@@ -156,28 +135,15 @@ class DBManager:
 
     @classmethod
     def _create_central_tables(cls, cur):
+        # TODO: Create third table!
         # enable foreign keys
         cur.execute('PRAGMA foreign_keys = ON;')
 
         # create embeddings table
         cur.execute(cls.build_create_table_sql(Tables.embeddings_table))
-        # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
-        #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
-        #             f'{Columns.embedding_id} {Columns.embedding_id.col_type.value} UNIQUE NOT NULL, '
-        #             f'{Columns.embedding} {Columns.embedding.col_type.value} NOT NULL, '
-        #             f'PRIMARY KEY ({Columns.embedding_id}), '
-        #             f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {Tables.cluster_attributes_table} ({Columns.cluster_id})'
-        #             ' ON DELETE CASCADE'
-        #             ')')
 
         # create cluster attributes table
         cur.execute(cls.build_create_table_sql(Tables.cluster_attributes_table))
-        # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
-        #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
-        #             f'{Columns.label} {Columns.label.col_type.value}, '
-        #             f'{Columns.center} {Columns.center.col_type.value}, '
-        #             f'PRIMARY KEY ({Columns.cluster_id})'
-        #             ')')
 
     @staticmethod
     def _drop_tables(cur, drop_local=True):

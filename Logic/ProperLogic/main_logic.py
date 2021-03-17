@@ -4,7 +4,7 @@ Program containing the main application logic.
 
 import os
 
-from Logic.ProperLogic.commands import initialize_commands, Command
+from Logic.ProperLogic.commands import Command, Commands
 from Logic.ProperLogic.database_table_defs import Tables
 from database_logic import DBManager
 from input_output_logic import load_clusters_from_db
@@ -36,8 +36,8 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 
 
 # TODO: Remove
-DROP_CENTRAL_TABLES = False
-DROP_LOCAL_TABLES = False
+DROP_CENTRAL_TABLES = True
+DROP_LOCAL_TABLES = True
 
 
 def run_program(path_to_central_dir):
@@ -45,12 +45,11 @@ def run_program(path_to_central_dir):
     db_manager = DBManager(path_to_local_db)
     db_manager.create_tables(create_local=False, drop_existing_tables=DROP_CENTRAL_TABLES)
     clusters = load_clusters_from_db(db_manager)
-    initialize_commands()
+    Commands.initialize()
 
     cmd_name = ''
     while cmd_name not in Command.terminating_tokens:
-        # TODO: What in this loop is printing some number?
-        # TODO: Why is 'babies-easy.jpg' added twice into images table?
+        # TODO: What in this loop is printing some number? (only when calling add handler?)
         cmd_name = get_user_command()
         cmd = Command.get_command(cmd_name)
         cmd.handler(db_manager=db_manager, clusters=clusters)
@@ -61,7 +60,7 @@ def demo_program(path_to_central_dir):
     db_manager = DBManager(path_to_local_db)
     db_manager.create_tables(create_local=False, drop_existing_tables=True)
     clusters = load_clusters_from_db(db_manager)
-    initialize_commands()
+    Commands.initialize()
 
     cmd_name = get_user_command()
     while cmd_name not in Command.terminating_tokens:
@@ -80,7 +79,7 @@ def demo_program(path_to_central_dir):
 
 def get_user_command():
     # TODO: Let user choose command
-    command = 'processimgs'  # _get_user_command_subfunc()
+    command = _get_user_command_subfunc()  # 'edit faces'
     while command not in Command.commands.keys() and command not in Command.terminating_tokens:
         log_error(f'Unknown command {command}, please try again.')
         command = _get_user_command_subfunc()

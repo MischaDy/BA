@@ -23,8 +23,8 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 
 
 # TODO: Remove
-DROP_CENTRAL_TABLES = False
-DROP_LOCAL_TABLES = False
+DROP_CENTRAL_TABLES = True
+DROP_LOCAL_TABLES = True
 
 
 # TODO: Make handlers class
@@ -104,30 +104,49 @@ class Command:
 
 
 class Commands:
-    process_imgs = Command('processimgs', 'select new faces')
-    edit = Command('edit', 'edit existing faces')
-    find = Command('find', 'find individual')
+    process_imgs = Command('process images', 'select new faces')
+    edit_faces = Command('edit faces', 'edit existing faces')
+    find = Command('find person', 'find person')
     reclassify = Command('reclassify', 'reclassify individuals')
-    show_cluster = Command('showcluster', 'show a cluster')
+    show_cluster = Command('show cluster', 'show a cluster')
+    label_clusters = Command('label clusters', '(re-)name clusters')
 
-
-def initialize_commands():
-    Commands.process_imgs.set_handler(handler_process_image_dir)
-    Commands.edit.set_handler(handler_edit_faces)
-    Commands.find.set_handler(handler_find_person)
-    Commands.reclassify.set_handler(handler_reclassify)
-    Commands.show_cluster.set_handler(handler_show_cluster)
+    @classmethod
+    def initialize(cls):
+        cls.process_imgs.set_handler(handler_process_image_dir)
+        cls.edit_faces.set_handler(handler_edit_faces)
+        cls.find.set_handler(handler_find_person)
+        cls.reclassify.set_handler(handler_reclassify)
+        cls.show_cluster.set_handler(handler_show_cluster)
+        cls.label_clusters.set_handler(handler_label_clusters)
 
 
 # ----- COMMAND PROCESSING -----
 
-def handler_edit_faces(**kwargs):
-    # TODO: Implement
-    # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
+def handler_label_clusters(**kwargs):
     pass
 
 
+def handler_edit_faces(clusters, **kwargs):
+    # TODO: Implement
+    # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
+    # TODO: Finish implementing
+    continue_cluster = ''
+    while not continue_cluster.startswith('n'):
+        cluster = user_choose_cluster(clusters)
+
+        continue_face = ''
+        while not continue_face.startswith('n'):
+            face = user_choose_face(cluster)
+            new_label = user_choose_face_label(cluster)
+            set_cluster_label(cluster, new_label, clusters)
+            continue_face = clean_str(input('Relabel another face in this cluster?\n'))
+        continue_cluster = clean_str(input('Choose another cluster?\n'))
+
+
 def handler_find_person(**kwargs):
+    # TODO: Needed? Is this substantially different from show_cluster? (Probs only regarding multiple clusters with same
+    #       label...)
     # TODO: Implement
     pass
 
@@ -138,16 +157,17 @@ def handler_reclassify(**kwargs):
 
 
 def handler_show_cluster(clusters_path, **kwargs):
-    # TODO: Finish implementation
+    # TODO: Finish implementing
     should_continue = ''
-    while 'n' not in should_continue:
-        cluster_name, cluster_path = _user_choose_cluster(clusters_path)
+    while not should_continue.startswith('n'):
+        cluster_name, cluster_path = user_choose_cluster(clusters_path)
         _output_cluster_content(cluster_name, cluster_path)
         ...
         should_continue = clean_str(input('Choose another cluster?\n'))
 
 
 def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
+    # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
     # Extract faces from user-chosen images and cluster them
     faces_with_ids = list(user_choose_imgs(db_manager))
     if not faces_with_ids:
@@ -334,31 +354,68 @@ def _output_cluster_content(cluster_name, cluster_path):
     # TODO: output faces and (-> separate function?) allow choice of image
 
 
+def set_cluster_label(cluster, new_label, clusters):
+    # TODO: Implement
+    pass
+
+
 # --- i/o helpers ---
 
-def _user_choose_cluster(clusters_path, return_names=True):
-    clusters_names_and_paths = list(get_clusters_gen(clusters_path, return_names=True))
-    clusters_names = list(get_every_nth_item(clusters_names_and_paths, n=0))
-    prompt_cluster_choice(clusters_names)
-    chosen_cluster_name = input()
-    while chosen_cluster_name not in clusters_names:
-        log_error(f'cluster "{chosen_cluster_name}" not found; Please try again.')
-        prompt_cluster_choice(clusters_names)
-        chosen_cluster_name = input()
+def user_choose_cluster(clusters):
+    # TODO: Refactor
+    cluster_ids = clusters.get_cluster_ids()
+    print_clusters(clusters)
+    chosen_cluster_id = input()
+    while chosen_cluster_id not in cluster_ids:
+        log_error(f'cluster "{chosen_cluster_id}" not found; Please try again.')
+        print_clusters(clusters)
+        chosen_cluster_id = input()
 
-    chosen_cluster_path = next(filter(lambda iterable: iterable[0] == chosen_cluster_name, clusters_names_and_paths))[1]
-    if return_names:
-        return chosen_cluster_name, chosen_cluster_path
-    return chosen_cluster_path
+    chosen_cluster = clusters.get_cluster_by_id(chosen_cluster_id)
+    return chosen_cluster
 
 
-def prompt_cluster_choice(clusters_names):
+def user_choose_face(cluster):
+    # TODO: Finish implementing
+    # TODO: Refactor
+    face_ids = cluster.get_face_ids()
+    faces = ...  # How to
+    print_faces(cluster)
+    chosen_face_id = input()
+    while chosen_face_id not in face_ids:
+        log_error(f'face "{chosen_face_id}" not found; Please try again.')
+    print_faces(cluster)
+    chosen_face_id = input()
+
+    chosen_cluster = clusters.get_cluster_by_id(chosen_face_id)
+    return chosen_cluster
+
+
+def user_choose_face_label(cluster):
+    # TODO: Implement
+    pass
+
+
+def print_clusters(clusters):
     # TODO: print limited number of clusters at a time (Enter=continue)
-    temp_lim = 10
-    clusters_names = clusters_names[:temp_lim]  # TODO: remove this line
-    clusters_str = '\n'.join(map(lambda string: f'- {string}', clusters_names))
-    wait_for_any_input('Which cluster would you like to view? (Press any key to continue.)')
-    print(clusters_str)
+    cluster_labels = clusters.get_cluster_labels()
+    cluster_ids = clusters.get_cluster_ids()
+    clusters_str = map(lambda cluster_id, label: f"- Cluster {cluster_id} ('{label}')",
+                       zip(cluster_ids, cluster_labels))
+    wait_for_any_input('Please type the id of the cluster you would like to view. (Press any key to continue.)')
+    print('\n'.join(clusters_str))
+
+
+def print_faces(faces):
+    # TODO: Finish implementing
+    # TODO: How to print/show faces???
+    # TODO: print limited number of faces at a time (Enter=continue)
+    cluster_labels = clusters.get_cluster_labels()
+    cluster_ids = clusters.get_cluster_ids()
+    clusters_str = map(lambda cluster_id, label: f"- Cluster {cluster_id} ('{label}')",
+                       zip(cluster_ids, cluster_labels))
+    wait_for_any_input('Please type the id of the cluster you would like to view. (Press any key to continue.)')
+    print('\n'.join(clusters_str))
 
 
 # ----- FILE I/O -----

@@ -12,7 +12,7 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 
 import logging
 
-from Logic.ProperLogic.cluster import Cluster
+from Logic.ProperLogic.cluster import Cluster, Clusters
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,10 +41,10 @@ def main(imgs_dir_path, embeddings_dir_path):
 
 def load_clusters_from_db(db_manager):
     cluster_parts = db_manager.get_cluster_parts()
-    clusters = [Cluster(embeddings=[embedding], embeddings_ids=[embedding_id], cluster_id=cluster_id, label=label,
+    clusters_gen = [Cluster(embeddings=[embedding], embeddings_ids=[embedding_id], cluster_id=cluster_id, label=label,
                         center_point=center_point)
-                for cluster_id, label, center_point, embedding, embedding_id in cluster_parts]
-    return clusters
+                    for cluster_id, label, center_point, embedding, embedding_id in cluster_parts]
+    return Clusters(clusters_gen)
 
 
 def _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet):

@@ -1,3 +1,4 @@
+import datetime
 import os
 from functools import partial
 
@@ -5,29 +6,49 @@ import torchvision
 from PIL import Image
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
+from Logic.ProperLogic.core_algorithm import CoreAlgorithm
+from Logic.ProperLogic.database_logic import DBManager
+from Logic.ProperLogic.database_table_defs import Tables, Columns
 from models import Models
-from misc_helpers import log_error, clean_str, wait_for_any_input, get_nth_tuple_elem
+from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item, have_equal_type_names, \
+    split_items
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
+# TODO: Where to put these?
 TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
 
 # INPUT_SIZE = [112, 112]
 
 
+# TODO: Remove
+DROP_CENTRAL_TABLES = False
+DROP_LOCAL_TABLES = False
+
+
+# TODO: Make handlers class
+# TODO: Split this file?
+
 class Command:
     # TODO: add 'help' command
+    terminating_tokens = ('halt', 'stop', 'quit', 'exit',)
     commands = {}
 
-    def __init__(self, cmd_name, cmd_desc, handler, handler_params=None):
+    def __init__(self, cmd_name, cmd_desc, handler=None, handler_params=None):
+        if handler_params is None:
+            handler_params = []
         self.cmd_name = cmd_name
         self.cmd_desc = cmd_desc
         self.handler = handler
-        if handler_params is None:
-            handler_params = []
         self.handler_params = handler_params
         type(self).commands[self.cmd_name] = self
+
+    def __eq__(self, other):
+        # TODO: Implement more strict checking?
+        if not have_equal_type_names(self, other):
+            return False
+        return self.cmd_name == other.cmd_name
 
     def get_cmd_name(self):
         return self.cmd_name
@@ -40,6 +61,12 @@ class Command:
 
     def set_cmd_description(self, new_cmd_desc):
         self.cmd_desc = new_cmd_desc
+
+    def get_handler(self):
+        return self.handler
+
+    def set_handler(self, new_handler):
+        self.handler = new_handler
 
     def get_handler_params(self):
         return self.handler_params
@@ -76,42 +103,41 @@ class Command:
         return cmd
 
 
-# TODO: This is just a mark
-# resnet(img_detected.unsqueeze(0))
-
-def initialize_commands(central_dir_path):
-    # TODO: Finish!
-    # TODO: Add params
-    cmd_list = [
-        ('add', 'select new faces', handler_add_new_embeddings, []),
-        ('edit', 'edit existing faces', None, []),
-        ('find', 'find individual', None, []),
-        ('reclassify', 'reclassify individuals', None, []),
-        ('showcluster', 'show a cluster', handler_show_cluster, []),
-    ]
-    for name, desc, handler, params in cmd_list:
-        Command(name, desc, handler, params)
+class Commands:
+    process_imgs = Command('processimgs', 'select new faces')
+    edit = Command('edit', 'edit existing faces')
+    find = Command('find', 'find individual')
+    reclassify = Command('reclassify', 'reclassify individuals')
+    show_cluster = Command('showcluster', 'show a cluster')
 
 
-def process_command(cmd):
-    # TODO: complete function(?)
-    # if command in 'add':  # select new faces
-    #     # TODO: complete section
-    #     add_new_embeddings()
-    #
-    # elif command in 'edit':  # edit existing faces (or rather, existing identities)
-    #     ...
-    #
-    # elif command in 'find':
-    #     ...
-
-    handler, handler_params = cmd.handler, cmd.handler_params
-    handler(*handler_params)
+def initialize_commands():
+    Commands.process_imgs.set_handler(handler_process_image_dir)
+    Commands.edit.set_handler(handler_edit_faces)
+    Commands.find.set_handler(handler_find_person)
+    Commands.reclassify.set_handler(handler_reclassify)
+    Commands.show_cluster.set_handler(handler_show_cluster)
 
 
 # ----- COMMAND PROCESSING -----
 
-def handler_show_cluster(clusters_path):
+def handler_edit_faces(**kwargs):
+    # TODO: Implement
+    # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
+    pass
+
+
+def handler_find_person(**kwargs):
+    # TODO: Implement
+    pass
+
+
+def handler_reclassify(**kwargs):
+    # TODO: Implement
+    pass
+
+
+def handler_show_cluster(clusters_path, **kwargs):
     # TODO: Finish implementation
     should_continue = ''
     while 'n' not in should_continue:
@@ -121,36 +147,35 @@ def handler_show_cluster(clusters_path):
         should_continue = clean_str(input('Choose another cluster?\n'))
 
 
-def handler_add_new_embeddings():
-    """
-    1. User selects new images to extract faces out of
-    2. Extract faces
-    3. Store embeddings in vector space
+def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
+    # Extract faces from user-chosen images and cluster them
+    faces_with_ids = list(user_choose_imgs(db_manager))
+    if not faces_with_ids:
+        return
+    face_ids, faces = split_items(faces_with_ids)
+    embeddings = list(faces_to_embeddings(faces))
+    modified_clusters, removed_clusters = CoreAlgorithm.cluster_embeddings(embeddings, face_ids,
+                                                                           existing_clusters=clusters)
+    db_manager.remove_clusters(list(removed_clusters))
+    db_manager.store_clusters(list(modified_clusters))
 
 
-    """
-    # Img Selection + Face Extraction
-    face_embeddings_gen = user_choose_imgs()
-    add_embeddings_to_vector_space(face_embeddings_gen)
+def faces_to_embeddings(faces):
+    for face in faces:
+        yield Models.resnet(_to_tensor(face))
 
 
-def add_embeddings_to_vector_space(embeddings):
-    """
-
-    :param embeddings: An iterable containing the embeddings
-    :return:
-    """
-    # TODO: Needed? What does this do, exactly??
-    pass
-
-
-def user_choose_imgs():
-    # TODO: Implement
+def user_choose_imgs(db_manager):
+    # TODO: Refactor! (too many different tasks, function name non-descriptive)
     # TODO: Make user choose path
-    path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
-    extract_faces(path)
-    face_embeddings_gen = load_img_tensors_from_dir(path)
-    return face_embeddings_gen
+    # TODO: (Permanently) disable dropping of existing tables
+    images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'  # user_choose_path()
+    path_to_local_db = db_manager.get_db_path(images_path, local=True)
+    db_manager.create_tables(create_local=True,
+                             path_to_local_db=path_to_local_db,
+                             drop_existing_tables=DROP_LOCAL_TABLES)
+    faces_with_ids = extract_faces(images_path, db_manager)
+    return faces_with_ids
 
 
 def user_choose_path():
@@ -162,16 +187,52 @@ def user_choose_path():
     return path  # IMG_PATH
 
 
-def extract_faces(path):
-    # TODO: Finish implementation(?)
-    # TODO: Implement DB interactions
+def extract_faces(path, db_manager: DBManager, check_if_known=True):
+    # TODO: Refactor (extract functions)?
+    # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
+    # TODO: Store + update max_img_id and max_face_id somewhere rather than (always) get them via DB query?
+    # TODO: Outsource db interactions to input-output logic?
+    # TODO: Check if max_face_id maths checks out!
+
+    path_to_local_db = db_manager.get_db_path(path, local=True)
+
+    imgs_names_and_date = set(db_manager.get_imgs_attrs(path_to_local_db=path_to_local_db))
+
+    # Note: 'MAX' returns None / (None, ) as a default value
+    max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id, default=0,
+                                        path_to_local_db=path_to_local_db)
+    first_max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.face_id, default=0)
+    max_face_id = first_max_face_id
 
     faces = []
-    for img in load_imgs_from_path(path):
-        cur_faces = cut_out_faces(Models.mtcnn, img)
+    img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
+    img_id = max_img_id + 1
+    for img_path, img_name, img in img_loader:
+        # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
 
-        faces.extend(cur_faces)
-    return faces
+        # Check if image already stored --> Don't process again!
+        last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
+
+        # this *is* the check if the image is known!
+        # known = name and last modified as a pair known for this directory
+        if check_if_known and (img_name, last_modified) in imgs_names_and_date:
+            continue
+
+        img_faces = cut_out_faces(Models.mtcnn, img)
+        faces.extend(img_faces)
+        img_row = {Columns.image_id.col_name: img_id,
+                   Columns.file_name.col_name: img_name,
+                   Columns.last_modified.col_name: last_modified}
+        db_manager.store_in_table(Tables.images_table, [img_row], path_to_local_db=path_to_local_db)
+        faces_rows = [{Columns.thumbnail.col_name: face,
+                       Columns.image_id.col_name: img_id,
+                       Columns.face_id.col_name: face_id}
+                      for face_id, face in enumerate(img_faces, start=max_face_id+1)]
+        max_face_id += len(img_faces)
+        db_manager.store_in_table(Tables.faces_table, faces_rows, path_to_local_db=path_to_local_db)
+        img_id += 1
+
+    return enumerate(faces, start=first_max_face_id+1)
 
 
 def cut_out_faces(mtcnn, img):
@@ -201,31 +262,29 @@ def cut_out_faces(mtcnn, img):
     return faces
 
 
-def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=False):
+def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=False, extensions=None):
     """
     Yield all images in the given directory.
     If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
     in the set will be returned.
 
     :param output_file_names: Whether the tensor should be yielded together with the corresponding file name
+    :param output_file_paths: Whether the tensor should be yielded together with the corresponding file path
     :param dir_path: Directory containing images
+    :param extensions: Iterable of file extensions considered images, e.g. ['jpg', 'png']. Default: 'jpg' and 'png'.
+    filtering
     :return: Yield(!) tuples of image_names and PIL images contained in this folder
     """
-    # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}. Empty = no
-    # filtering
     # TODO: Finish implementing (what's missing?)
     # TODO: More pythonic way to select function based on condition??
-    if output_file_paths and output_file_names:
-        log_error('At most one of output_file_paths and output_file_names should be True. Using output_file_paths.')
-
     indices = []
     if output_file_paths:
         indices.append(0)
-    elif output_file_names:
+    if output_file_names:
         indices.append(1)
     indices.append(2)
     output_format_func = partial(choose_args, indices)
-    for img_name in get_img_names(dir_path):
+    for img_name in get_img_names(dir_path, extensions):
         img_path = os.path.join(dir_path, img_name)
         with Image.open(img_path) as img:
             yield output_format_func(img_path, img_name, img)
@@ -237,57 +296,49 @@ def choose_args(indices, *args):
     return [arg for i, arg in enumerate(args) if i in indices]
 
 
-def load_img_tensors_from_dir(dir_path, output_file_name=False):
-    """
-    Yield all images in the given directory.
-    If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
-    in the set will be returned.
-
-    :param output_file_name: Whether the tensor should be yielded together with the corresponding file name
-    :param dir_path: Directory containing images
-    :return: Yield(!) tuples of image_names and tensors contained in this folder
-    """
-    # :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}. Empty = no
-    # filtering
-    # TODO: Needed?
-    # TODO: Finish implementing
-    if not output_file_name:
-        for img_name in get_img_names(dir_path):
-            with Image.open(dir_path + os.path.sep + img_name) as img:
-                yield _to_tensor(img)
-    else:
-        for img_name in get_img_names(dir_path):
-            with Image.open(dir_path + os.path.sep + img_name) as img:
-                yield img_name, _to_tensor(img)
-
-
 def _to_tensor(img):
     return TO_TENSOR(img).unsqueeze(0)
 
 
-def get_img_names(dir_path):
+def get_img_names(dir_path, img_extensions=None):
     """
-    Yield all image file paths in dir_path (no extension filtering currently happening).
+    Yield all image file paths in dir_path.
     """
-    # TODO: Finish implementing
     # TODO: Implement recursive option?
-    # TODO: Implement extension filtering?
-    for obj_name in os.listdir(dir_path):
-        obj_path = os.path.join(dir_path, obj_name)
-        if os.path.isfile(obj_path):
-            yield obj_path
+    # TODO: Put function outside?
+    def is_img_known_extensions(obj_name):
+        return is_img(os.path.join(dir_path, obj_name), img_extensions)
+    image_paths = filter(is_img_known_extensions, os.listdir(dir_path))
+    return image_paths
+
+
+def is_img(obj_path, img_extensions=None):
+    """
+    
+    :param obj_path: Path to an object
+    :param img_extensions: Iterable of extensions. Default: 'jpg', 'jpeg' and 'png'.
+    :return: Whether obj_path ends with
+    """
+    if img_extensions is None:
+        img_extensions = {'jpg', 'jpeg', 'png'}
+    else:
+        img_extensions = set(map(lambda s: s.lower(), img_extensions))
+    if not os.path.isfile(obj_path):
+        return False
+    return any(map(lambda ext: obj_path.endswith(ext), img_extensions))
 
 
 def _output_cluster_content(cluster_name, cluster_path):
     wait_for_any_input(f'Which face image in the cluster "{cluster_name}" would you like to view?')
-    # TODO: finish; output faces and (-> separate function?) allow choice of image
+    # TODO: finish
+    # TODO: output faces and (-> separate function?) allow choice of image
 
 
 # --- i/o helpers ---
 
 def _user_choose_cluster(clusters_path, return_names=True):
     clusters_names_and_paths = list(get_clusters_gen(clusters_path, return_names=True))
-    clusters_names = get_nth_tuple_elem(clusters_names_and_paths, n=0)
+    clusters_names = list(get_every_nth_item(clusters_names_and_paths, n=0))
     prompt_cluster_choice(clusters_names)
     chosen_cluster_name = input()
     while chosen_cluster_name not in clusters_names:
@@ -302,8 +353,8 @@ def _user_choose_cluster(clusters_path, return_names=True):
 
 
 def prompt_cluster_choice(clusters_names):
+    # TODO: print limited number of clusters at a time (Enter=continue)
     temp_lim = 10
-    # TODO: print clusters limited number at a time (Enter=continue)
     clusters_names = clusters_names[:temp_lim]  # TODO: remove this line
     clusters_str = '\n'.join(map(lambda string: f'- {string}', clusters_names))
     wait_for_any_input('Which cluster would you like to view? (Press any key to continue.)')
@@ -319,16 +370,12 @@ def get_clusters_gen(clusters_path, return_names=True):
     if return_names:
         return clusters_names_and_paths
     # return only paths
-    return get_nth_tuple_elem(clusters_names_and_paths, n=1)
+    return get_every_nth_item(clusters_names_and_paths, n=1)
+
 
 # ----- MISC -----
 
-
 handlers = {
-    'add': handler_add_new_embeddings,
+    'processimgs': handler_process_image_dir,
     'showcluster': handler_show_cluster,
-}
-
-handlers_params = {
-    'showcluster': [],
 }

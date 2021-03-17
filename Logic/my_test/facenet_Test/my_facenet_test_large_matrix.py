@@ -9,13 +9,8 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-import numpy as np
-
 from facenet_pytorch import MTCNN, InceptionResnetV1
 
-from multiprocessing import Pool
-
-from timeit import default_timer
 import logging
 logging.basicConfig(level=logging.INFO)
 
@@ -51,7 +46,9 @@ def main(root, input_size, compute_dist):
     print("Goodbye!")
 
 
-def get_and_count_img_names(dir_path, img_extensions=set()):
+def get_and_count_img_names(dir_path, img_extensions=None):
+    if img_extensions is None:
+        img_extensions = set()
     dir_path = dir_path.rstrip('/')
     if len(img_extensions) == 0:
         img_names = (elem for elem in os.listdir(dir_path)
@@ -72,7 +69,7 @@ def get_and_count_img_names(dir_path, img_extensions=set()):
     return MODDED_img_names, MODDED_num_images
 
 
-def load_img_tensors_from_dir(dir_path, img_names, start=0, img_extensions=set()):
+def load_img_tensors_from_dir(dir_path, img_names, start=0, img_extensions=None):
     """
     Yield all images in the given directory.
     If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
@@ -80,9 +77,12 @@ def load_img_tensors_from_dir(dir_path, img_names, start=0, img_extensions=set()
 
     :param dir_path: Directory containing images
     :param img_names: Names of the images in dir_path
+    :param start: ...
     :param img_extensions: Set of lower-case file extensions considered images, e.g. {'jpg', 'png', 'gif'}
     :return: Yield(!) tuples of image_names and tensors contained in this folder
     """
+    if img_extensions is None:
+        img_extensions = set()
     for counter, img_name in enumerate(img_names[start:], start=1):
         with Image.open(f"{dir_path}/{img_name}") as img:
             yield img_name, TO_TENSOR(img).unsqueeze(0)
@@ -120,7 +120,7 @@ def compute_face_embeddings(tensors_loader):
 def compute_dist_matrix(gen_vectors, num_vectors, compute_dist):
     dist_matrix = torch.zeros((num_vectors, num_vectors))
 
-    same_dists, diff_dists = [], []
+    # same_dists, diff_dists = [], []
     # t1 = default_timer()
     for ind_outer, (img_name_outer, val_outer) in enumerate(gen_vectors()):
         # print(f"Outer ind: {ind_outer} Time taken: {default_timer() - t1}")  # logging.info
@@ -137,7 +137,6 @@ def compute_dist_matrix(gen_vectors, num_vectors, compute_dist):
             # print(ind_outer, ind_inner, are_same, dist)
             dist_matrix[ind_outer][ind_inner] = compute_dist(val_inner, val_outer)
 
-
     dist_matrix = dist_matrix + dist_matrix.T
     return dist_matrix
 
@@ -147,12 +146,11 @@ def _temp_are_same_names(name1, name2):
 
 
 def _extract_name(name_str):
-    return name_str[len('preprocessed_') : -len('.jpg')].rstrip('_0123456789')
+    return name_str[len('preprocessed_'): -len('.jpg')].rstrip('_0123456789')
 
 
 def compute_dist(tensor1, tensor2):
     return float(torch.dist(tensor1, tensor2))
-
 
 
 # def compute_dist_matrix_part(vectors_part, num_vectors):
@@ -176,7 +174,6 @@ def compute_dist(tensor1, tensor2):
 #
 #     return dist_matrix_part
 
-
 def show_dist_matrix(dist_matrix, img_names):
     fig, ax = plt.subplots()
     labels = _gen_tick_labels(img_names)
@@ -195,7 +192,6 @@ def _gen_tick_labels(img_names):
         output.append('' if _temp_are_same_names(name, prev_name) else _extract_name(name))
         prev_name = name
     return output
-
 
 
 if __name__ == '__main__':

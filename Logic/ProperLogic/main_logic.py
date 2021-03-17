@@ -2,51 +2,87 @@
 Program containing the main application logic.
 """
 
-from commands import *
+import os
+
+from Logic.ProperLogic.commands import initialize_commands, Command
+from Logic.ProperLogic.database_table_defs import Tables
 from database_logic import DBManager
 from input_output_logic import load_clusters_from_db
-from misc_helpers import clean_str, log_error, wait_for_any_input
+from misc_helpers import clean_str, log_error, wait_for_any_input, get_every_nth_item
 
-TENSORS_PATH = 'Logic/ProperLogic/stored_embeddings'
+
+# TODO: How to properly store/use these globals and paths?
+EMBEDDINGS_PATH = 'Logic/ProperLogic/stored_embeddings'
 CLUSTERS_PATH = 'stored_clusters'
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
-TERMINATING_TOKENS = ('halt', 'stop', 'quit', 'exit',)
 
+# TODO: Using ground-truths in clustering - put every emb. in new cluster!
 
+# TODO: Add type hints where needed
 # TODO: What should / shouldn't be private?
-# TODO: Turn Commands into an Enum?
 # TODO: Consistent naming
-# TODO: Add comments & docstring
+# TODO: Add comments & docstrings
 # TODO: Always allow option to leave current menu item / loop rather than continue!
-# TODO: consistent paths!
-# TODO: consistent parameter names
+# TODO: Consistent paths!
+
+# TODO: Use property decorator?
+
+# TODO: Handle db errors with rollbacks etc.!
+# TODO: Give option to just start clustering completely anew (rebuilding db completely)?
+
+# TODO:  Check out Software Design Patterns for better params passing to handlers?
 
 
-def main(terminating_tokes, path_to_central_dir):
-    initialize_commands(path_to_central_dir)
-    path_to_central_db = os.path.join(path_to_central_dir, DBManager.central_db_file_path)
+# TODO: Remove
+DROP_CENTRAL_TABLES = False
+DROP_LOCAL_TABLES = False
+
+
+def run_program(path_to_central_dir):
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
-    db_manager = DBManager(path_to_central_db, path_to_local_db)
-    db_manager.create_tables(False)
-    db_manager.create_tables(True)
+    db_manager = DBManager(path_to_local_db)
+    db_manager.create_tables(create_local=False, drop_existing_tables=DROP_CENTRAL_TABLES)
     clusters = load_clusters_from_db(db_manager)
+    initialize_commands()
 
     cmd_name = ''
-    while cmd_name not in terminating_tokes:
+    while cmd_name not in Command.terminating_tokens:
+        # TODO: What in this loop is printing some number?
+        # TODO: Why is 'babies-easy.jpg' added twice into images table?
         cmd_name = get_user_command()
         cmd = Command.get_command(cmd_name)
-        process_command(cmd)
+        cmd.handler(db_manager=db_manager, clusters=clusters)
+
+
+def demo_program(path_to_central_dir):
+    path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
+    db_manager = DBManager(path_to_local_db)
+    db_manager.create_tables(create_local=False, drop_existing_tables=True)
+    clusters = load_clusters_from_db(db_manager)
+    initialize_commands()
+
+    cmd_name = get_user_command()
+    while cmd_name not in Command.terminating_tokens:
+        cmd = Command.get_command(cmd_name)
+        cmd.handler(db_manager=db_manager, clusters=clusters)
+        cmd_name = get_user_command()
+        cmd_name = 'exit'
+
+    path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs\local_db.sqlite'
+    rows = db_manager.fetch_from_table(Tables.faces_table, path)
+    thumbs = get_every_nth_item(rows, 2)
+    thumbs[0].show()
 
 
 # ----- I/O -----
 
 def get_user_command():
-    # TODO: make user choose command
-    command = 'add'  # _get_user_command_subfunc()
-    while command not in Command.commands.keys():
-        log_error('Unknown command, please try again.')
+    # TODO: Let user choose command
+    command = 'processimgs'  # _get_user_command_subfunc()
+    while command not in Command.commands.keys() and command not in Command.terminating_tokens:
+        log_error(f'Unknown command {command}, please try again.')
         command = _get_user_command_subfunc()
     return command
 
@@ -62,7 +98,8 @@ def print_command_options():
                          for cmd_name, cmd_desc in Command.get_command_descriptions())
     output = '\n'.join(cmd_options_lines) + '\n'
     print(output)
+    print(f"- To exit, type e.g. 'exit'.")
 
 
 if __name__ == '__main__':
-    main(TERMINATING_TOKENS, CLUSTERS_PATH)
+    run_program(CLUSTERS_PATH)

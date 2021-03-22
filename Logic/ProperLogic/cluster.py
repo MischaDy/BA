@@ -11,10 +11,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 class Cluster:
-    max_cluster_id = 1
-    max_embedding_id = 1
-
-    def __init__(self, embeddings=None, embeddings_ids=None, cluster_id=None, label=None, center_point=None):
+    def __init__(self, cluster_id, embeddings=None, embeddings_ids=None, label=None, center_point=None):
         """
         embeddings must be (flat) iterable of embeddings with len applicable
         :param embeddings:
@@ -31,7 +28,7 @@ class Cluster:
             Cluster.max_embedding_id = 0
         else:
             # TODO: refactor
-            # TODO: consistent type for embedding ids(?)
+            # TODO: consistent class_ for embedding ids(?)
             if embeddings_ids is None:
                 embeddings_ids = count(1)
             # cast embeddings to dict
@@ -43,11 +40,7 @@ class Cluster:
                 self.center_point = Cluster.sum_embeddings(self.embeddings.values()) / self.num_embeddings
             Cluster.max_embedding_id = max(self.embeddings.keys())
 
-        if cluster_id is not None:
-            self.cluster_id = cluster_id
-        else:
-            self.cluster_id = Cluster.max_cluster_id
-        Cluster.max_cluster_id = max(self.cluster_id, Cluster.max_cluster_id - 1) + 1
+        self.cluster_id = cluster_id
 
     def set_label(self, label):
         self.label = label

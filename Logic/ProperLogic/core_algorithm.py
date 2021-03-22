@@ -42,7 +42,7 @@ class CoreAlgorithm:
     num_embeddings_to_classify = -1
 
     @classmethod
-    def cluster_embeddings(cls, embeddings, embedding_ids, existing_clusters=None):
+    def cluster_embeddings(cls, embeddings, embedding_ids, db_manager, existing_clusters=None):
         """
         Build clusters from face embeddings stored in the given path using the specified classification threshold.
         (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed
@@ -66,6 +66,8 @@ class CoreAlgorithm:
         clusters = Clusters(existing_clusters)
         modified_clusters_ids, removed_clusters_ids = set(), set()
 
+        next_cluster_id = db_manager.get_max_cluster_id() + 1
+
         # iterate over remaining embeddings
         counter_vals = range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0 else count(2)
         for counter, (embedding_id, new_embedding) in zip(counter_vals, embeddings_with_ids):
@@ -84,14 +86,15 @@ class CoreAlgorithm:
 
                 is_cluster_too_big = cls.is_cluster_too_big(closest_cluster)
                 if is_cluster_too_big or cls.exists_emb_too_far_from_center(closest_cluster):
-                    new_clusters = cls.split_cluster(closest_cluster)
+                    new_clusters = cls.split_cluster(closest_cluster, db_manager)
                     clusters.remove(closest_cluster)
                     removed_clusters_ids.add(closest_cluster.cluster_id)
                     clusters.extend(new_clusters)
                     for new_cluster in new_clusters:
                         modified_clusters_ids.add(new_cluster.cluster_id)
             else:
-                new_cluster = Cluster([new_embedding], [embedding_id])
+                new_cluster = Cluster(next_cluster_id, [new_embedding], [embedding_id])
+                next_cluster_id += 1
                 clusters.append(new_cluster)
                 modified_clusters_ids.add(new_cluster.cluster_id)
         modified_clusters = clusters.get_clusters_by_ids(modified_clusters_ids)
@@ -143,7 +146,7 @@ class CoreAlgorithm:
         return closest_cluster
 
     @classmethod
-    def split_cluster(cls, cluster_to_split):
+    def split_cluster(cls, cluster_to_split, db_manager):
         """
         Split cluster into two new clusters as follows:
         1. Find two embeddings e1, e2 in the cluster with the greatest distance between them.
@@ -161,7 +164,11 @@ class CoreAlgorithm:
         cluster_start_emb1, cluster_start_emb2 = cls.find_most_distant_embeddings(embeddings)
         remove_items(embeddings, [cluster_start_emb1, cluster_start_emb2])
         label = cluster_to_split.label
-        new_cluster1, new_cluster2 = Cluster(cluster_start_emb1, label=label), Cluster(cluster_start_emb2, label=label)
+
+        max_cluster_id = db_manager.get_max_cluster_id()
+        new_cluster1_id, new_cluster2_id = max_cluster_id + 1, max_cluster_id + 2
+        new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, cluster_start_emb1, label=label),
+                                      Cluster(new_cluster2_id, cluster_start_emb2, label=label))
         for embedding in embeddings:
             dist_to_cluster1 = new_cluster1.compute_dist_to_center(embedding)
             dist_to_cluster2 = new_cluster2.compute_dist_to_center(embedding)

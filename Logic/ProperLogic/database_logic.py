@@ -390,6 +390,15 @@ class DBManager:
             return max_num
         return default
 
+    def get_max_cluster_id(self):
+        return self.get_max_num(table=Tables.cluster_attributes_table, col=Columns.cluster_id)
+
+    def get_max_embedding_id(self):
+        return self.get_max_num(table=Tables.embeddings_table, col=Columns.embedding_id)
+
+    def get_max_image_id(self, path_to_local_db):
+        return self.get_max_num(table=Tables.images_table, col=Columns.image_id, path_to_local_db=path_to_local_db)
+
     def get_imgs_attrs(self, path_to_local_db=None):
         col_names = [Columns.file_name.col_name, Columns.last_modified.col_name]
         rows = self.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db,

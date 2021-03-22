@@ -41,7 +41,7 @@ def main(imgs_dir_path, embeddings_dir_path):
 
 def load_clusters_from_db(db_manager):
     cluster_parts = db_manager.get_cluster_parts()
-    clusters_gen = [Cluster(embeddings=[embedding], embeddings_ids=[embedding_id], cluster_id=cluster_id, label=label,
+    clusters_gen = [Cluster(cluster_id=cluster_id, embeddings=[embedding], embeddings_ids=[embedding_id], label=label,
                             center_point=center_point)
                     for cluster_id, label, center_point, embedding, embedding_id in cluster_parts]
     return Clusters(clusters_gen)

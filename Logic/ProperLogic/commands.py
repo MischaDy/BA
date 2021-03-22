@@ -187,7 +187,7 @@ def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
     image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
                     faces_rows)
     embeddings = list(faces_to_embeddings(faces))
-    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embedding_ids, existing_clusters=clusters)
+    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embedding_ids, db_manager, existing_clusters=clusters)
     updated_clusters, modified_clusters, removed_clusters = clustering_result
 
     emb_id_to_face_dict = dict(zip(embedding_ids, thumbnails))
@@ -226,18 +226,17 @@ def user_choose_path():
 def extract_faces(path, db_manager: DBManager, check_if_known=True):
     # TODO: Refactor (extract functions)? + rename
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
-    # TODO: Store + update max_img_id and max_face_id somewhere rather than (always) get them via DB query?
+    # TODO: Store + update max_img_id and max_embedding_id somewhere rather than (always) get them via DB query?
     # TODO: Outsource db interactions to input-output logic?
-    # TODO: Check if max_face_id maths checks out!
+    # TODO: Check if max_embedding_id maths checks out!
 
     path_to_local_db = db_manager.get_db_path(path, local=True)
 
     imgs_names_and_date = set(db_manager.get_imgs_attrs(path_to_local_db=path_to_local_db))
 
     # Note: 'MAX' returns None / (None, ) as a default value
-    max_img_id = db_manager.get_max_num(table=Tables.images_table, col=Columns.image_id, default=0,
-                                        path_to_local_db=path_to_local_db)
-    max_face_id = db_manager.get_max_num(table=Tables.embeddings_table, col=Columns.embedding_id, default=0)
+    max_img_id = db_manager.get_max_image_id(path_to_local_db=path_to_local_db)
+    max_embedding_id = db_manager.get_max_embedding_id()
 
     faces_rows = []
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
@@ -258,9 +257,9 @@ def extract_faces(path, db_manager: DBManager, check_if_known=True):
         cur_faces_rows = [{Columns.thumbnail.col_name: face,
                            Columns.image_id.col_name: img_id,
                            Columns.embedding_id.col_name: embedding_id}
-                          for embedding_id, face in enumerate(img_faces, start=max_face_id+1)]
+                          for embedding_id, face in enumerate(img_faces, start=max_embedding_id+1)]
         faces_rows.extend(cur_faces_rows)
-        max_face_id += len(img_faces)
+        max_embedding_id += len(img_faces)
         img_id += 1
 
     return faces_rows
@@ -374,21 +373,32 @@ def set_cluster_label(cluster, new_label, clusters):
 
 def user_choose_cluster(clusters):
     # TODO: Refactor
-    cluster_ids = clusters.get_cluster_ids()
+    cluster_ids = list(clusters.get_cluster_ids())
     print_clusters(clusters)
-    chosen_cluster_id = input()
+    chosen_cluster_id = get_user_input_of_type(class_=int, obj_name='cluster id')
     while chosen_cluster_id not in cluster_ids:
         log_error(f'cluster "{chosen_cluster_id}" not found; Please try again.')
         print_clusters(clusters)
-        chosen_cluster_id = input()
+        chosen_cluster_id = get_user_input_of_type(class_=int, obj_name='cluster id')
 
     chosen_cluster = clusters.get_cluster_by_id(chosen_cluster_id)
     return chosen_cluster
 
 
+def get_user_input_of_type(class_, obj_name):
+    user_input = None
+    while not isinstance(user_input, class_):
+        try:
+            user_input = class_(input())
+        except ValueError:
+            log_error(f'{obj_name} must be of type {class_}, not {type(obj_name)}. Please try again.')
+    return user_input
+
+
 def user_choose_face(cluster):
     # TODO: Finish implementing
     # TODO: Refactor
+    # TODO: WIP!
     face_ids = cluster.get_face_ids()
     faces = ...  # How to
     print_faces(cluster)
@@ -411,10 +421,10 @@ def print_clusters(clusters):
     # TODO: print limited number of clusters at a time (Enter=continue)
     cluster_labels = clusters.get_cluster_labels()
     cluster_ids = clusters.get_cluster_ids()
-    clusters_str = map(lambda cluster_id, label: f"- Cluster {cluster_id} ('{label}')",
-                       zip(cluster_ids, cluster_labels))
-    wait_for_any_input('Please type the id of the cluster you would like to view. (Press any key to continue.)')
-    print('\n'.join(clusters_str))
+    clusters_strs = (f"- Cluster {cluster_id} ('{label}')"
+                     for cluster_id, label in zip(cluster_ids, cluster_labels))
+    wait_for_any_input('\nPlease type the id of the cluster you would like to view. (Press any key to continue.)')
+    print('\n'.join(clusters_strs))
 
 
 def print_faces(faces):

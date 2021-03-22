@@ -47,7 +47,7 @@ def total_size(obj, handlers={}, verbose=False):
         else:
             if not hasattr(obj.__class__, '__slots__'):
                 if hasattr(obj, '__dict__'):
-                    # no __slots__ *usually* means a __dict__, but some special builtin classes (such as `type(None)`)
+                    # no __slots__ *usually* means a __dict__, but some special builtin classes (such as `class_(None)`)
                     # have neither
                     s += size_of(obj.__dict__)
                 # else, `o` has no attributes at all, so sys.getsizeof() actually returned the correct value

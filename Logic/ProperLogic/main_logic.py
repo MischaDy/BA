@@ -5,7 +5,7 @@ Program containing the main application logic.
 import os
 
 from Logic.ProperLogic.commands import Command, Commands
-from Logic.ProperLogic.database_table_defs import Tables
+from Logic.ProperLogic.database_table_defs import Tables, Columns
 from database_logic import DBManager
 from input_output_logic import load_clusters_from_db
 from misc_helpers import clean_str, log_error, wait_for_any_input, get_every_nth_item
@@ -43,7 +43,15 @@ DROP_LOCAL_TABLES = True
 def run_program(path_to_central_dir):
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
     db_manager = DBManager(path_to_local_db)
-    db_manager.create_tables(create_local=False, drop_existing_tables=DROP_CENTRAL_TABLES)
+
+    # TODO: Remove
+    if DROP_CENTRAL_TABLES:
+        db_manager.delete_from_table(Tables.embeddings_table)
+        db_manager.delete_from_table(Tables.cluster_attributes_table)
+    if DROP_LOCAL_TABLES:
+        db_manager.delete_from_table(Tables.images_table)
+
+    db_manager.create_tables(create_local=False, drop_existing_tables=False)
     clusters = load_clusters_from_db(db_manager)
     Commands.initialize()
 
@@ -69,9 +77,7 @@ def demo_program(path_to_central_dir):
         cmd_name = get_user_command()
         cmd_name = 'exit'
 
-    path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs\local_db.sqlite'
-    rows = db_manager.fetch_from_table(Tables.faces_table, path)
-    thumbs = get_every_nth_item(rows, 2)
+    thumbs = db_manager.fetch_from_table(Tables.embeddings_table, col_names=[Columns.thumbnail])
     thumbs[0].show()
 
 
@@ -87,7 +93,7 @@ def get_user_command():
 
 
 def _get_user_command_subfunc():
-    wait_for_any_input('What would you like to do next? (Press any key to continue).')
+    wait_for_any_input('\nWhat would you like to do next? (Press any key to continue).')
     print_command_options()
     return clean_str(input())
 

@@ -4,6 +4,20 @@ from enum import Enum
 from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item
 
 
+# TODO: Change DB Schema!
+#       --> Remove faces table, add img_id col to embeddings_table, add cross-db FK to images table (do? and how?)
+#       --> Does embeddings_table need an extra id for each? Where is that used? Can rowid be used instead?
+#           --> Probably wouldn't hurt!
+#       --> Add column to embeddings_table to record whether label assignment (stored in cluster_attributes) is
+#           user- or algorithm-based
+#       --> Make own table for labels so clusters and embeddings can have separate labels???
+#           OR: Store label itself in embeddings_table to indicate that it came from user (other rows: NULL)
+#           OR: Store embeddings label separate table
+#           --> Choice: Extra-table! Least space use, uses embedding_ids (making them more useful themselves)
+#                       Duplicates some labels, but few and storing labels separately from clusters is kinda the
+#                       point!
+
+
 # # TODO: Comparison problems when using _get_true__attr??
 # def _get_true_attr(obj, enum_, obj_var_name=None):
 #     if isinstance(obj, enum_):
@@ -13,6 +27,8 @@ from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_att
 #     name_error_str = "The variable" if obj_var_name is None else f"'{obj_var_name}'"
 #     raise TypeError(f"{name_error_str} must be a string or a member of {enum_.__name__}, not {obj}")
 
+
+# TODO: Create Row(dict) class?
 
 class TableSchema:
     def __init__(self, name, columns, constraints=None):
@@ -97,8 +113,12 @@ class ColumnSchema:
         return have_equal_attrs(self, other)
 
     def with_constraint(self, col_constraint):
-        # TODO: Make more general version of this method?
-        return ColumnSchema(self.col_name, self.col_type, col_constraint, self.col_details)
+        # TODO: Allow multiple constraints and use constraints enum!
+        if 'PRIMARY KEY' in col_constraint:
+            phrase_unique = 'UNIQUE' if 'UNIQUE' not in col_constraint else ''
+            phrase_not_null = 'NOT NULL' if 'NOT NULL' not in col_constraint else ''
+            col_constraint = col_constraint.replace('PRIMARY KEY', f'PRIMARY KEY {phrase_unique} {phrase_not_null}')
+        return ColumnSchema(self.col_name, self.col_type, str(col_constraint), self.col_details)
 
     # @classmethod
     # def get_column_schema(cls, col_schema_name):
@@ -107,7 +127,7 @@ class ColumnSchema:
 
 class ColumnTypes(Enum):
     null = 'NULL'
-    integer = 'INT'
+    integer = 'INTEGER'
     real = 'REAL'
     text = 'TEXT'
     blob = 'BLOB'
@@ -120,6 +140,7 @@ class ColumnTypes(Enum):
 
 
 class ColumnDetails(Enum):
+    # TODO: Store in better way?
     tensor = 'tensor'
     date = 'date'
     image = 'image'
@@ -131,16 +152,32 @@ class ColumnDetails(Enum):
         return self.name
 
 
+# class ColumnConstraints(Enum):
+#     # TODO: Use!
+#     # TODO: Store in better way?
+#     not_null = 'NOT NULL'
+#     unique = 'UNIQUE'
+#     primary_key = 'PRIMARY KEY'
+#
+#     def __eq__(self, other):
+#         return have_equal_type_names(self, other) and self.value == other.value
+#
+#     def __str__(self):
+#         return self.name
+
+
 class Columns:
     center = ColumnSchema('center', ColumnTypes.blob, col_details=ColumnDetails.tensor)
     cluster_id = ColumnSchema('cluster_id', ColumnTypes.integer)
     embedding = ColumnSchema('embedding', ColumnTypes.blob, col_details=ColumnDetails.tensor)
-    face_id = ColumnSchema('face_id', ColumnTypes.integer)
+    embedding_id = ColumnSchema('embedding_id', ColumnTypes.integer)
     file_name = ColumnSchema('file_name', ColumnTypes.text)
     image_id = ColumnSchema('image_id', ColumnTypes.integer)
     label = ColumnSchema('label', ColumnTypes.text)
     last_modified = ColumnSchema('last_modified', ColumnTypes.text, col_details=ColumnDetails.date)
     thumbnail = ColumnSchema('thumbnail', ColumnTypes.blob, col_details=ColumnDetails.image)
+    path_id_col = ColumnSchema('path_id_col', ColumnTypes.integer)
+    path = ColumnSchema('path', ColumnTypes.text)
 
     @classmethod
     def get_column(cls, col_name):
@@ -148,52 +185,81 @@ class Columns:
 
 
 class Tables:
+    # ----- local tables -----
+
     images_table = TableSchema(
         'images',
-        [Columns.image_id.with_constraint('UNIQUE NOT NULL'),  # also used by faces table
+        [Columns.image_id.with_constraint('PRIMARY KEY'),
          Columns.file_name.with_constraint('NOT NULL'),
          Columns.last_modified.with_constraint('NOT NULL')
          ],
-        [f'PRIMARY KEY ({Columns.image_id})'
-         ]
+        []
     )
 
-    faces_table = TableSchema(
-        'faces',
-        [Columns.face_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.image_id.with_constraint('NOT NULL'),
-         Columns.thumbnail.with_constraint('NOT NULL')
+    path_id_table = TableSchema(
+        'path_id',
+        [Columns.path_id_col.with_constraint('PRIMARY KEY')
          ],
-        [f'PRIMARY KEY ({Columns.face_id})',
-         f'FOREIGN KEY ({Columns.image_id}) REFERENCES {images_table} ({Columns.image_id})'
-         + ' ON DELETE CASCADE'
-         ]
+        []
     )
 
-    local_tables = (images_table, faces_table)
+    local_tables = (images_table, path_id_table)
+
+    # ----- central tables -----
 
     cluster_attributes_table = TableSchema(
         'cluster_attributes',
-        [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by cluster attributes table
+        [Columns.cluster_id.with_constraint('PRIMARY KEY'),  # also used by embeddings table
          Columns.label,
          Columns.center
          ],
-        [f'PRIMARY KEY ({Columns.cluster_id})']
+        []
     )
 
     embeddings_table = TableSchema(
         'embeddings',
         [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by cluster attributes table
-         Columns.face_id.with_constraint('UNIQUE NOT NULL'),  # also used by embeddings table
-         Columns.embedding.with_constraint('NOT NULL')
+         Columns.image_id.with_constraint('NOT NULL'),
+         Columns.embedding_id.with_constraint('PRIMARY KEY'),
+         Columns.embedding.with_constraint('NOT NULL'),
+         Columns.thumbnail.with_constraint('NOT NULL'),
          ],
-        [f'PRIMARY KEY ({Columns.face_id})',
-         f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id})'
-         + ' ON DELETE CASCADE'
-         ]
+        [f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id})'
+         + ' ON DELETE CASCADE',
+         ],
     )
 
-    central_tables = (embeddings_table, cluster_attributes_table)
+    certain_labels_table = TableSchema(
+        'certain_labels',
+        [Columns.embedding_id.with_constraint('PRIMARY KEY'),
+         Columns.label.with_constraint('NOT NULL'),
+         ],
+        [f'FOREIGN KEY ({Columns.embedding_id}) REFERENCES {embeddings_table} ({Columns.embedding_id})'
+         + ' ON DELETE CASCADE',
+         ],
+    )
+
+    directory_paths_table = TableSchema(
+        'directory_paths',
+        [Columns.path_id_col.with_constraint('PRIMARY KEY'),
+         Columns.path.with_constraint('NOT NULL')
+         ],
+        [],
+    )
+
+    # TODO: FK with image_id col not possible, since not unique in embeddings table!
+    image_paths_table = TableSchema(
+        'image_paths',
+        [Columns.image_id.with_constraint('PRIMARY KEY'),
+         Columns.path_id_col.with_constraint('NOT NULL'),
+         ],
+        [f'FOREIGN KEY ({Columns.path_id_col}) REFERENCES {directory_paths_table} ({Columns.path_id_col})'
+         + ' ON DELETE CASCADE',
+         ],
+    )
+
+    central_tables = (embeddings_table, cluster_attributes_table, certain_labels_table, directory_paths_table,
+                      image_paths_table)
 
     temp_cluster_ids_table = TableSchema(
         'temp_cluster_ids',

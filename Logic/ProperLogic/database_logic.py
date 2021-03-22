@@ -35,11 +35,11 @@ from Logic.ProperLogic.misc_helpers import is_instance_by_type_name
 --- Local Tables ---
 
 images(INT image_id, TEXT file_name, INT last_modified)
-faces(INT face_id, INT image_id, BLOB thumbnail)
+faces(INT embedding_id, INT image_id, BLOB thumbnail)
 
 --- Centralized Tables ---
 
-embeddings(INT cluster_id, INT face_id, BLOB face_embedding)
+embeddings(INT cluster_id, INT embedding_id, BLOB face_embedding)
 cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
 
@@ -107,27 +107,6 @@ class DBManager:
 
         # create images table
         cur.execute(cls.build_create_table_sql(Tables.images_table))
-        # cur.execute(
-        #     f"CREATE TABLE IF NOT EXISTS {Tables.images_table} ("
-        #     f"{Columns.image_id} {Columns.image_id.col_type.value} UNIQUE NOT NULL, "
-        #     f"{Columns.file_name} {Columns.file_name.col_type.value} NOT NULL, "
-        #     f"{Columns.last_modified} {Columns.last_modified.col_type.value} NOT NULL, "
-        #     f"PRIMARY KEY ({Columns.image_id})"
-        #     ")"
-        # )
-
-        # create faces table
-        cur.execute(cls.build_create_table_sql(Tables.faces_table))
-        # cur.execute(
-        #     f"CREATE TABLE IF NOT EXISTS {Tables.faces_table} ("
-        #     f"{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, "
-        #     f"{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, "
-        #     f"{Columns.thumbnail} {Columns.thumbnail.col_type.value}, "
-        #     f"PRIMARY KEY ({Columns.face_id})"
-        #     f"FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})"
-        #     " ON DELETE CASCADE"
-        #     ")"
-        # )
 
     @staticmethod
     def build_create_table_sql(table, create_temp=False):
@@ -156,28 +135,15 @@ class DBManager:
 
     @classmethod
     def _create_central_tables(cls, cur):
+        # TODO: Create third table!
         # enable foreign keys
         cur.execute('PRAGMA foreign_keys = ON;')
 
         # create embeddings table
         cur.execute(cls.build_create_table_sql(Tables.embeddings_table))
-        # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
-        #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
-        #             f'{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, '
-        #             f'{Columns.embedding} {Columns.embedding.col_type.value} NOT NULL, '
-        #             f'PRIMARY KEY ({Columns.face_id}), '
-        #             f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {Tables.cluster_attributes_table} ({Columns.cluster_id})'
-        #             ' ON DELETE CASCADE'
-        #             ')')
 
         # create cluster attributes table
         cur.execute(cls.build_create_table_sql(Tables.cluster_attributes_table))
-        # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
-        #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
-        #             f'{Columns.label} {Columns.label.col_type.value}, '
-        #             f'{Columns.center} {Columns.center.col_type.value}, '
-        #             f'PRIMARY KEY ({Columns.cluster_id})'
-        #             ')')
 
     @staticmethod
     def _drop_tables(cur, drop_local=True):
@@ -215,13 +181,14 @@ class DBManager:
         finally:
             self.commit_and_close_connection(store_in_local)
 
-    def store_clusters(self, clusters):
+    def store_clusters(self, clusters, emb_id_to_face_dict, emb_id_to_img_id_dict):
         """
         Store the data in clusters in the central DB-tables ('cluster_attributes' and 'embeddings').
 
         :param clusters: Iterable of clusters to store.
         :return: None
         """
+        # TODO: Default argument / other name for param?
         # Store in cluster_attributes table
         # Use on conflict clause for when cluster label and/or center change
         attrs_update_cols = [Columns.label, Columns.center]
@@ -234,10 +201,10 @@ class DBManager:
 
         # Store in embeddings table
         # Use on conflict clause for when cluster id changes
-        embs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.face_id],
+        embs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.embedding_id],
                                                       update_cols=[Columns.cluster_id],
                                                       update_exprs=[f'excluded.{Columns.cluster_id}'])
-        embeddings_row_dicts = self.make_embs_row_dicts(clusters)
+        embeddings_row_dicts = self.make_embs_row_dicts(clusters, emb_id_to_face_dict, emb_id_to_img_id_dict)
         self.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict)
 
     def remove_clusters(self, clusters_to_remove):
@@ -309,15 +276,27 @@ class DBManager:
         return attributes_row_dicts
 
     @staticmethod
-    def make_embs_row_dicts(clusters):
+    def make_embs_row_dicts(clusters, emb_id_to_face_dict, emb_id_to_img_id_dict):
         embeddings_row_dicts = []
         for cluster in clusters:
             embeddings_row = [
-                {Columns.cluster_id.col_name: cluster.cluster_id,
-                 Columns.embedding.col_name: embedding,
-                 Columns.face_id.col_name: face_id}
+                {
+                    Columns.cluster_id.col_name: cluster.cluster_id,
+                    Columns.embedding.col_name: embedding,
+                    Columns.thumbnail.col_name: emb_id_to_face_dict[face_id],
+                    Columns.image_id.col_name: emb_id_to_img_id_dict[face_id],
+                    Columns.embedding_id.col_name: face_id,
+                }
                 for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
             ]
+
+            # embeddings_row = [
+            #     {Columns.cluster_id.col_name: cluster.cluster_id,
+            #      Columns.embedding.col_name: embedding,
+            #      Columns.embedding_id.col_name: face_id}
+            #     for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
+            # ]
+
             embeddings_row_dicts.extend(embeddings_row)
         return embeddings_row_dicts
 
@@ -356,7 +335,7 @@ class DBManager:
             cluster_parts = cur.execute(
                 f"SELECT {Columns.cluster_id}, {Columns.label},"
                 f" {Columns.center}, {Columns.embedding}, "
-                f"{Columns.face_id}"
+                f"{Columns.embedding_id}"
                 f" FROM {Tables.embeddings_table} INNER JOIN {Tables.cluster_attributes_table}"
                 f" USING ({Columns.cluster_id});"
             ).fetchall()
@@ -526,92 +505,6 @@ class DBManager:
     @staticmethod
     def iso_string_to_date(string):
         return datetime.datetime.fromisoformat(string)
-
-    # def main(self):
-    #     # connecting to the database file
-    #     conn = sqlite3.connect(sqlite_file_name)
-    #     c = conn.cursor()
-    #
-    #     create_tables(c, drop_existing_tables=True)
-    #
-    #     # populate images table
-    #     store_in_images_table(c, [f'(1, "apple sauce", {round(time.time())})'])
-    #     # c.execute(f'INSERT INTO {Tables.images_table} VALUES (1, "apple sauce", ?)',
-    #     #           [round(time.time())])
-    #
-    #
-    #     # populate faces table
-    #     thumbnail = Image.open('preprocessed_Aaron_Eckhart_1.jpg')
-    #     embedding = torch.load('Aaron_Eckhart_1.pt')
-    #
-    #     thumbnail_bytes = data_to_bytes(thumbnail)
-    #     embedding_bytes = data_to_bytes(embedding)
-    #
-    #     store_in_faces_table(c, [f'(1, {thumbnail_bytes}, {embedding_bytes})'])
-    #     # c.execute(f'INSERT INTO {Tables.faces_table} VALUES (1, ?, ?)',
-    #     #           [thumbnail_bytes, embedding_bytes])
-    #
-    #     images_rows = fetch_all_from_images_table(c)
-    #     faces_rows = fetch_all_from_faces_table(c)
-    #     print(images_rows)
-    #     print('\n'.join(map(str, faces_rows[0])))
-    #
-    #
-    #     thumbnail_bytes, embedding_bytes = faces_rows[0][1:]
-    #     # print(embedding_bytes)
-    #
-    #
-    #     # convert back to tensor
-    #     tensor = bytes_to_data(embedding_bytes, 'tensor')
-    #     print(tensor)
-    #
-    #     # convert back to image
-    #     image = bytes_to_data(thumbnail_bytes, 'image')
-    #     image.show()
-    #
-    #     # Closing the connection to the database file
-    #     conn.commit()
-    #     conn.close()
-    #
-    #
-    #     # col_type = ColumnTypes.text  # E.g., INTEGER, TEXT, NULL, REAL, BLOB
-    #     # default_val = 'Hello World'  # a default value for the new col rows
-    #
-    #     # last_modified = os.stat('my_db.sqlite').st_atime
-    #     # age = time.time() - last_modified
-    #     # datetime.datetime.fromtimestamp(time.time())
-    #
-    #     # # Retrieve col information
-    #     # # Every col will be represented by a tuple with the following attributes:
-    #     # # (id, name, type, notnull, default_value, primary_key)
-    #     # c.execute('PRAGMA TABLE_INFO({})'.format(images_table_name))
-    #
-    #     # # collect names in a list
-    #     # names = [tup[1] for tup in c.fetchall()]
-    #     # print(names)
-    #     # # e.g., ['id', 'date', 'time', 'date_time']
-
-
-# XXXXX
-
-        #
-        # # create embeddings table
-        # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
-        #                  f'{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, '
-        #                  f'{Columns.thumbnail} {Columns.thumbnail.col_type.value}, '
-        #                  f'{Columns.embedding} {Columns.embedding.col_type.value}, '
-        #                  f'FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})'
-        #                  ' ON DELETE CASCADE'
-        #                  ')')
-        #
-        # # create cluster attributes table
-        # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
-        #                  f'{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, '
-        #                  f'{Columns.thumbnail} {Columns.thumbnail.col_type.value}, '
-        #                  f'{Columns.embedding} {Columns.embedding.col_type.value}, '
-        #                  f'FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})'
-        #                  ' ON DELETE CASCADE'
-        #                  ')')
 
 
 if __name__ == '__main__':

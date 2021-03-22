@@ -96,7 +96,7 @@ class CoreAlgorithm:
                 modified_clusters_ids.add(new_cluster.cluster_id)
         modified_clusters = clusters.get_clusters_by_ids(modified_clusters_ids)
         removed_clusters = clusters.get_clusters_by_ids(removed_clusters_ids)
-        return modified_clusters, removed_clusters
+        return clusters, modified_clusters, removed_clusters
 
     @classmethod
     def is_cluster_too_big(cls, cluster):

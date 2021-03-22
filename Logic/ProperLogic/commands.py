@@ -11,7 +11,7 @@ from Logic.ProperLogic.database_logic import DBManager
 from Logic.ProperLogic.database_table_defs import Tables, Columns
 from models import Models
 from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item, have_equal_type_names, \
-    split_items
+    overwrite_list
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
@@ -20,11 +20,6 @@ TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
 
 # INPUT_SIZE = [112, 112]
-
-
-# TODO: Remove
-DROP_CENTRAL_TABLES = True
-DROP_LOCAL_TABLES = True
 
 
 # TODO: Make handlers class
@@ -191,14 +186,15 @@ def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
                 faces_rows)
     image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
                     faces_rows)
-
     embeddings = list(faces_to_embeddings(faces))
-    modified_clusters, removed_clusters = CoreAlgorithm.cluster_embeddings(embeddings, embedding_ids,
-                                                                           existing_clusters=clusters)
+    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embedding_ids, existing_clusters=clusters)
+    updated_clusters, modified_clusters, removed_clusters = clustering_result
+
     emb_id_to_face_dict = dict(zip(embedding_ids, thumbnails))
     emb_id_to_img_id_dict = dict(zip(embedding_ids, image_ids))
     db_manager.remove_clusters(list(removed_clusters))
     db_manager.store_clusters(list(modified_clusters), emb_id_to_face_dict, emb_id_to_img_id_dict)
+    overwrite_list(clusters, updated_clusters)
 
 
 def faces_to_embeddings(faces):
@@ -213,7 +209,7 @@ def user_choose_imgs(db_manager):
     path_to_local_db = db_manager.get_db_path(images_path, local=True)
     db_manager.create_tables(create_local=True,
                              path_to_local_db=path_to_local_db,
-                             drop_existing_tables=DROP_LOCAL_TABLES)
+                             drop_existing_tables=False)
     faces_rows = extract_faces(images_path, db_manager)
     return faces_rows
 

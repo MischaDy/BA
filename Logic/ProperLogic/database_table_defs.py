@@ -115,9 +115,9 @@ class ColumnSchema:
     def with_constraint(self, col_constraint):
         # TODO: Allow multiple constraints and use constraints enum!
         if 'PRIMARY KEY' in col_constraint:
-            unique_phrase = 'UNIQUE' if 'UNIQUE' not in col_constraint else ''
-            not_null_phrase = 'NOT NULL' if 'NOT NULL' not in col_constraint else ''
-            col_constraint = col_constraint.replace(f'PRIMARY KEY {unique_phrase} {not_null_phrase}')
+            phrase_unique = 'UNIQUE' if 'UNIQUE' not in col_constraint else ''
+            phrase_not_null = 'NOT NULL' if 'NOT NULL' not in col_constraint else ''
+            col_constraint = col_constraint.replace('PRIMARY KEY', f'PRIMARY KEY {phrase_unique} {phrase_not_null}')
         return ColumnSchema(self.col_name, self.col_type, str(col_constraint), self.col_details)
 
     # @classmethod

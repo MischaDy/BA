@@ -89,3 +89,8 @@ def remove_items(iterable, items):
             iterable.remove(item)
         except ValueError:
             log_error(f'Item {item} not found, could not be removed')
+
+
+def overwrite_list(iterable, new_values):
+    iterable.clear()
+    iterable.extend(new_values)

@@ -36,14 +36,22 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 
 
 # TODO: Remove
-DROP_CENTRAL_TABLES = False
-DROP_LOCAL_TABLES = False
+DROP_CENTRAL_TABLES = True
+DROP_LOCAL_TABLES = True
 
 
 def run_program(path_to_central_dir):
     path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
     db_manager = DBManager(path_to_local_db)
-    db_manager.create_tables(create_local=False, drop_existing_tables=DROP_CENTRAL_TABLES)
+
+    # TODO: Remove
+    if DROP_CENTRAL_TABLES:
+        db_manager.delete_from_table(Tables.embeddings_table)
+        db_manager.delete_from_table(Tables.cluster_attributes_table)
+    if DROP_LOCAL_TABLES:
+        db_manager.delete_from_table(Tables.images_table)
+
+    db_manager.create_tables(create_local=False, drop_existing_tables=False)
     clusters = load_clusters_from_db(db_manager)
     Commands.initialize()
 

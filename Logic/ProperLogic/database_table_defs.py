@@ -152,6 +152,20 @@ class ColumnDetails(Enum):
         return self.name
 
 
+# class ColumnConstraints(Enum):
+#     # TODO: Use!
+#     # TODO: Store in better way?
+#     not_null = 'NOT NULL'
+#     unique = 'UNIQUE'
+#     primary_key = 'PRIMARY KEY'
+#
+#     def __eq__(self, other):
+#         return have_equal_type_names(self, other) and self.value == other.value
+#
+#     def __str__(self):
+#         return self.name
+
+
 class Columns:
     center = ColumnSchema('center', ColumnTypes.blob, col_details=ColumnDetails.tensor)
     cluster_id = ColumnSchema('cluster_id', ColumnTypes.integer)
@@ -162,6 +176,8 @@ class Columns:
     label = ColumnSchema('label', ColumnTypes.text)
     last_modified = ColumnSchema('last_modified', ColumnTypes.text, col_details=ColumnDetails.date)
     thumbnail = ColumnSchema('thumbnail', ColumnTypes.blob, col_details=ColumnDetails.image)
+    path_id_col = ColumnSchema('path_id_col', ColumnTypes.integer)
+    path = ColumnSchema('path', ColumnTypes.text)
 
     @classmethod
     def get_column(cls, col_name):
@@ -180,7 +196,15 @@ class Tables:
         []
     )
 
-    local_tables = (images_table,)
+    path_id_table = TableSchema(
+        'path_id',
+        [Columns.path_id_col.with_constraint('PRIMARY KEY')
+         ],
+        []
+    )
+
+    local_tables = (images_table, path_id_table)
+
     # ----- central tables -----
 
     cluster_attributes_table = TableSchema(
@@ -205,13 +229,37 @@ class Tables:
          ],
     )
 
+    certain_labels_table = TableSchema(
+        'certain_labels',
+        [Columns.embedding_id.with_constraint('PRIMARY KEY'),
+         Columns.label.with_constraint('NOT NULL'),
+         ],
+        [f'FOREIGN KEY ({Columns.embedding_id}) REFERENCES {embeddings_table} ({Columns.embedding_id})'
          + ' ON DELETE CASCADE',
-         # f'FOREIGN KEY ({Columns.image_id}) REFERENCES {images_table} ({Columns.image_id})'
-         # + ' ON DELETE CASCADE'
          ],
     )
 
-    central_tables = (embeddings_table, cluster_attributes_table)
+    directory_paths_table = TableSchema(
+        'directory_paths',
+        [Columns.path_id_col.with_constraint('PRIMARY KEY'),
+         Columns.path.with_constraint('NOT NULL')
+         ],
+        [],
+    )
+
+    # TODO: FK with image_id col not possible, since not unique in embeddings table!
+    image_paths_table = TableSchema(
+        'image_paths',
+        [Columns.image_id.with_constraint('PRIMARY KEY'),
+         Columns.path_id_col.with_constraint('NOT NULL'),
+         ],
+        [f'FOREIGN KEY ({Columns.path_id_col}) REFERENCES {directory_paths_table} ({Columns.path_id_col})'
+         + ' ON DELETE CASCADE',
+         ],
+    )
+
+    central_tables = (embeddings_table, cluster_attributes_table, certain_labels_table, directory_paths_table,
+                      image_paths_table)
 
     temp_cluster_ids_table = TableSchema(
         'temp_cluster_ids',

@@ -28,6 +28,8 @@ from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_att
 #     raise TypeError(f"{name_error_str} must be a string or a member of {enum_.__name__}, not {obj}")
 
 
+# TODO: Create Row(dict) class?
+
 class TableSchema:
     def __init__(self, name, columns, constraints=None):
         if constraints is None:
@@ -111,8 +113,12 @@ class ColumnSchema:
         return have_equal_attrs(self, other)
 
     def with_constraint(self, col_constraint):
-        # TODO: Make more general version of this method?
-        return ColumnSchema(self.col_name, self.col_type, col_constraint, self.col_details)
+        # TODO: Allow multiple constraints and use constraints enum!
+        if 'PRIMARY KEY' in col_constraint:
+            unique_phrase = 'UNIQUE' if 'UNIQUE' not in col_constraint else ''
+            not_null_phrase = 'NOT NULL' if 'NOT NULL' not in col_constraint else ''
+            col_constraint = col_constraint.replace(f'PRIMARY KEY {unique_phrase} {not_null_phrase}')
+        return ColumnSchema(self.col_name, self.col_type, str(col_constraint), self.col_details)
 
     # @classmethod
     # def get_column_schema(cls, col_schema_name):
@@ -121,7 +127,7 @@ class ColumnSchema:
 
 class ColumnTypes(Enum):
     null = 'NULL'
-    integer = 'INT'
+    integer = 'INTEGER'
     real = 'REAL'
     text = 'TEXT'
     blob = 'BLOB'
@@ -163,37 +169,42 @@ class Columns:
 
 
 class Tables:
+    # ----- local tables -----
+
     images_table = TableSchema(
         'images',
-        [Columns.image_id.with_constraint('UNIQUE NOT NULL'),
+        [Columns.image_id.with_constraint('PRIMARY KEY'),
          Columns.file_name.with_constraint('NOT NULL'),
          Columns.last_modified.with_constraint('NOT NULL')
          ],
-        [f'PRIMARY KEY ({Columns.image_id})'
-         ]
+        []
     )
 
     local_tables = (images_table,)
+    # ----- central tables -----
 
     cluster_attributes_table = TableSchema(
         'cluster_attributes',
-        [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by embeddings table
+        [Columns.cluster_id.with_constraint('PRIMARY KEY'),  # also used by embeddings table
          Columns.label,
          Columns.center
          ],
-        [f'PRIMARY KEY ({Columns.cluster_id})']
+        []
     )
 
     embeddings_table = TableSchema(
         'embeddings',
         [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by cluster attributes table
          Columns.image_id.with_constraint('NOT NULL'),
-         Columns.embedding_id.with_constraint('UNIQUE NOT NULL'),
+         Columns.embedding_id.with_constraint('PRIMARY KEY'),
          Columns.embedding.with_constraint('NOT NULL'),
          Columns.thumbnail.with_constraint('NOT NULL'),
          ],
-        [f'PRIMARY KEY ({Columns.embedding_id})',
-         f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id})'
+        [f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id})'
+         + ' ON DELETE CASCADE',
+         ],
+    )
+
          + ' ON DELETE CASCADE',
          # f'FOREIGN KEY ({Columns.image_id}) REFERENCES {images_table} ({Columns.image_id})'
          # + ' ON DELETE CASCADE'

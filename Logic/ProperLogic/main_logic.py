@@ -36,8 +36,8 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 
 
 # TODO: Remove
-DROP_CENTRAL_TABLES = True
-DROP_LOCAL_TABLES = True
+DROP_CENTRAL_TABLES = False
+DROP_LOCAL_TABLES = False
 
 
 def run_program(path_to_central_dir):
@@ -85,7 +85,7 @@ def get_user_command():
 
 
 def _get_user_command_subfunc():
-    wait_for_any_input('What would you like to do next? (Press any key to continue).')
+    wait_for_any_input('\nWhat would you like to do next? (Press any key to continue).')
     print_command_options()
     return clean_str(input())
 

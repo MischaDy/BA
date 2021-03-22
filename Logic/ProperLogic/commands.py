@@ -132,6 +132,9 @@ def handler_edit_faces(clusters, **kwargs):
     # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
 
     # TODO: Make sure user-selected labels are treated correctly in clustering!
+    if not clusters:
+        log_error('no clusters found, nothing to edit')
+        return
 
     continue_cluster = ''
     while not continue_cluster.startswith('n'):
@@ -169,23 +172,37 @@ def handler_show_cluster(clusters_path, **kwargs):
 
 
 def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
+    # TODO: Refactor + improve efficiency
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
     # Extract faces from user-chosen images and cluster them
     faces_rows = list(user_choose_imgs(db_manager))
     if not faces_rows:
         return
     # TODO: Implement correct processing of faces_rows!
-    face_ids, faces = split_items(faces_rows)
+    # {'thumbnail': <PIL.Image.Image image mode=RGB size=160x160 at 0x21C0B1BAC48>, 'image_id': 1, 'embedding_id': 1}
+
+    # TODO: Extract this dictionary-querying as function?
+
+    embedding_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
+                             faces_rows))
+    thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
+                     faces_rows)
+    faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
+                faces_rows)
+    image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
+                    faces_rows)
+
     embeddings = list(faces_to_embeddings(faces))
-    modified_clusters, removed_clusters = CoreAlgorithm.cluster_embeddings(embeddings, face_ids,
+    modified_clusters, removed_clusters = CoreAlgorithm.cluster_embeddings(embeddings, embedding_ids,
                                                                            existing_clusters=clusters)
+    emb_id_to_face_dict = dict(zip(embedding_ids, thumbnails))
+    emb_id_to_img_id_dict = dict(zip(embedding_ids, image_ids))
     db_manager.remove_clusters(list(removed_clusters))
-    db_manager.store_clusters(list(modified_clusters))
+    db_manager.store_clusters(list(modified_clusters), emb_id_to_face_dict, emb_id_to_img_id_dict)
 
 
 def faces_to_embeddings(faces):
-    for face in faces:
-        yield Models.resnet(_to_tensor(face))
+    return map(lambda face: Models.resnet(_to_tensor(face)), faces)
 
 
 def user_choose_imgs(db_manager):

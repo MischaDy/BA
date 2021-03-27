@@ -464,9 +464,10 @@ def user_choose_face(cluster):
     return chosen_cluster
 
 
-def user_choose_face_label(cluster):
-    # TODO: Implement
-    pass
+def user_choose_face_label(old_label):
+    new_label = input(f"The current label of the face is: '{old_label}'."
+                      "\nWhat should the new label be? (Press Enter to abort).")
+    return new_label
 
 
 def print_cluster_ids(clusters):
@@ -481,7 +482,10 @@ def print_cluster_ids(clusters):
 
 def print_faces(faces):
     # TODO: Finish implementing
-    # TODO: How to print/show faces???
+    # TODO: Allow to abort
+    # TODO: Allow specific command to label face as unknown
+
+    # TODO: ... Remember to create new cluster for face that is relabeled! (Even if unknown person)
     # TODO: print limited number of faces at a time (Enter=continue)
     cluster_labels = clusters.get_cluster_labels()
     cluster_ids = clusters.get_cluster_ids()

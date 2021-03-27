@@ -1,11 +1,11 @@
 import logging
 import operator
 
-
-# ----- OOP -----
 from functools import partial
 from itertools import zip_longest
 
+
+# ----- OOP -----
 
 def have_equal_attrs(obj1, obj2):
     return obj1.__dict__ == obj2.__dict__
@@ -29,16 +29,38 @@ def wait_for_any_input(prompt):
     input(prompt + '\n')
 
 
-def get_user_decision(prompt, choices=('[y]es', '[n]o'), sep=' / ', prefix='\n', postfix='\n', should_clean_str=True):
+def get_user_decision(prompt, choices_strs=('[y]es', '[n]o'), valid_choices=('y', 'n'), sep=' / ', prefix='\n',
+                      postfix='\n', should_clean_decision=True):
     # TODO: Create Enum of different user decisions and use that for evaluating choice?
-    # TODO: Catch invalid choices here!
     # TODO: Allow to abort (param what the abort input should look like)
 
-    choices_str = sep.join(choices)
-    user_decision = input(prefix + f'{prompt} ({choices_str})' + postfix)
-    if should_clean_str:
-        return clean_str(user_decision)
+    choices_str = sep.join(choices_strs)
+    full_prompt = prefix + f'{prompt} ({choices_str})' + postfix
+    user_decision = get_user_input(full_prompt, valid_choices=valid_choices, should_clean_input=should_clean_decision)
     return user_decision
+
+
+def get_user_input(prompt, valid_choices=None, print_valid_inputs=False, should_clean_input=True):
+    if valid_choices is None:
+        valid_choices = []
+
+    def get_processed_input():
+        if should_clean_input:
+            return clean_str(input(prompt))
+        return input(prompt)
+
+    def make_error_msg():
+        msg = 'Error: invalid choice'
+        if print_valid_inputs and valid_choices:
+            valid_choices_str = "'" + "', '".join(valid_choices) + "'"
+            return msg + f" (valid choices: {valid_choices_str})"
+        return msg
+
+    user_input = get_processed_input()
+    while user_input not in valid_choices:
+        print(make_error_msg())
+        user_input = get_processed_input()
+    return user_input
 
 
 # ----- MISC -----

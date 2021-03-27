@@ -185,16 +185,16 @@ def handler_edit_faces(clusters, db_manager, **kwargs):
     # TODO: Nicer parameter passing?
     get_label_scope_decision = partial(get_user_decision,
                                        'Should the whole cluster receive that label or just the picture?',
-                                       choices=('[c]luster', '[p]icture'))
+                                       choices_strs=('[c]luster', '[p]icture'), valid_choices=('c', 'p'))
 
     continue_cluster = ''
-    while not continue_cluster.startswith('n'):
+    while continue_cluster != 'n':
         cluster = user_choose_cluster(clusters)
         if cluster is None:  # TODO: Correct?
             continue_cluster = get_cluster_decision()
             continue
         continue_face = ''
-        while not continue_face.startswith('n'):
+        while continue_face != 'n':
             embedding_id = user_choose_embedding_id(cluster, db_manager)
             if embedding_id is None:
                 continue_face = get_face_decision()
@@ -205,16 +205,14 @@ def handler_edit_faces(clusters, db_manager, **kwargs):
                 continue
 
             scope = get_label_scope_decision()
-            if scope.startswith('c'):
+            if scope == 'c':
                 set_cluster_label(cluster, new_label, db_manager)
-            elif scope.startswith('p'):
+            else:
                 Temp.temp_weakref = weakref.proxy(cluster, Temp.killer_msg)
                 try:
                     set_picture_label(embedding_id, new_label, cluster, clusters, db_manager)
                 except sqlite3.DatabaseError:
                     pass
-            else:
-                log_error(f'invalid scope decision {scope}')
             continue_face = get_face_decision()
         continue_cluster = get_cluster_decision()
 
@@ -547,18 +545,15 @@ def print_cluster_ids(clusters):
 
 
 def user_choose_embedding_id_worker(faces_dict, label):
-    # TODO: Finish implementing
     # TODO: Allow to abort
     # TODO: Allow specific command to label face as unknown
-
-    # TODO: ... Remember to create new cluster for face that is relabeled! (Even if unknown person)
 
     get_id_decision = partial(get_user_decision, 'Would you like to view another face?')
 
     face_id = None
     choose_cur_face_id = None
     continue_id = ''
-    while not continue_id.startswith('n'):
+    while continue_id != 'n':
         print_face_ids(faces_dict, label)
         face_id = get_user_input_of_type(int, 'face id')
         try:
@@ -567,7 +562,7 @@ def user_choose_embedding_id_worker(faces_dict, label):
             print(f'face id {face_id} could not be found. Please try again.')
             continue_id = get_id_decision()
             continue
-        face.show()  # TODO: Why does it consider the object closed??
+        face.show()
         choose_cur_face_id = get_user_decision('Would you like to edit the face you just viewed?')
         if not choose_cur_face_id.startswith('n'):
             break

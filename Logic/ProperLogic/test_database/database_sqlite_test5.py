@@ -20,7 +20,7 @@ c = conn.cursor()
 
 # Retrieve column information
 # Every column will be represented by a tuple with the following attributes:
-# (id, name, type, notnull, default_value, primary_key)
+# (id, name, class_, notnull, default_value, primary_key)
 c.execute('PRAGMA TABLE_INFO({})'.format(table_name))
 
 # collect names in a list

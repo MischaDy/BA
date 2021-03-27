@@ -1,4 +1,6 @@
-from Logic.ProperLogic.misc_helpers import log_error
+import operator
+
+from misc_helpers import log_error
 import torch
 
 from functools import reduce
@@ -9,10 +11,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 class Cluster:
-    max_cluster_id = 1
-    max_embedding_id = 1
-
-    def __init__(self, embeddings=None, embeddings_ids=None, cluster_id=None, label=None, center_point=None):
+    def __init__(self, cluster_id, embeddings=None, embeddings_ids=None, label=None, center_point=None):
         """
         embeddings must be (flat) iterable of embeddings with len applicable
         :param embeddings:
@@ -29,7 +28,7 @@ class Cluster:
             Cluster.max_embedding_id = 0
         else:
             # TODO: refactor
-            # TODO: consistent type for embedding ids(?)
+            # TODO: consistent class_ for embedding ids(?)
             if embeddings_ids is None:
                 embeddings_ids = count(1)
             # cast embeddings to dict
@@ -39,13 +38,9 @@ class Cluster:
                 self.center_point = center_point
             else:
                 self.center_point = Cluster.sum_embeddings(self.embeddings.values()) / self.num_embeddings
-            Cluster.max_embedding_id = max(self.embeddings.keys())
+            self.max_embedding_id = max(self.embeddings.keys())
 
-        if cluster_id is not None:
-            self.cluster_id = cluster_id
-        else:
-            self.cluster_id = Cluster.max_cluster_id
-        Cluster.max_cluster_id = max(self.cluster_id, Cluster.max_cluster_id - 1) + 1
+        self.cluster_id = cluster_id
 
     def set_label(self, label):
         self.label = label
@@ -60,8 +55,8 @@ class Cluster:
 
     def add_embedding(self, embedding, embedding_id=None, overwrite=False):
         if embedding_id is None:
-            Cluster.max_embedding_id += 1
-            embedding_id = Cluster.max_embedding_id
+            self.max_embedding_id += 1
+            embedding_id = self.max_embedding_id
         if self.embeddings.get(embedding_id) is not None and not overwrite:
             raise RuntimeError('embedding with given ID already exists in this cluster')
         self.embeddings[embedding_id] = embedding
@@ -69,22 +64,32 @@ class Cluster:
         old_num_embeddings = self.num_embeddings
         self.num_embeddings += 1
         # (old_center is a uniformly weighted sum of the old embeddings)
-        self.center_point = (old_num_embeddings * self.center_point + embedding) / self.num_embeddings
+        try:
+            self.center_point = (old_num_embeddings * self.center_point + embedding) / self.num_embeddings
+        except TypeError:  # center_point is None
+            # TODO: Copy embedding or sth. like that instead of direct assignment?
+            self.center_point = embedding
 
-    # def remove_embedding(self, embedding_id):
-    #     # TODO: Needed?
-    #     try:
-    #         self.embeddings.pop(embedding_id)
-    #     except ValueError as error:
-    #         log_error('Specified embedding not found in embeddings')
-    #         raise error
-    #     old_num_embeddings = self.num_embeddings
-    #     self.num_embeddings -= 1
-    #     # (old_center is a uniformly weighted sum of the old embeddings)
-    #     self.center_point = (old_num_embeddings * self.center_point - embedding_id) / self.num_embeddings
+    def remove_embedding_by_id(self, embedding_id):
+        try:
+            embedding = self.embeddings.pop(embedding_id)
+        except KeyError:
+            log_error(f'embedding with id {embedding_id} not found.')
+            return
+
+        old_num_embeddings = self.num_embeddings
+        self.num_embeddings -= 1
+        # (old_center is a uniformly weighted sum of the old embeddings)
+        try:
+            self.center_point = (old_num_embeddings * self.center_point - embedding) / self.num_embeddings
+        except ZeroDivisionError:  # num_embeddings is 0
+            self.center_point = None
 
     def get_center_point(self):
         return self.center_point
+
+    def get_embedding(self, embedding_id):
+        return self.embeddings[embedding_id]
 
     def compute_dist_to_center(self, embedding):
         return Cluster.compute_dist(self.center_point, embedding)
@@ -110,3 +115,13 @@ class Clusters(list):
     def get_clusters_by_ids(self, cluster_ids):
         # TODO: Improve efficiency! (Make dict with id as key?)
         return filter(lambda c: c.cluster_id in cluster_ids, self)
+
+    def get_cluster_ids(self):
+        return self.get_cluster_attrs('cluster_id')
+
+    def get_cluster_labels(self):
+        return self.get_cluster_attrs('label')
+
+    def get_cluster_attrs(self, attr):
+        attr_gettr = operator.attrgetter(attr)
+        return map(attr_gettr, self)

@@ -29,10 +29,22 @@ def wait_for_any_input(prompt):
     input(prompt + '\n')
 
 
+def get_user_decision(prompt, choices=('[y]es', '[n]o'), sep=' / ', prefix='\n', postfix='\n', should_clean_str=True):
+    # TODO: Create Enum of different user decisions and use that for evaluating choice?
+    # TODO: Catch invalid choices here!
+    # TODO: Allow to abort (param what the abort input should look like)
+
+    choices_str = sep.join(choices)
+    user_decision = input(prefix + f'{prompt} ({choices_str})' + postfix)
+    if should_clean_str:
+        return clean_str(user_decision)
+    return user_decision
+
+
 # ----- MISC -----
 
 def clean_str(string, to_lower=True):
-    clean_string = string.strip()
+    clean_string = ' '.join(string.strip().split())
     if to_lower:
         return clean_string.lower()
     return clean_string.upper()
@@ -89,3 +101,8 @@ def remove_items(iterable, items):
             iterable.remove(item)
         except ValueError:
             log_error(f'Item {item} not found, could not be removed')
+
+
+def overwrite_list(iterable, new_values):
+    iterable.clear()
+    iterable.extend(new_values)

@@ -11,7 +11,8 @@ import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema
+from database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema
+from misc_helpers import is_instance_by_type_name, log_error
 
 # TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
 # TODO: (When to) use VACUUM?
@@ -24,9 +25,9 @@ from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, 
 
 # TODO: When to close connection? Optimize?
 # TODO: Guarantee that connection is closed at end of methods (done?)
+#       ---> Use wrapper/decorator including con as context manager!
 
 # TODO: Make DBManager a singleton object?
-from Logic.ProperLogic.misc_helpers import is_instance_by_type_name
 
 """
 ----- DB SCHEMA -----
@@ -35,11 +36,11 @@ from Logic.ProperLogic.misc_helpers import is_instance_by_type_name
 --- Local Tables ---
 
 images(INT image_id, TEXT file_name, INT last_modified)
-faces(INT face_id, INT image_id, BLOB thumbnail)
+faces(INT embedding_id, INT image_id, BLOB thumbnail)
 
 --- Centralized Tables ---
 
-embeddings(INT cluster_id, INT face_id, BLOB face_embedding)
+embeddings(INT cluster_id, INT embedding_id, BLOB face_embedding)
 cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
 
@@ -69,65 +70,66 @@ class DBManager:
         if open_local:
             path_to_local_db = path_to_local_db if path_to_local_db is not None else self.path_to_local_db
             self.local_db_connection = sqlite3.connect(path_to_local_db)
-            cur = self.local_db_connection.cursor()
+            con = self.local_db_connection
         else:
             self.central_db_connection = sqlite3.connect(DBManager.central_db_file_path)
-            cur = self.central_db_connection.cursor()
-        return cur
+            con = self.central_db_connection
+        return con
 
-    def commit_and_close_connection(self, close_local):
-        db_connection = self.local_db_connection if close_local else self.central_db_connection
-        db_connection.commit()
-        db_connection.close()
+    # TODO: Needed when con can just be used as context manager?
+    # def commit_and_close_connection(self, close_local):
+    #     db_connection = self.local_db_connection if close_local else self.central_db_connection
+    #     db_connection.commit()
+    #     db_connection.close()
+
+    # TODO: Needed when con can just be used as context manager?
+    # def rollback(self, rollback_local):
+    #     db_connection = self.local_db_connection if rollback_local else self.central_db_connection
+    #     db_connection.rollback()
 
     def create_tables(self, create_local, path_to_local_db=None, drop_existing_tables=False):
-        cur = self.open_connection(create_local, path_to_local_db)
-        try:
+        def create_tables_body(con):
             if drop_existing_tables:
-                self._drop_tables(cur, create_local)
+                self._drop_tables(con, create_local)
 
             if create_local:
-                self._create_local_tables(cur)
+                self._create_local_tables(con)
             else:
-                self._create_central_tables(cur)
+                self._create_central_tables(con)
+        self.connection_wrapper(create_tables_body, create_local, path_to_local_db)
+
+    def connection_wrapper(self, func, open_local=None, path_to_local_db=None, con=None):
+        # TODO: Give option of not closing connection (?)
+        # TODO: How to make this a decorator?
+        # TODO: Make sure callers catch the exceptions!
+        if con is None:
+            con = self.open_connection(open_local, path_to_local_db)
+        try:
+            with con:
+                result = func(con)
+        except sqlite3.DatabaseError as e:
+            log_error(f'error in {e.__traceback__.tb_frame}: {e}')
+            raise
         finally:
-            self.commit_and_close_connection(create_local)
+            con.close()
+        return result
 
     @classmethod
-    def _create_temp_table(cls, cur, temp_table=None):
+    def _create_temp_table(cls, con, temp_table=None):
+        # TODO: Create table in memory? (sqlite3.connect(":memory:"))
+        #       ---> Not possible, since other stuff isn't in memory(?)
         if temp_table is None:
             temp_table = Tables.temp_cluster_ids_table
         create_table_sql = cls.build_create_table_sql(temp_table, create_temp=True)
-        cur.execute(create_table_sql)
+        con.execute(create_table_sql)
 
     @classmethod
-    def _create_local_tables(cls, cur):
+    def _create_local_tables(cls, con):
         # enable foreign keys
-        cur.execute('PRAGMA foreign_keys = ON;')
+        con.execute('PRAGMA foreign_keys = ON;')
 
         # create images table
-        cur.execute(cls.build_create_table_sql(Tables.images_table))
-        # cur.execute(
-        #     f"CREATE TABLE IF NOT EXISTS {Tables.images_table} ("
-        #     f"{Columns.image_id} {Columns.image_id.col_type.value} UNIQUE NOT NULL, "
-        #     f"{Columns.file_name} {Columns.file_name.col_type.value} NOT NULL, "
-        #     f"{Columns.last_modified} {Columns.last_modified.col_type.value} NOT NULL, "
-        #     f"PRIMARY KEY ({Columns.image_id})"
-        #     ")"
-        # )
-
-        # create faces table
-        cur.execute(cls.build_create_table_sql(Tables.faces_table))
-        # cur.execute(
-        #     f"CREATE TABLE IF NOT EXISTS {Tables.faces_table} ("
-        #     f"{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, "
-        #     f"{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, "
-        #     f"{Columns.thumbnail} {Columns.thumbnail.col_type.value}, "
-        #     f"PRIMARY KEY ({Columns.face_id})"
-        #     f"FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})"
-        #     " ON DELETE CASCADE"
-        #     ")"
-        # )
+        con.execute(cls.build_create_table_sql(Tables.images_table))
 
     @staticmethod
     def build_create_table_sql(table, create_temp=False):
@@ -155,37 +157,24 @@ class DBManager:
         return on_conflict
 
     @classmethod
-    def _create_central_tables(cls, cur):
+    def _create_central_tables(cls, con):
+        # TODO: Create third table!
         # enable foreign keys
-        cur.execute('PRAGMA foreign_keys = ON;')
+        con.execute('PRAGMA foreign_keys = ON;')
 
         # create embeddings table
-        cur.execute(cls.build_create_table_sql(Tables.embeddings_table))
-        # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
-        #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
-        #             f'{Columns.face_id} {Columns.face_id.col_type.value} UNIQUE NOT NULL, '
-        #             f'{Columns.embedding} {Columns.embedding.col_type.value} NOT NULL, '
-        #             f'PRIMARY KEY ({Columns.face_id}), '
-        #             f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {Tables.cluster_attributes_table} ({Columns.cluster_id})'
-        #             ' ON DELETE CASCADE'
-        #             ')')
+        con.execute(cls.build_create_table_sql(Tables.embeddings_table))
 
         # create cluster attributes table
-        cur.execute(cls.build_create_table_sql(Tables.cluster_attributes_table))
-        # cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
-        #             f'{Columns.cluster_id} {Columns.cluster_id.col_type.value} NOT NULL, '
-        #             f'{Columns.label} {Columns.label.col_type.value}, '
-        #             f'{Columns.center} {Columns.center.col_type.value}, '
-        #             f'PRIMARY KEY ({Columns.cluster_id})'
-        #             ')')
+        con.execute(cls.build_create_table_sql(Tables.cluster_attributes_table))
 
     @staticmethod
-    def _drop_tables(cur, drop_local=True):
+    def _drop_tables(con, drop_local=True):
         tables = Tables.local_tables if drop_local else Tables.central_tables
         for table in tables:
-            cur.execute(f'DROP TABLE IF EXISTS {table};')
+            con.execute(f'DROP TABLE IF EXISTS {table};')
 
-    def store_in_table(self, table, row_dicts, on_conflict='', cur=None, path_to_local_db=None, close_connection=True):
+    def store_in_table(self, table, row_dicts, on_conflict='', con=None, path_to_local_db=None, close_connection=True):
         """
 
         :param table:
@@ -194,51 +183,61 @@ class DBManager:
         :param path_to_local_db:
         :return:
         """
-        # TODO: Make sure, all funcs using this method know about the conflict clause!
         rows = self.row_dicts_to_rows(table, row_dicts)
         if not rows:
             return
         store_in_local = Tables.is_local_table(table)
         values_template = self._make_values_template(len(row_dicts[0]))
 
-        if cur is None:
-            cur = self.open_connection(store_in_local, path_to_local_db)
+        def execute(con):
+            con.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
 
-        def execute():
-            cur.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
+        if close_connection:
+            self.connection_wrapper(execute, store_in_local, path_to_local_db)
+        else:
+            if con is None:
+                con = self.open_connection(store_in_local, path_to_local_db)
+            execute(con)
 
-        if not close_connection:
-            execute()
-            return
-        try:
-            execute()
-        finally:
-            self.commit_and_close_connection(store_in_local)
-
-    def store_clusters(self, clusters):
+    def store_clusters(self, clusters, emb_id_to_face_dict=None, emb_id_to_img_id_dict=None, con=None):
         """
         Store the data in clusters in the central DB-tables ('cluster_attributes' and 'embeddings').
 
         :param clusters: Iterable of clusters to store.
         :return: None
         """
-        # Store in cluster_attributes table
+        # TODO: Default argument / other name for param?
+        # TODO: Add parameter whether clusters should be stored even if that would overwrite existing clusters
+        # TODO: Improve efficiency - don't build rows etc. if cluster already exists
+
+        if emb_id_to_face_dict is None:
+            emb_id_to_face_dict = self.get_thumbnails(with_embeddings_ids=True, as_dict=True)
+        if emb_id_to_img_id_dict is None:
+            emb_id_to_img_id_dict = self.get_image_ids(with_embeddings_ids=True, as_dict=True)
+
+        # Store in cluster_attributes and embeddings tables
         # Use on conflict clause for when cluster label and/or center change
         attrs_update_cols = [Columns.label, Columns.center]
         attrs_update_exprs = [f'excluded.{Columns.label}', f'excluded.{Columns.center}']
         attrs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.cluster_id],
                                                        update_cols=attrs_update_cols,
                                                        update_exprs=attrs_update_exprs)
-        attributes_row_dicts = self.make_attr_row_dicts(clusters)
-        self.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict)
 
-        # Store in embeddings table
         # Use on conflict clause for when cluster id changes
-        embs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.face_id],
+        embs_on_conflict = self.build_on_conflict_sql(conflict_target_cols=[Columns.embedding_id],
                                                       update_cols=[Columns.cluster_id],
                                                       update_exprs=[f'excluded.{Columns.cluster_id}'])
-        embeddings_row_dicts = self.make_embs_row_dicts(clusters)
-        self.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict)
+
+        attributes_row_dicts = self.make_attr_row_dicts(clusters)
+        embeddings_row_dicts = self.make_embs_row_dicts(clusters, emb_id_to_face_dict, emb_id_to_img_id_dict)
+
+        def store_in_tables(con):
+            self.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict,
+                                con=con)
+            self.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict,
+                                con=con)
+
+        self.connection_wrapper(store_in_tables, open_local=False, con=con)
 
     def remove_clusters(self, clusters_to_remove):
         """
@@ -258,18 +257,15 @@ class DBManager:
         rows_dicts = [{Columns.cluster_id.col_name: cluster_id}
                       for cluster_id in cluster_ids_to_remove]
 
-        is_local_table = Tables.is_local_table(temp_table)
-        close_connection = False
-        cur = self.open_connection(open_local=is_local_table)
-        try:
-            self._create_temp_table(cur, temp_table)
-            self.store_in_table(temp_table, rows_dicts, cur=cur, close_connection=close_connection)
-            self.delete_from_table(embs_table, condition=embs_condition, cur=cur, close_connection=close_connection)
-            self.delete_from_table(attrs_table, condition=attrs_condition, cur=cur, close_connection=close_connection)
-        finally:
-            self.commit_and_close_connection(close_local=is_local_table)
+        def remove_clusters_worker(con):
+            self._create_temp_table(con, temp_table)
+            self.store_in_table(temp_table, rows_dicts, con=con, close_connection=False)
+            self.delete_from_table(embs_table, condition=embs_condition, con=con, close_connection=False)
+            self.delete_from_table(attrs_table, condition=attrs_condition, con=con, close_connection=False)
 
-    def delete_from_table(self, table, with_clause_part='', condition='', cur=None, path_to_local_db=None,
+        self.connection_wrapper(remove_clusters_worker, open_local=False)
+
+    def delete_from_table(self, table, with_clause_part='', condition='', con=None, path_to_local_db=None,
                           close_connection=True):
         """
 
@@ -282,19 +278,17 @@ class DBManager:
         delete_from_local = Tables.is_local_table(table)
         with_clause = f'WITH {with_clause_part}' if with_clause_part else ''
         where_clause = f'WHERE {condition}' if condition else ''
-        if cur is None:
-            cur = self.open_connection(delete_from_local, path_to_local_db)
 
-        def execute():
-            cur.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
+        def execute(con):
+            con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
 
         if not close_connection:
-            execute()
+            if con is None:
+                con = self.open_connection(delete_from_local, path_to_local_db)
+            execute(con)
             return
-        try:
-            execute()
-        finally:
-            self.commit_and_close_connection(delete_from_local)
+
+        self.connection_wrapper(execute, delete_from_local, path_to_local_db)
 
     @staticmethod
     def make_attr_row_dicts(clusters):
@@ -309,15 +303,27 @@ class DBManager:
         return attributes_row_dicts
 
     @staticmethod
-    def make_embs_row_dicts(clusters):
+    def make_embs_row_dicts(clusters, emb_id_to_face_dict, emb_id_to_img_id_dict):
         embeddings_row_dicts = []
         for cluster in clusters:
             embeddings_row = [
-                {Columns.cluster_id.col_name: cluster.cluster_id,
-                 Columns.embedding.col_name: embedding,
-                 Columns.face_id.col_name: face_id}
+                {
+                    Columns.cluster_id.col_name: cluster.cluster_id,
+                    Columns.embedding.col_name: embedding,
+                    Columns.thumbnail.col_name: emb_id_to_face_dict[face_id],
+                    Columns.image_id.col_name: emb_id_to_img_id_dict[face_id],
+                    Columns.embedding_id.col_name: face_id,
+                }
                 for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
             ]
+
+            # embeddings_row = [
+            #     {Columns.cluster_id.col_name: cluster.cluster_id,
+            #      Columns.embedding.col_name: embedding,
+            #      Columns.embedding_id.col_name: face_id}
+            #     for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
+            # ]
+
             embeddings_row_dicts.extend(embeddings_row)
         return embeddings_row_dicts
 
@@ -338,70 +344,77 @@ class DBManager:
         cond_str = '' if len(cond) == 0 else f'WHERE {cond}'
         fetch_from_local = Tables.is_local_table(table)
         cols_template = ','.join(col_names)
-        cur = self.open_connection(fetch_from_local, path_to_local_db)
-        try:
-            rows = cur.execute(f'SELECT {cols_template} FROM {table} {cond_str};').fetchall()
-        finally:
-            self.commit_and_close_connection(fetch_from_local)
+
+        def fetch_worker(con):
+            rows = con.execute(f'SELECT {cols_template} FROM {table} {cond_str};').fetchall()
+            return rows
+
+        rows = self.connection_wrapper(fetch_worker, fetch_from_local, path_to_local_db)
 
         # cast row of query results to row of usable data
         for row in rows:
             processed_row = starmap(self.sql_value_to_data, zip(row, col_names))
             yield tuple(processed_row)
 
-    def get_cluster_parts(self):
-        # TODO: Refactor
-        cur = self.open_connection(open_local=False)
-        try:
-            cluster_parts = cur.execute(
-                f"SELECT {Columns.cluster_id}, {Columns.label},"
-                f" {Columns.center}, {Columns.embedding}, "
-                f"{Columns.face_id}"
-                f" FROM {Tables.embeddings_table} INNER JOIN {Tables.cluster_attributes_table}"
-                f" USING ({Columns.cluster_id});"
+    def get_clusters_parts(self):
+        # TODO: Refactor + improve efficiency (don't let attributes of same cluster be processed multiple times)
+
+        def get_parts_worker(con):
+            clusters_parts_list = con.execute(
+                f"SELECT {Columns.cluster_id}, {Columns.label}, {Columns.center}"
+                f" FROM {Tables.cluster_attributes_table};"
             ).fetchall()
-        finally:
-            self.commit_and_close_connection(close_local=False)
+
+            embeddings_parts_list = con.execute(
+                f"SELECT {Columns.cluster_id}, {Columns.embedding}, {Columns.embedding_id}"
+                f" FROM {Tables.embeddings_table};"
+            ).fetchall()
+            return clusters_parts_list, embeddings_parts_list
+
+        parts_lists = self.connection_wrapper(get_parts_worker, open_local=False)
+        clusters_parts_list, embeddings_parts_list = parts_lists
+
+        # TODO: Refactor(?)
         # convert center point and embedding to tensors rather than bytes
-        processed_cluster_parts = [
-            (cluster_id,
-             label,
-             self.bytes_to_tensor(center_point),
-             self.bytes_to_tensor(embedding),
-             face_id)
-            for cluster_id, label, center_point, embedding, face_id in cluster_parts
+        proc_clusters_parts_list = [  # processed clusters
+            (cluster_id, label, self.bytes_to_tensor(center_point))
+            for cluster_id, label, center_point in clusters_parts_list
         ]
-        return processed_cluster_parts
 
-    def add_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: implement + change signature + use
-        pass
+        proc_embeddings_parts_list = [
+            (cluster_id, self.bytes_to_tensor(embedding), embedding_id)
+            for cluster_id, embedding, embedding_id in embeddings_parts_list
+        ]
 
-    def remove_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: implement + change signature + use
-        pass
+        return proc_clusters_parts_list, proc_embeddings_parts_list
 
-    def check_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: implement + change signature + use
-        try:
-            self.commit_and_close_connection(False)
-            central_cur = self.central_db_connection.cursor()
-        except ...:
-            pass
-        try:
-            local_cur = self.local_db_connection.cursor()
-        except ...:
-            pass
+    def get_thumbnails_from_cluster(self, cluster_id, with_embedding_ids=False, as_dict=True):
+        return self.get_thumbnails(with_embedding_ids, as_dict, cond=f'cluster_id = {cluster_id}')
+
+    def get_thumbnails(self, with_embeddings_ids=False, as_dict=True, cond=''):
+        return self.get_column(Columns.thumbnail, Tables.embeddings_table, with_embeddings_ids, as_dict, cond)
+
+    def get_image_ids(self, with_embeddings_ids=False, as_dict=True):
+        return self.get_column(Columns.image_id, Tables.embeddings_table, with_embeddings_ids, as_dict)
+
+    def get_column(self, col, table, with_embeddings_ids=False, as_dict=True, cond=''):
+        col_names = [Columns.embedding_id.col_name] if with_embeddings_ids else []
+        col_names.append(col.col_name)
+        query_results = self.fetch_from_table(table, col_names=col_names, cond=cond)
+        if with_embeddings_ids and as_dict:
+            return dict(query_results)
+        return query_results
 
     def aggregate_col(self, table, col, func, path_to_local_db=None):
         aggregate_from_local = Tables.is_local_table(table)
-        cur = self.open_connection(aggregate_from_local, path_to_local_db)
-        try:
-            agg_value = cur.execute(
+
+        def aggregate_worker(con):
+            agg_value = con.execute(
                 f"SELECT {func}({col}) FROM {table};"
             ).fetchone()
-        finally:
-            self.commit_and_close_connection(aggregate_from_local)
+            return agg_value
+
+        agg_value = self.connection_wrapper(aggregate_worker, aggregate_from_local, path_to_local_db)
         return agg_value
 
     def get_max_num(self, table, col, default=0, path_to_local_db=None):
@@ -411,7 +424,17 @@ class DBManager:
             return max_num
         return default
 
+    def get_max_cluster_id(self):
+        return self.get_max_num(table=Tables.cluster_attributes_table, col=Columns.cluster_id)
+
+    def get_max_embedding_id(self):
+        return self.get_max_num(table=Tables.embeddings_table, col=Columns.embedding_id)
+
+    def get_max_image_id(self, path_to_local_db):
+        return self.get_max_num(table=Tables.images_table, col=Columns.image_id, path_to_local_db=path_to_local_db)
+
     def get_imgs_attrs(self, path_to_local_db=None):
+        # TODO: Rename to sth more descriptive!
         col_names = [Columns.file_name.col_name, Columns.last_modified.col_name]
         rows = self.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db,
                                      col_names=col_names)
@@ -470,7 +493,7 @@ class DBManager:
             value = cls.bytes_to_tensor(value)
         elif col_details == ColumnDetails.date:
             value = cls.iso_string_to_date(value)
-        logging.info("sql_value_to_data: Didn't match any ColumnDetails")
+        # logging.info("sql_value_to_data: Didn't match any ColumnDetails")
         return value
 
     @staticmethod
@@ -480,13 +503,16 @@ class DBManager:
 
         :param data: Either a PyTorch Tensor or a PILLOW Image.
         """
+        data_bytes = None
         buffer = io.BytesIO()
-        if isinstance(data, torch.Tensor):  # case 1: embedding
-            torch.save(data, buffer)
-        else:  # case 2: thumbnail
-            data.save(buffer, format='JPEG')
-        data_bytes = buffer.getvalue()
-        buffer.close()
+        try:
+            if isinstance(data, torch.Tensor):  # case 1: embedding
+                torch.save(data, buffer)
+            else:  # case 2: thumbnail
+                data.save(buffer, format='JPEG')
+            data_bytes = buffer.getvalue()
+        finally:
+            buffer.close()
         return data_bytes
 
     @classmethod
@@ -506,12 +532,14 @@ class DBManager:
         :param data_type: String or ColumnDetails object denoting the original data type. One of 'tensor', 'image', or
         one of the corresponding ColumnDetails objects.
         """
+        # TODO: ONLY use in generators/DBs on disk with images, otherwise possibly way too much use
         buffer = io.BytesIO(data_bytes)
         try:
             if data_type == ColumnDetails.tensor:
                 obj = torch.load(buffer)
             elif data_type == ColumnDetails.image:
-                obj = Image.open(buffer).convert('RGBA')
+                # TODO: More efficient way to provide access to these images long-term?
+                obj = Image.open(buffer).convert('RGB')  # Conversion also copies the object
             else:
                 raise ValueError(f"Unknown data type '{data_type}', expected '{ColumnDetails.tensor}'"
                                  f" or '{ColumnDetails.image}'.")
@@ -526,92 +554,6 @@ class DBManager:
     @staticmethod
     def iso_string_to_date(string):
         return datetime.datetime.fromisoformat(string)
-
-    # def main(self):
-    #     # connecting to the database file
-    #     conn = sqlite3.connect(sqlite_file_name)
-    #     c = conn.cursor()
-    #
-    #     create_tables(c, drop_existing_tables=True)
-    #
-    #     # populate images table
-    #     store_in_images_table(c, [f'(1, "apple sauce", {round(time.time())})'])
-    #     # c.execute(f'INSERT INTO {Tables.images_table} VALUES (1, "apple sauce", ?)',
-    #     #           [round(time.time())])
-    #
-    #
-    #     # populate faces table
-    #     thumbnail = Image.open('preprocessed_Aaron_Eckhart_1.jpg')
-    #     embedding = torch.load('Aaron_Eckhart_1.pt')
-    #
-    #     thumbnail_bytes = data_to_bytes(thumbnail)
-    #     embedding_bytes = data_to_bytes(embedding)
-    #
-    #     store_in_faces_table(c, [f'(1, {thumbnail_bytes}, {embedding_bytes})'])
-    #     # c.execute(f'INSERT INTO {Tables.faces_table} VALUES (1, ?, ?)',
-    #     #           [thumbnail_bytes, embedding_bytes])
-    #
-    #     images_rows = fetch_all_from_images_table(c)
-    #     faces_rows = fetch_all_from_faces_table(c)
-    #     print(images_rows)
-    #     print('\n'.join(map(str, faces_rows[0])))
-    #
-    #
-    #     thumbnail_bytes, embedding_bytes = faces_rows[0][1:]
-    #     # print(embedding_bytes)
-    #
-    #
-    #     # convert back to tensor
-    #     tensor = bytes_to_data(embedding_bytes, 'tensor')
-    #     print(tensor)
-    #
-    #     # convert back to image
-    #     image = bytes_to_data(thumbnail_bytes, 'image')
-    #     image.show()
-    #
-    #     # Closing the connection to the database file
-    #     conn.commit()
-    #     conn.close()
-    #
-    #
-    #     # col_type = ColumnTypes.text  # E.g., INTEGER, TEXT, NULL, REAL, BLOB
-    #     # default_val = 'Hello World'  # a default value for the new col rows
-    #
-    #     # last_modified = os.stat('my_db.sqlite').st_atime
-    #     # age = time.time() - last_modified
-    #     # datetime.datetime.fromtimestamp(time.time())
-    #
-    #     # # Retrieve col information
-    #     # # Every col will be represented by a tuple with the following attributes:
-    #     # # (id, name, type, notnull, default_value, primary_key)
-    #     # c.execute('PRAGMA TABLE_INFO({})'.format(images_table_name))
-    #
-    #     # # collect names in a list
-    #     # names = [tup[1] for tup in c.fetchall()]
-    #     # print(names)
-    #     # # e.g., ['id', 'date', 'time', 'date_time']
-
-
-# XXXXX
-
-        #
-        # # create embeddings table
-        # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.embeddings_table} ('
-        #                  f'{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, '
-        #                  f'{Columns.thumbnail} {Columns.thumbnail.col_type.value}, '
-        #                  f'{Columns.embedding} {Columns.embedding.col_type.value}, '
-        #                  f'FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})'
-        #                  ' ON DELETE CASCADE'
-        #                  ')')
-        #
-        # # create cluster attributes table
-        # self.cur.execute(f'CREATE TABLE IF NOT EXISTS {Tables.cluster_attributes_table} ('
-        #                  f'{Columns.image_id} {Columns.image_id.col_type.value} NOT NULL, '
-        #                  f'{Columns.thumbnail} {Columns.thumbnail.col_type.value}, '
-        #                  f'{Columns.embedding} {Columns.embedding.col_type.value}, '
-        #                  f'FOREIGN KEY ({Columns.image_id}) REFERENCES {Tables.images_table} ({Columns.image_id})'
-        #                  ' ON DELETE CASCADE'
-        #                  ')')
 
 
 if __name__ == '__main__':

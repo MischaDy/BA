@@ -1,5 +1,6 @@
 import os
 import pickle
+from collections import defaultdict
 
 import torch
 import torchvision
@@ -12,13 +13,14 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 
 import logging
 
-from Logic.ProperLogic.cluster import Cluster
+from cluster import Cluster, Clusters
+from database_table_defs import Columns
 
 logging.basicConfig(level=logging.INFO)
 
 
 IMAGE_PATH = os.path.join('..', 'my_test', 'facenet_Test', 'subset_cplfw_test', 'preprocessed_faces_naive')
-embeddings_PATH = 'stored_embeddings'
+EMBEDDINGS_PATH = 'stored_embeddings'
 
 TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
@@ -40,10 +42,23 @@ def main(imgs_dir_path, embeddings_dir_path):
 
 
 def load_clusters_from_db(db_manager):
-    cluster_parts = db_manager.get_cluster_parts()
-    clusters = [Cluster(embeddings=[embedding], embeddings_ids=[embedding_id], cluster_id=cluster_id, label=label,
-                        center_point=center_point)
-                for cluster_id, label, center_point, embedding, embedding_id in cluster_parts]
+    # TODO: Refactor + improve efficiency
+    clusters_parts_list, embeddings_parts_list = db_manager.get_clusters_parts()
+
+    # clusters_dict = dict(
+    #     (kwargs[Columns.cluster_id.col_name], Cluster(**kwargs))
+    #     for kwargs in clusters_parts
+    # )
+
+    clusters_dict = dict()
+    for cluster_id, label, center in clusters_parts_list:
+        clusters_dict[cluster_id] = Cluster(cluster_id, label=label, center_point=center)
+
+    for cluster_id, embedding, embedding_id in embeddings_parts_list:
+        cluster = clusters_dict[cluster_id]
+        cluster.add_embedding(embedding, embedding_id)
+
+    clusters = Clusters(clusters_dict.values())
     return clusters
 
 
@@ -136,4 +151,4 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
 
 
 if __name__ == '__main__':
-    main(IMAGE_PATH, embeddings_PATH)
+    main(IMAGE_PATH, EMBEDDINGS_PATH)

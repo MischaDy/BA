@@ -471,13 +471,16 @@ class DBManager:
 
         :param data: Either a PyTorch Tensor or a PILLOW Image.
         """
+        data_bytes = None
         buffer = io.BytesIO()
-        if isinstance(data, torch.Tensor):  # case 1: embedding
-            torch.save(data, buffer)
-        else:  # case 2: thumbnail
-            data.save(buffer, format='JPEG')
-        data_bytes = buffer.getvalue()
-        buffer.close()
+        try:
+            if isinstance(data, torch.Tensor):  # case 1: embedding
+                torch.save(data, buffer)
+            else:  # case 2: thumbnail
+                data.save(buffer, format='JPEG')
+            data_bytes = buffer.getvalue()
+        finally:
+            buffer.close()
         return data_bytes
 
     @classmethod
@@ -503,7 +506,8 @@ class DBManager:
             if data_type == ColumnDetails.tensor:
                 obj = torch.load(buffer)
             elif data_type == ColumnDetails.image:
-                obj = Image.open(buffer).convert('RGBA')
+                # TODO: More efficient way to provide access to these images long-term?
+                obj = Image.open(buffer).convert('RGB')  # Conversion also copies the object
             else:
                 raise ValueError(f"Unknown data type '{data_type}', expected '{ColumnDetails.tensor}'"
                                  f" or '{ColumnDetails.image}'.")

@@ -31,14 +31,23 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 
 class Command:
     # TODO: add 'help' command
-    terminating_tokens = ('halt', 'stop', 'quit', 'exit',)
-    commands = {}
+    commands = dict()
 
-    def __init__(self, cmd_name, cmd_desc, handler=None, handler_params=None):
+    def __init__(self, cmd_name, cmd_desc, cmd_shorthand, handler=None, handler_params=None):
+        if not cmd_shorthand:
+            raise ValueError('command shorthand cannot be empty')
+        elif not cmd_name.startswith(cmd_shorthand):
+            raise ValueError(f"command name '{cmd_name}' doesn't start with '{cmd_shorthand}'")
+        elif cmd_shorthand in self.get_command_shorthands():
+            # TODO: Also output to which command?
+            raise ValueError(f"command shorthand '{cmd_shorthand}' of new command '{cmd_name}' is already assigned to"
+                             " a different command")
+
         if handler_params is None:
             handler_params = []
         self.cmd_name = cmd_name
         self.cmd_desc = cmd_desc
+        self.cmd_shorthand = cmd_shorthand
         self.handler = handler
         self.handler_params = handler_params
         type(self).commands[self.cmd_name] = self
@@ -76,8 +85,16 @@ class Command:
     def set_handler_params(self, new_handler_params):
         self.handler_params = new_handler_params
 
+    def make_cli_cmd_string(self):
+        # replace first occurrence of shorthand with shorthand in square brackets
+        return self.cmd_name.replace(self.cmd_shorthand, f'[{self.cmd_shorthand}]', 1)
+
     @classmethod
     def get_commands(cls):
+        return cls.commands.values()
+
+    @classmethod
+    def get_commands_dict(cls):
         return cls.commands
 
     @classmethod
@@ -89,6 +106,21 @@ class Command:
         if with_names:
             return ((cmd.cmd_name, cmd.cmd_desc) for cmd in cls.commands.values())
         return map(lambda cmd: cmd.cmd_desc, cls.commands.values())
+
+    @classmethod
+    def get_command_shorthands(cls, with_names=False):
+        if with_names:
+            return ((cmd.cmd_name, cmd.cmd_shorthand) for cmd in cls.commands.values())
+        return map(lambda cmd: cmd.cmd_shorthand, cls.commands.values())
+
+    @classmethod
+    def get_cmd_name_by_shorthand(cls, cmd_shorthand):
+        for cur_name, cur_shorthand in cls.get_command_shorthands(with_names=True):
+            if cur_shorthand == cmd_shorthand:
+                break
+        else:
+            raise ValueError(f"no command with shorthand {cmd_shorthand} found")
+        return cur_name
 
     @classmethod
     def remove_command(cls, cmd_name):
@@ -109,16 +141,17 @@ class Command:
 
 
 class Commands:
-    process_imgs = Command('process images', 'select new faces')
-    edit_faces = Command('edit faces', 'edit existing faces')
-    find = Command('find person', 'find person')
-    reclassify = Command('reclassify', 'reclassify individuals')
-    show_cluster = Command('show cluster', 'show a cluster')
-    label_clusters = Command('label clusters', '(re-)name clusters')
+    process_images = Command('process images', 'select new faces', 'p')
+    edit_faces = Command('edit faces', 'edit existing faces', 'e')
+    find = Command('find person', 'find person', 'f')
+    reclassify = Command('reclassify', 'reclassify individuals', 'r')
+    show_cluster = Command('show cluster', 'show a cluster', 's')
+    label_clusters = Command('label clusters', '(re-)name clusters', 'l')
+    exit = Command('exit', 'exit', 'exit')
 
     @classmethod
     def initialize(cls):
-        cls.process_imgs.set_handler(handler_process_image_dir)
+        cls.process_images.set_handler(handler_process_image_dir)
         cls.edit_faces.set_handler(handler_edit_faces)
         cls.find.set_handler(handler_find_person)
         cls.reclassify.set_handler(handler_reclassify)

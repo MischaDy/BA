@@ -62,8 +62,8 @@ def run_program(path_to_central_dir):
     clusters = load_clusters_from_db(db_manager)
     Commands.initialize()
 
-    while cmd_name not in Command.terminating_tokens:
     cmd_name = get_user_command()
+    while cmd_name != str(Commands.exit):
         # TODO: What in this loop is printing some number? (Only when calling add handler?)
         cmd = Command.get_command(cmd_name)
         cmd.handler(db_manager=db_manager, clusters=clusters)
@@ -78,7 +78,7 @@ def demo_program(path_to_central_dir):
     Commands.initialize()
 
     cmd_name = get_user_command()
-    while cmd_name not in Command.terminating_tokens:
+    while cmd_name != str(Commands.exit):
         cmd = Command.get_command(cmd_name)
         cmd.handler(db_manager=db_manager, clusters=clusters)
         cmd_name = get_user_command()
@@ -91,26 +91,24 @@ def demo_program(path_to_central_dir):
 # ----- I/O -----
 
 def get_user_command():
-    # TODO: Let user choose command
-    command = _get_user_command_subfunc()  # 'edit faces'
-    while command not in Command.commands.keys() and command not in Command.terminating_tokens:
-        log_error(f'Unknown command {command}, please try again.')
-        command = _get_user_command_subfunc()
-    return command
+    cmd_shorthand = get_user_command_shorthand()
+    while cmd_shorthand not in Command.get_command_shorthands():
+        print(f'unknown command {cmd_shorthand}, please try again.')
+        cmd_shorthand = get_user_command_shorthand()
+    cmd = Command.get_cmd_name_by_shorthand(cmd_shorthand)
+    return cmd
 
 
-def _get_user_command_subfunc():
+def get_user_command_shorthand():
     wait_for_any_input('\nWhat would you like to do next? (Press any key to continue).')
     print_command_options()
     return clean_str(input())
 
 
 def print_command_options():
-    cmd_options_lines = (f"- To {cmd_desc}, type '{cmd_name}'."
-                         for cmd_name, cmd_desc in Command.get_command_descriptions())
+    cmd_options_lines = map(lambda cmd: f"- {cmd.make_cli_cmd_string()}", Command.get_commands())
     output = '\n'.join(cmd_options_lines) + '\n'
     print(output)
-    print(f"- To exit, type e.g. 'exit'.")
 
 
 if __name__ == '__main__':

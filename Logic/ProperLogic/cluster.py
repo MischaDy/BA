@@ -38,7 +38,7 @@ class Cluster:
                 self.center_point = center_point
             else:
                 self.center_point = Cluster.sum_embeddings(self.embeddings.values()) / self.num_embeddings
-            Cluster.max_embedding_id = max(self.embeddings.keys())
+            self.max_embedding_id = max(self.embeddings.keys())
 
         self.cluster_id = cluster_id
 
@@ -55,8 +55,8 @@ class Cluster:
 
     def add_embedding(self, embedding, embedding_id=None, overwrite=False):
         if embedding_id is None:
-            Cluster.max_embedding_id += 1
-            embedding_id = Cluster.max_embedding_id
+            self.max_embedding_id += 1
+            embedding_id = self.max_embedding_id
         if self.embeddings.get(embedding_id) is not None and not overwrite:
             raise RuntimeError('embedding with given ID already exists in this cluster')
         self.embeddings[embedding_id] = embedding
@@ -64,22 +64,32 @@ class Cluster:
         old_num_embeddings = self.num_embeddings
         self.num_embeddings += 1
         # (old_center is a uniformly weighted sum of the old embeddings)
-        self.center_point = (old_num_embeddings * self.center_point + embedding) / self.num_embeddings
+        try:
+            self.center_point = (old_num_embeddings * self.center_point + embedding) / self.num_embeddings
+        except TypeError:  # center_point is None
+            # TODO: Copy embedding or sth. like that instead of direct assignment?
+            self.center_point = embedding
 
-    # def remove_embedding(self, embedding_id):
-    #     # TODO: Needed?
-    #     try:
-    #         self.embeddings.pop(embedding_id)
-    #     except ValueError as error:
-    #         log_error('Specified embedding not found in embeddings')
-    #         raise error
-    #     old_num_embeddings = self.num_embeddings
-    #     self.num_embeddings -= 1
-    #     # (old_center is a uniformly weighted sum of the old embeddings)
-    #     self.center_point = (old_num_embeddings * self.center_point - embedding_id) / self.num_embeddings
+    def remove_embedding_by_id(self, embedding_id):
+        try:
+            embedding = self.embeddings.pop(embedding_id)
+        except KeyError:
+            log_error(f'embedding with id {embedding_id} not found.')
+            return
+
+        old_num_embeddings = self.num_embeddings
+        self.num_embeddings -= 1
+        # (old_center is a uniformly weighted sum of the old embeddings)
+        try:
+            self.center_point = (old_num_embeddings * self.center_point - embedding) / self.num_embeddings
+        except ZeroDivisionError:  # num_embeddings is 0
+            self.center_point = None
 
     def get_center_point(self):
         return self.center_point
+
+    def get_embedding(self, embedding_id):
+        return self.embeddings[embedding_id]
 
     def compute_dist_to_center(self, embedding):
         return Cluster.compute_dist(self.center_point, embedding)

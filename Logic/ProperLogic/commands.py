@@ -165,7 +165,7 @@ def handler_label_clusters(**kwargs):
     pass
 
 
-def handler_edit_faces(clusters, **kwargs):
+def handler_edit_faces(clusters, db_manager, **kwargs):
     # TODO: Finish implementing
     # TODO: Refactor
     # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
@@ -180,17 +180,53 @@ def handler_edit_faces(clusters, **kwargs):
         log_error('no clusters found, nothing to edit')
         return
 
+    get_cluster_decision = partial(get_user_decision, 'Would you like to choose another cluster?')
+    get_face_decision = partial(get_user_decision, 'Would you like to relabel another face in this cluster?')
+    # TODO: Nicer parameter passing?
+    get_label_scope_decision = partial(get_user_decision,
+                                       'Should the whole cluster receive that label or just the picture?',
+                                       choices=('[c]luster', '[p]icture'))
+
     continue_cluster = ''
     while not continue_cluster.startswith('n'):
         cluster = user_choose_cluster(clusters)
-
+        if cluster is None:  # TODO: Correct?
+            continue_cluster = get_cluster_decision()
+            continue
         continue_face = ''
         while not continue_face.startswith('n'):
-            face = user_choose_face(cluster)
-            new_label = user_choose_face_label(cluster)
-            set_cluster_label(cluster, new_label, clusters)
-            continue_face = clean_str(input('Relabel another face in this cluster?\n'))
-        continue_cluster = clean_str(input('Choose another cluster?\n'))
+            embedding_id = user_choose_embedding_id(cluster, db_manager)
+            if embedding_id is None:
+                continue_face = get_face_decision()
+                continue
+            new_label = user_choose_face_label(cluster.label)
+            if not new_label:
+                continue_face = get_face_decision()
+                continue
+
+            scope = get_label_scope_decision()
+            if scope.startswith('c'):
+                set_cluster_label(cluster, new_label, db_manager)
+            elif scope.startswith('p'):
+                Temp.temp_weakref = weakref.proxy(cluster, Temp.killer_msg)
+                try:
+                    set_picture_label(embedding_id, new_label, cluster, clusters, db_manager)
+                except sqlite3.DatabaseError:
+                    pass
+            else:
+                log_error(f'invalid scope decision {scope}')
+            continue_face = get_face_decision()
+        continue_cluster = get_cluster_decision()
+
+
+# TODO: Remove!!!
+class Temp:
+    temp_weakref = 'helluuu'
+
+    @staticmethod
+    def killer_msg(myproxy):
+        print('cluster about to be killed!')
+        print('heres the proxy:', myproxy)
 
 
 def handler_find_person(**kwargs):
@@ -416,9 +452,40 @@ def _output_cluster_content(cluster_name, cluster_path):
     # TODO: output faces and (-> separate function?) allow choice of image
 
 
-def set_cluster_label(cluster, new_label, clusters):
-    # TODO: Implement
-    pass
+def set_cluster_label(cluster, new_label, db_manager):
+    cluster.set_label(new_label)
+    db_manager.store_clusters([cluster])
+
+
+def set_picture_label(embedding_id, new_label, cluster, clusters, db_manager):
+    # TODO: How to properly delete cluster once it contains no embeddings? Happens automatically? --> Test with weakref!
+    # TODO: Refactor!
+    new_cluster_id = db_manager.get_max_cluster_id() + 1
+    embedding = cluster.get_embedding(embedding_id)
+    cluster.remove_embedding_by_id(embedding_id)
+    new_cluster = Cluster(new_cluster_id, [embedding], [embedding_id], new_label)
+    clusters.append(new_cluster)
+    if cluster.get_size() == 0:
+        clusters.remove(cluster)
+        modified_clusters = Clusters([new_cluster])
+    else:
+        modified_clusters = Clusters([new_cluster, cluster])
+
+    def set_pic_label_worker(con):
+        if cluster.get_size() == 0:
+            db_manager.remove_clusters([cluster], con=con)
+        db_manager.store_clusters(modified_clusters, con=con)
+
+    con = db_manager.open_connection(open_local=False)
+    try:
+        db_manager.connection_wrapper(set_pic_label_worker, open_local=False, con=con)
+    except sqlite3.DatabaseError as e:
+        print(f"The following error occured in {__name__}: {e}")
+        if cluster.get_size() == 0:
+            clusters.append(cluster)
+        cluster.add_embedding(embedding, embedding_id)
+        clusters.remove(new_cluster)
+        raise
 
 
 # --- i/o helpers ---
@@ -447,21 +514,20 @@ def get_user_input_of_type(class_, obj_name):
     return user_input
 
 
-def user_choose_face(cluster):
-    # TODO: Finish implementing
+def user_choose_embedding_id(cluster, db_manager):
+    # TODO: Don't ask user twice if he wants to continue in that cluster!
     # TODO: Refactor
-    # TODO: WIP!
-    face_ids = cluster.get_face_ids()
-    faces = ...  # How to
-    print_faces(cluster)
-    chosen_face_id = input()
-    while chosen_face_id not in face_ids:
-        log_error(f'face "{chosen_face_id}" not found; Please try again.')
-    print_faces(cluster)
-    chosen_face_id = input()
+    # TODO: Give option of aborting.
 
-    chosen_cluster = clusters.get_cluster_by_id(chosen_face_id)
-    return chosen_cluster
+    embeddings_ids_dict = dict(cluster.get_embeddings(with_embedding_ids=True))
+    faces_dict = dict(db_manager.get_thumbnails_from_cluster(cluster.cluster_id, with_embedding_ids=True))
+    label = cluster.label
+
+    chosen_embedding_id = user_choose_embedding_id_worker(faces_dict, label)
+    while chosen_embedding_id is not None and chosen_embedding_id not in embeddings_ids_dict:
+        log_error(f"face id '{chosen_embedding_id}' not found. Please try again.")
+        chosen_embedding_id = user_choose_embedding_id_worker(faces_dict, label)
+    return chosen_embedding_id
 
 
 def user_choose_face_label(old_label):
@@ -480,19 +546,45 @@ def print_cluster_ids(clusters):
     print('\n'.join(clusters_strs))
 
 
-def print_faces(faces):
+def user_choose_embedding_id_worker(faces_dict, label):
     # TODO: Finish implementing
     # TODO: Allow to abort
     # TODO: Allow specific command to label face as unknown
 
     # TODO: ... Remember to create new cluster for face that is relabeled! (Even if unknown person)
+
+    get_id_decision = partial(get_user_decision, 'Would you like to view another face?')
+
+    face_id = None
+    choose_cur_face_id = None
+    continue_id = ''
+    while not continue_id.startswith('n'):
+        print_face_ids(faces_dict, label)
+        face_id = get_user_input_of_type(int, 'face id')
+        try:
+            face = faces_dict[face_id]
+        except KeyError:
+            print(f'face id {face_id} could not be found. Please try again.')
+            continue_id = get_id_decision()
+            continue
+        face.show()  # TODO: Why does it consider the object closed??
+        choose_cur_face_id = get_user_decision('Would you like to edit the face you just viewed?')
+        if not choose_cur_face_id.startswith('n'):
+            break
+        face_id = None
+        continue_id = get_id_decision()
+    return face_id
+
+
+def print_face_ids(faces_dict, label):
     # TODO: print limited number of faces at a time (Enter=continue)
-    cluster_labels = clusters.get_cluster_labels()
-    cluster_ids = clusters.get_cluster_ids()
-    clusters_str = map(lambda cluster_id, label: f"- Cluster {cluster_id} ('{label}')",
-                       zip(cluster_ids, cluster_labels))
-    wait_for_any_input('Please type the id of the cluster you would like to view. (Press any key to continue.)')
-    print('\n'.join(clusters_str))
+    # TODO: Explain to user how to abort.
+    # TODO: Remove list casting
+    faces_strs = list(map(lambda face_id: f'- Face {face_id}', faces_dict))
+    print()
+    wait_for_any_input(f"Please enter a face id to view the face. The current label of each of them is '{label}'."
+                       "\n(Press Enter to continue.)")
+    print('\n'.join(faces_strs))
 
 
 # ----- FILE I/O -----

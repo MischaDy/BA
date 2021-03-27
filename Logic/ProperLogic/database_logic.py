@@ -11,7 +11,8 @@ import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema
+from database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema
+from misc_helpers import is_instance_by_type_name, log_error
 
 # TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
 # TODO: (When to) use VACUUM?
@@ -24,9 +25,9 @@ from Logic.ProperLogic.database_table_defs import Tables, Columns, ColumnTypes, 
 
 # TODO: When to close connection? Optimize?
 # TODO: Guarantee that connection is closed at end of methods (done?)
+#       ---> Use wrapper/decorator including con as context manager!
 
 # TODO: Make DBManager a singleton object?
-from Logic.ProperLogic.misc_helpers import is_instance_by_type_name
 
 """
 ----- DB SCHEMA -----

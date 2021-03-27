@@ -2,9 +2,9 @@ import os
 from functools import partial
 from typing import Union, Tuple
 
-from Logic.ProperLogic.cluster import Clusters, Cluster
-from Logic.ProperLogic.database_logic import DBManager
-from Logic.ProperLogic.misc_helpers import remove_items
+from cluster import Clusters, Cluster
+from database_logic import DBManager
+from misc_helpers import remove_items
 
 from itertools import count, combinations
 

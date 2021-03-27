@@ -1,5 +1,6 @@
 import os
 import pickle
+from collections import defaultdict
 
 import torch
 import torchvision
@@ -12,13 +13,14 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 
 import logging
 
-from Logic.ProperLogic.cluster import Cluster, Clusters
+from cluster import Cluster, Clusters
+from database_table_defs import Columns
 
 logging.basicConfig(level=logging.INFO)
 
 
 IMAGE_PATH = os.path.join('..', 'my_test', 'facenet_Test', 'subset_cplfw_test', 'preprocessed_faces_naive')
-embeddings_PATH = 'stored_embeddings'
+EMBEDDINGS_PATH = 'stored_embeddings'
 
 TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
 TO_TENSOR = torchvision.transforms.ToTensor()
@@ -136,4 +138,4 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
 
 
 if __name__ == '__main__':
-    main(IMAGE_PATH, embeddings_PATH)
+    main(IMAGE_PATH, EMBEDDINGS_PATH)

@@ -4,12 +4,14 @@ Program containing the main application logic.
 
 import os
 
-from Logic.ProperLogic.commands import Command, Commands
-from Logic.ProperLogic.database_table_defs import Tables, Columns
+from commands import Command, Commands
+from database_table_defs import Tables, Columns
 from database_logic import DBManager
 from input_output_logic import load_clusters_from_db
 from misc_helpers import clean_str, log_error, wait_for_any_input, get_every_nth_item
 
+
+# TODO: How to create CLI?
 
 # TODO: How to properly store/use these globals and paths?
 EMBEDDINGS_PATH = 'Logic/ProperLogic/stored_embeddings'
@@ -29,12 +31,15 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 
 # TODO: Use property decorator?
 
-# TODO: Handle db errors with rollbacks etc.!
+# TODO: Give useful responses (and loading bar or sth like that?) after option is selected
+#       and when time-consuming process is running
 # TODO: Give option to just start clustering completely anew (rebuilding db completely)?
 
 # TODO:  Check out Software Design Patterns for better params passing to handlers?
 
+# TODO: *try* to do db stuff and if not works: also rollback 'local' changes!
 
+# TODO: If local stuff known: return what's stored in table!(?)
 # TODO: Remove
 DROP_CENTRAL_TABLES = False
 DROP_LOCAL_TABLES = False

@@ -1,6 +1,6 @@
 import operator
 
-from Logic.ProperLogic.misc_helpers import log_error
+from misc_helpers import log_error
 import torch
 
 from functools import reduce

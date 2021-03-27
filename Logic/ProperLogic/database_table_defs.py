@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from enum import Enum
 
-from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item
+from misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item
 
 
 # TODO: Change DB Schema!

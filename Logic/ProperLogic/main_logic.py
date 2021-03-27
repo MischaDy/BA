@@ -62,12 +62,12 @@ def run_program(path_to_central_dir):
     clusters = load_clusters_from_db(db_manager)
     Commands.initialize()
 
-    cmd_name = ''
     while cmd_name not in Command.terminating_tokens:
-        # TODO: What in this loop is printing some number? (only when calling add handler?)
-        cmd_name = get_user_command()
+    cmd_name = get_user_command()
+        # TODO: What in this loop is printing some number? (Only when calling add handler?)
         cmd = Command.get_command(cmd_name)
         cmd.handler(db_manager=db_manager, clusters=clusters)
+        cmd_name = get_user_command()
 
 
 def demo_program(path_to_central_dir):

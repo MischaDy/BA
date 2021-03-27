@@ -49,6 +49,9 @@ class Command:
             return False
         return self.cmd_name == other.cmd_name
 
+    def __str__(self):
+        return self.cmd_name
+
     def get_cmd_name(self):
         return self.cmd_name
 
@@ -82,22 +85,25 @@ class Command:
         return cls.commands.keys()
 
     @classmethod
-    def get_command_descriptions(cls):
-        return [(cmd.cmd_name, cmd.cmd_desc) for cmd in cls.commands.values()]
+    def get_command_descriptions(cls, with_names=False):
+        if with_names:
+            return ((cmd.cmd_name, cmd.cmd_desc) for cmd in cls.commands.values())
+        return map(lambda cmd: cmd.cmd_desc, cls.commands.values())
 
     @classmethod
     def remove_command(cls, cmd_name):
+        # TODO: needed?
         try:
             cls.commands.pop(cmd_name)
         except KeyError:
-            log_error(f"Could not remove unknown command '{cmd_name}'")
+            log_error(f"could not remove unknown command '{cmd_name}'")
 
     @classmethod
     def get_command(cls, cmd_name):
         try:
             cmd = cls.commands[cmd_name]
         except KeyError:
-            log_error(f"Could not remove unknown command '{cmd_name}'")
+            log_error(f"could not remove unknown command '{cmd_name}'")
             return None
         return cmd
 
@@ -128,7 +134,13 @@ def handler_label_clusters(**kwargs):
 
 def handler_edit_faces(clusters, **kwargs):
     # TODO: Finish implementing
+    # TODO: Refactor
     # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
+    # TODO: Allow to abort
+    # TODO:
+
+    # TODO:
+    #   - deleting of face
 
     # TODO: Make sure user-selected labels are treated correctly in clustering!
     if not clusters:
@@ -191,7 +203,8 @@ def handler_process_image_dir(db_manager: DBManager, clusters, **kwargs):
     image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
                     faces_rows)
     embeddings = list(faces_to_embeddings(faces))
-    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embedding_ids, db_manager, existing_clusters=clusters)
+    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embedding_ids, db_manager,
+                                                         existing_clusters=clusters)
     updated_clusters, modified_clusters, removed_clusters = clustering_result
 
     emb_id_to_face_dict = dict(zip(embedding_ids, thumbnails))
@@ -221,7 +234,7 @@ def user_choose_imgs(db_manager):
 def user_choose_path():
     path = input('Please enter a path with images of people you would like to add.\n')
     while not os.path.exists(path):
-        log_error(f"Unable to find path '{path}'")
+        log_error(f"unable to find path '{path}'")
         print("\nPlease try again.")
         path = input('Please enter a path with images of people you would like to add.\n')
     return path  # IMG_PATH
@@ -261,7 +274,7 @@ def extract_faces(path, db_manager: DBManager, check_if_known=True):
         cur_faces_rows = [{Columns.thumbnail.col_name: face,
                            Columns.image_id.col_name: img_id,
                            Columns.embedding_id.col_name: embedding_id}
-                          for embedding_id, face in enumerate(img_faces, start=max_embedding_id+1)]
+                          for embedding_id, face in enumerate(img_faces, start=max_embedding_id + 1)]
         faces_rows.extend(cur_faces_rows)
         max_embedding_id += len(img_faces)
         img_id += 1
@@ -338,10 +351,12 @@ def get_img_names(dir_path, img_extensions=None):
     """
     Yield all image file paths in dir_path.
     """
+
     # TODO: Implement recursive option?
     # TODO: Put function outside?
     def is_img_known_extensions(obj_name):
         return is_img(os.path.join(dir_path, obj_name), img_extensions)
+
     image_paths = filter(is_img_known_extensions, os.listdir(dir_path))
     return image_paths
 
@@ -378,11 +393,11 @@ def set_cluster_label(cluster, new_label, clusters):
 def user_choose_cluster(clusters):
     # TODO: Refactor
     cluster_ids = list(clusters.get_cluster_ids())
-    print_clusters(clusters)
+    print_cluster_ids(clusters)
     chosen_cluster_id = get_user_input_of_type(class_=int, obj_name='cluster id')
     while chosen_cluster_id not in cluster_ids:
         log_error(f'cluster "{chosen_cluster_id}" not found; Please try again.')
-        print_clusters(clusters)
+        print_cluster_ids(clusters)
         chosen_cluster_id = get_user_input_of_type(class_=int, obj_name='cluster id')
 
     chosen_cluster = clusters.get_cluster_by_id(chosen_cluster_id)
@@ -395,7 +410,7 @@ def get_user_input_of_type(class_, obj_name):
         try:
             user_input = class_(input())
         except ValueError:
-            log_error(f'{obj_name} must be of type {class_}, not {type(obj_name)}. Please try again.')
+            log_error(f'{obj_name} must be convertible to a(n) {class_}. Please try again.')
     return user_input
 
 
@@ -421,13 +436,13 @@ def user_choose_face_label(cluster):
     pass
 
 
-def print_clusters(clusters):
+def print_cluster_ids(clusters):
     # TODO: print limited number of clusters at a time (Enter=continue)
     cluster_labels = clusters.get_cluster_labels()
     cluster_ids = clusters.get_cluster_ids()
     clusters_strs = (f"- Cluster {cluster_id} ('{label}')"
                      for cluster_id, label in zip(cluster_ids, cluster_labels))
-    wait_for_any_input('\nPlease type the id of the cluster you would like to view. (Press any key to continue.)')
+    wait_for_any_input('\nPlease enter the id of the cluster you would like to view.\n(Press Enter to continue.)')
     print('\n'.join(clusters_strs))
 
 

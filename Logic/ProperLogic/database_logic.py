@@ -96,6 +96,8 @@ class DBManager:
 
     @classmethod
     def _create_temp_table(cls, cur, temp_table=None):
+        # TODO: Create table in memory? (sqlite3.connect(":memory:"))
+        #       ---> Not possible, since other stuff isn't in memory(?)
         if temp_table is None:
             temp_table = Tables.temp_cluster_ids_table
         create_table_sql = cls.build_create_table_sql(temp_table, create_temp=True)
@@ -161,7 +163,6 @@ class DBManager:
         :param path_to_local_db:
         :return:
         """
-        # TODO: Make sure, all funcs using this method know about the conflict clause!
         rows = self.row_dicts_to_rows(table, row_dicts)
         if not rows:
             return
@@ -401,6 +402,7 @@ class DBManager:
         return self.get_max_num(table=Tables.images_table, col=Columns.image_id, path_to_local_db=path_to_local_db)
 
     def get_imgs_attrs(self, path_to_local_db=None):
+        # TODO: Rename to sth more descriptive!
         col_names = [Columns.file_name.col_name, Columns.last_modified.col_name]
         rows = self.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db,
                                      col_names=col_names)
@@ -459,7 +461,7 @@ class DBManager:
             value = cls.bytes_to_tensor(value)
         elif col_details == ColumnDetails.date:
             value = cls.iso_string_to_date(value)
-        logging.info("sql_value_to_data: Didn't match any ColumnDetails")
+        # logging.info("sql_value_to_data: Didn't match any ColumnDetails")
         return value
 
     @staticmethod
@@ -495,6 +497,7 @@ class DBManager:
         :param data_type: String or ColumnDetails object denoting the original data type. One of 'tensor', 'image', or
         one of the corresponding ColumnDetails objects.
         """
+        # TODO: ONLY use in generators/DBs on disk with images, otherwise possibly way too much use
         buffer = io.BytesIO(data_bytes)
         try:
             if data_type == ColumnDetails.tensor:

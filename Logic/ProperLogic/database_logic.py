@@ -175,7 +175,7 @@ class DBManager:
         def execute():
             cur.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
 
-        if not close_connection:
+    def store_clusters(self, clusters, emb_id_to_face_dict=None, emb_id_to_img_id_dict=None, con=None):
             execute()
             return
         try:
@@ -183,7 +183,6 @@ class DBManager:
         finally:
             self.commit_and_close_connection(store_in_local)
 
-    def store_clusters(self, clusters, emb_id_to_face_dict, emb_id_to_img_id_dict):
         """
         Store the data in clusters in the central DB-tables ('cluster_attributes' and 'embeddings').
 
@@ -191,7 +190,13 @@ class DBManager:
         :return: None
         """
         # TODO: Default argument / other name for param?
-        # Store in cluster_attributes table
+        # TODO: Add parameter whether clusters should be stored even if that would overwrite existing clusters
+        # TODO: Improve efficiency - don't build rows etc. if cluster already exists
+
+        if emb_id_to_face_dict is None:
+            emb_id_to_face_dict = self.get_thumbnails(with_embeddings_ids=True, as_dict=True)
+        if emb_id_to_img_id_dict is None:
+            emb_id_to_img_id_dict = self.get_image_ids(with_embeddings_ids=True, as_dict=True)
         # Use on conflict clause for when cluster label and/or center change
         attrs_update_cols = [Columns.label, Columns.center]
         attrs_update_exprs = [f'excluded.{Columns.label}', f'excluded.{Columns.center}']
@@ -353,26 +358,22 @@ class DBManager:
             for cluster_id, label, center_point, embedding, face_id in cluster_parts
         ]
         return processed_cluster_parts
+    def get_thumbnails_from_cluster(self, cluster_id, with_embedding_ids=False, as_dict=True):
+        return self.get_thumbnails(with_embedding_ids, as_dict, cond=f'cluster_id = {cluster_id}')
 
-    def add_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: implement + change signature + use
-        pass
+    def get_thumbnails(self, with_embeddings_ids=False, as_dict=True, cond=''):
+        return self.get_column(Columns.thumbnail, Tables.embeddings_table, with_embeddings_ids, as_dict, cond)
 
-    def remove_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: implement + change signature + use
-        pass
+    def get_image_ids(self, with_embeddings_ids=False, as_dict=True):
+        return self.get_column(Columns.image_id, Tables.embeddings_table, with_embeddings_ids, as_dict)
 
-    def check_crossdb_foreign_key(self, child_table, fk, parent_table, candidate_key):
-        # TODO: implement + change signature + use
-        try:
-            self.commit_and_close_connection(False)
-            central_cur = self.central_db_connection.cursor()
-        except ...:
-            pass
-        try:
-            local_cur = self.local_db_connection.cursor()
-        except ...:
-            pass
+    def get_column(self, col, table, with_embeddings_ids=False, as_dict=True, cond=''):
+        col_names = [Columns.embedding_id.col_name] if with_embeddings_ids else []
+        col_names.append(col.col_name)
+        query_results = self.fetch_from_table(table, col_names=col_names, cond=cond)
+        if with_embeddings_ids and as_dict:
+            return dict(query_results)
+        return query_results
 
     def aggregate_col(self, table, col, func, path_to_local_db=None):
         aggregate_from_local = Tables.is_local_table(table)

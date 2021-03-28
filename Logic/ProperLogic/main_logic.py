@@ -2,7 +2,6 @@
 Program containing the main application logic.
 """
 
-import os
 from functools import partial
 
 from commands import Command, Commands
@@ -10,6 +9,8 @@ from database_table_defs import Tables, Columns
 from database_logic import DBManager
 from input_output_logic import load_clusters_from_db
 from misc_helpers import clean_str, log_error, wait_for_any_input, get_every_nth_item, get_user_decision
+
+# TODO: Check out which data structures sqlite3 provides! (Row?)
 
 # TODO: How to create CLI?
 
@@ -37,8 +38,6 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 
 # TODO:  Check out Software Design Patterns for better params passing to handlers?
 
-# TODO: *try* to do db stuff and if not works: also rollback 'local' changes!
-
 # TODO: If local stuff known: return what's stored in table!(?)
 # TODO: Remove
 ASK_FOR_DELETION = True
@@ -57,7 +56,6 @@ def run_program(path_to_central_dir):
 
     cmd_name = get_user_command()
     while cmd_name != str(Commands.exit):
-        # TODO: What in this loop is printing some number? (Only when calling add handler?)
         cmd = Command.get_command(cmd_name)
         cmd.handler(db_manager=db_manager, clusters=clusters)
         cmd_name = get_user_command()

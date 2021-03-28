@@ -123,5 +123,5 @@ class Clusters(list):
         return self.get_cluster_attrs('label')
 
     def get_cluster_attrs(self, attr):
-        attr_gettr = operator.attrgetter(attr)
-        return map(attr_gettr, self)
+        attr_getter = operator.attrgetter(attr)
+        return map(attr_getter, self)

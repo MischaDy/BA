@@ -1,6 +1,5 @@
 import os
 import pickle
-from collections import defaultdict
 
 import torch
 import torchvision
@@ -13,8 +12,8 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 
 import logging
 
+from database_logic import DBManager
 from cluster import Cluster, Clusters
-from database_table_defs import Columns
 
 logging.basicConfig(level=logging.INFO)
 

@@ -1,7 +1,6 @@
 import logging
 import operator
 
-from functools import partial
 from itertools import zip_longest
 
 
@@ -22,7 +21,7 @@ def is_instance_by_type_name(obj, class_):
 # ----- I/O -----
 
 def log_error(msg):
-    logging.error('Error: ' + msg)
+    logging.error(f'Error: {msg}')
 
 
 def wait_for_any_input(prompt):
@@ -95,6 +94,8 @@ def split_items(iterables, use_longest=False, fillvalue=None):
 
     Example: get_every_nth_item(zip(range(3, 7), 'abcdefgh')) --> [[3, 4, 5, 6], ['a', 'b', 'c', 'd']]
 
+    :param fillvalue:
+    :param use_longest:
     :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
     :return: nth element in each iterable stored in 'iterables'
     """

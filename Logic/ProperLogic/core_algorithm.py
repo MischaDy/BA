@@ -122,7 +122,8 @@ class CoreAlgorithm:
         return any(map(is_too_far_from_center, cluster.get_embeddings()))
 
     @classmethod
-    def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True) -> Union[Cluster, Tuple[float, Cluster]]:
+    def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True) -> Union[Cluster,
+                                                                                               Tuple[float, Cluster]]:
         """
         Determine closest cluster to current embedding, i.e. the one which stores the closest embedding to
         the current embedding.
@@ -198,4 +199,3 @@ class CoreAlgorithm:
         #             max_dist_embs = (emb1, emb2)
         embs_pairs = combinations(embeddings, r=2)
         return max(embs_pairs, key=Cluster.compute_dist)
-

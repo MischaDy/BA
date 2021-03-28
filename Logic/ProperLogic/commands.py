@@ -16,6 +16,7 @@ from models import Models
 from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item, have_equal_type_names, \
     overwrite_list, get_user_decision
 
+# TODO: Where to put this and how to handle general case?
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
 # TODO: Where to put these?
@@ -222,9 +223,8 @@ class Temp:
     temp_weakref = 'helluuu'
 
     @staticmethod
-    def killer_msg(myproxy):
+    def killer_msg(proxy):
         print('cluster about to be killed!')
-        print('heres the proxy:', myproxy)
 
 
 def handler_find_person(**kwargs):
@@ -327,6 +327,7 @@ def extract_faces(path, db_manager: DBManager, check_if_known=True):
     img_id = max_img_id + 1
     for img_path, img_name, img in img_loader:
         # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
+        #       ---> Done?
         # Check if image already stored --> Don't process again!
         # known = name and last modified as a pair known for this directory
         last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
@@ -362,7 +363,7 @@ def cut_out_faces(mtcnn, img):
         margin = [
             mtcnn_margin * (box[2] - box[0]) / (image_size - mtcnn_margin),
             mtcnn_margin * (box[3] - box[1]) / (image_size - mtcnn_margin),
-        ]
+            ]
         raw_image_size = get_size(img)
         box = [
             int(max(box[0] - margin[0] / 2, 0)),
@@ -551,7 +552,6 @@ def user_choose_embedding_id_worker(faces_dict, label):
     get_id_decision = partial(get_user_decision, 'Would you like to view another face?')
 
     face_id = None
-    choose_cur_face_id = None
     continue_id = ''
     while continue_id != 'n':
         print_face_ids(faces_dict, label)
@@ -592,11 +592,3 @@ def get_clusters_gen(clusters_path, return_names=True):
         return clusters_names_and_paths
     # return only paths
     return get_every_nth_item(clusters_names_and_paths, n=1)
-
-
-# ----- MISC -----
-
-handlers = {
-    'processimgs': handler_process_image_dir,
-    'showcluster': handler_show_cluster,
-}

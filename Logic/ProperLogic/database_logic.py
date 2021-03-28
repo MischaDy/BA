@@ -23,11 +23,6 @@ from misc_helpers import is_instance_by_type_name, log_error
 # TODO: FK faces -> embeddings other way around? Or remove completely?
 # TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names??
 
-# TODO: When to close connection? Optimize?
-# TODO: Guarantee that connection is closed at end of methods (done?)
-#       ---> Use wrapper/decorator including con as context manager!
-
-# TODO: Make DBManager a singleton object?
 
 """
 ----- DB SCHEMA -----
@@ -448,6 +443,7 @@ class DBManager:
 
     @classmethod
     def row_dicts_to_rows(cls, table, row_dicts):
+        # TODO: Improve efficiency?
         sort_dict_by_cols = partial(table.sort_dict_by_cols, only_values=False)
         sorted_item_rows = list(map(sort_dict_by_cols,
                                     row_dicts))

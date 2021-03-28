@@ -40,9 +40,9 @@ def main(imgs_dir_path, embeddings_dir_path):
     _test_loading_embeddings(embeddings_dir_path)
 
 
-def load_clusters_from_db(db_manager):
+def load_clusters_from_db():
     # TODO: Refactor + improve efficiency
-    clusters_parts_list, embeddings_parts_list = db_manager.get_clusters_parts()
+    clusters_parts_list, embeddings_parts_list = DBManager.get_clusters_parts()
 
     # clusters_dict = dict(
     #     (kwargs[Columns.cluster_id.col_name], Cluster(**kwargs))

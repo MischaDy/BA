@@ -91,6 +91,9 @@ class TableSchema:
             return list(get_every_nth_item(sorted_row_items, n=1))
         return sorted_row_items
 
+    def to_row_dict(self, row):
+        return dict(zip(self.get_column_names(), row))
+
 
 class ColumnSchema:
     def __init__(self, col_name, col_type, col_constraint='', col_details=None):

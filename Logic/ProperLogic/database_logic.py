@@ -77,6 +77,7 @@ class DBManager:
             with con:
                 result = func(con)
         except Exception as e:
+            con.rollback()
             log_error(f'{e.__class__}, {e.args}')
             tb = sys.exc_info()[2]
             raise IncompleteDatabaseOperation(e).with_traceback(tb)
@@ -221,6 +222,7 @@ class DBManager:
         attrs_condition = f'{attrs_table}.{Columns.cluster_id} IN {temp_table}'
 
         cluster_ids_to_remove = map(lambda c: c.cluster_id, clusters_to_remove)
+        # TODO: Rename
         rows_dicts = [{Columns.cluster_id.col_name: cluster_id}
                       for cluster_id in cluster_ids_to_remove]
 
@@ -259,7 +261,7 @@ class DBManager:
             # Cast to list is *necessary* here, since fetch function only returns a generator. It will be executed after
             # the corresponding rows are deleted from table and will thus yield nothing.
             deleted_row_dicts = list(cls.fetch_from_table(table, path_to_local_db, condition=condition, con=con,
-                                                          close_connection=False))
+                                                          close_connection=False, as_dicts=True))
             con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
             return deleted_row_dicts
 
@@ -270,9 +272,10 @@ class DBManager:
 
     @classmethod
     def fetch_from_table(cls, table, path_to_local_db=None, col_names=None, condition='', con=None,
-                         close_connection=True):
+                         close_connection=True, as_dicts=False):
         """
 
+        :param as_dicts:
         :param close_connection:
         :param con:
         :param table:
@@ -299,9 +302,10 @@ class DBManager:
                                       close_connection=close_connection)
 
         # cast row of query results to row of usable data
-        for row in rows:
-            processed_row = starmap(cls.sql_value_to_data, zip(row, col_names))
-            yield tuple(processed_row)
+        processed_rows = (starmap(cls.sql_value_to_data, zip(row, col_names))
+                          for row in rows)
+        output_func = table.to_row_dict if as_dicts else tuple
+        return map(output_func, processed_rows)
 
     @classmethod
     def get_clusters_parts(cls):

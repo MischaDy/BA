@@ -213,7 +213,7 @@ def handler_edit_faces(clusters, **kwargs):
                     set_picture_label(embedding_id, new_label, cluster, clusters)
                 except IncompleteDatabaseOperation:
                     pass
-            continue_face = get_face_decision()
+            continue_face = get_face_decision() if cluster.get_size() > 0 else 'n'
         continue_cluster = get_cluster_decision()
 
 
@@ -526,7 +526,6 @@ def make_dict_from_row_dicts(row_dicts, key_col_name, value_col_name):
     }
     if new_dict:
         return new_dict
-    return None
 
 
 # --- i/o helpers ---

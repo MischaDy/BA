@@ -47,6 +47,8 @@ def run_program(path_to_central_dir):
     # path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
 
     if ASK_FOR_DELETION:
+        # TODO: Remove
+        print(f'Number of clusters: {len(load_clusters_from_db())}')
         prompt_user_drop_tables()
 
     DBManager.create_tables(create_local=False, drop_existing_tables=False)

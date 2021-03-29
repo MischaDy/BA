@@ -13,7 +13,6 @@ logging.basicConfig(level=logging.INFO)
 
 
 # TODO: Add proper comments!
-
 # TODO: Select good params
 
 
@@ -30,7 +29,7 @@ class CoreAlgorithm:
     path_to_local_db = os.path.join(DBManager.db_files_path, DBManager.local_db_file_name)
 
     # 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
-    classification_threshold = 0.95
+    classification_threshold = 0.73
     # TODO: Is that a sensible value?
     reclustering_threshold = 2 * classification_threshold  # max dist to cluster center before an emb. gets own cluster
 

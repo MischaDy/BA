@@ -293,13 +293,19 @@ def faces_to_embeddings(faces):
 
 def user_choose_images():
     # TODO: Refactor! (too many different tasks, function name non-descriptive)
-    # TODO: (Permanently) disable dropping of existing tables
+    # TODO: Implement check_if_known question!
     # TODO: Make user choose path
     images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
     path_to_local_db = DBManager.get_db_path(images_path, local=True)
     DBManager.create_tables(create_local=True,
                             path_to_local_db=path_to_local_db,
                             drop_existing_tables=False)
+    # check_if_known_decision = get_user_decision(
+    #     "Should already processed images be processed again? This can be useful if for example some files have changed"
+    #     " in a way the program doesn't recognize, or some faces from these images have been deleted and you would like"
+    #     " to make them available again."
+    # )
+    # check_if_known = (check_if_known_decision == "n")
     faces_rows = extract_faces(images_path)
     return faces_rows
 

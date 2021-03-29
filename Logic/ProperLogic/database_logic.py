@@ -70,14 +70,14 @@ class DBManager:
     @classmethod
     def connection_wrapper(cls, func, open_local=None, path_to_local_db=None, con=None, close_connection=True):
         # TODO: How to make this a decorator?
-
+        # TODO: Make sure callers undo their tasks if exception is raised!
         if con is None:
             con = cls.open_connection(open_local, path_to_local_db)
         try:
             with con:
                 result = func(con)
         except Exception as e:
-            log_error(f'{e.__class__, e.args}')
+            log_error(f'{e.__class__}, {e.args}')
             tb = sys.exc_info()[2]
             raise IncompleteDatabaseOperation(e).with_traceback(tb)
         finally:

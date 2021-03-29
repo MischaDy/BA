@@ -196,9 +196,9 @@ class DBManager:
 
         def store_in_tables(con):
             cls.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict,
-                               con=con)
+                               con=con, close_connection=False)
             cls.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict,
-                               con=con)
+                               con=con, close_connection=False)
 
         # TODO: How to handle possible exception here?
         cls.connection_wrapper(store_in_tables, open_local=False, con=con, close_connection=close_connection)
@@ -255,8 +255,11 @@ class DBManager:
         where_clause = f'WHERE {condition}' if condition else ''
 
         def execute(con):
-            deleted_row_dicts = cls.fetch_from_table(table, path_to_local_db, condition=condition, con=con,
-                                                     close_connection=False)
+            # TODO: 'Copy' generator instead of cast to list? (Saves space)
+            # Cast to list is *necessary* here, since fetch function only returns a generator. It will be executed after
+            # the corresponding rows are deleted from table and will thus yield nothing.
+            deleted_row_dicts = list(cls.fetch_from_table(table, path_to_local_db, condition=condition, con=con,
+                                                          close_connection=False))
             con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
             return deleted_row_dicts
 

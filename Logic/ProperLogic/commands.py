@@ -497,9 +497,9 @@ def set_picture_label(embedding_id, new_label, cluster, clusters):
     try:
         DBManager.connection_wrapper(set_pic_label_worker, open_local=False, con=con)
     except IncompleteDatabaseOperation:
+        cluster.add_embedding(embedding, embedding_id)
         if cluster.get_size() == 0:
             clusters.append(cluster)
-        cluster.add_embedding(embedding, embedding_id)
         clusters.remove(new_cluster)
         raise
 

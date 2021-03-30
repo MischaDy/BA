@@ -159,20 +159,18 @@ class Commands:
 # ----- COMMAND PROCESSING -----
 
 def handler_label_clusters(**kwargs):
+    # TODO: Needed? Or can be covered by edit_faces?
     pass
 
 
 def handler_edit_faces(clusters, **kwargs):
-    # TODO: Finish implementing
+    # TODO: Include DB-interactions for storing newly chosen labels in central tables!
     # TODO: Refactor
     # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
     # TODO: Allow to abort
-    # TODO:
 
-    # TODO:
-    #   - deleting of face
+    # TODO: Allow deletion of face(?)
 
-    # TODO: Make sure user-selected labels are treated correctly in clustering!
     if not clusters:
         log_error('no clusters found, nothing to edit')
         return
@@ -205,22 +203,12 @@ def handler_edit_faces(clusters, **kwargs):
             if scope == 'c':
                 set_cluster_label(cluster, new_label)
             else:
-                Temp.temp_weakref = weakref.proxy(cluster, Temp.killer_msg)
                 try:
                     set_picture_label(embedding_id, new_label, cluster, clusters)
                 except IncompleteDatabaseOperation:
                     pass
             continue_face = get_face_decision() if cluster.get_size() > 0 else 'n'
         continue_cluster = get_cluster_decision()
-
-
-# TODO: Remove!!!
-class Temp:
-    temp_weakref = 'helluuu'
-
-    @staticmethod
-    def killer_msg(proxy):
-        print('cluster about to be killed!')
 
 
 def handler_find_person(**kwargs):
@@ -236,6 +224,7 @@ def handler_reclassify(**kwargs):
 
 
 def handler_show_cluster(clusters_path, **kwargs):
+    # TODO: Needed? Or can be included in / adapted from edit_faces?
     # TODO: Finish implementing
     should_continue = ''
     while not should_continue.startswith('n'):
@@ -248,13 +237,13 @@ def handler_show_cluster(clusters_path, **kwargs):
 def handler_process_image_dir(clusters, **kwargs):
     # TODO: Refactor + improve efficiency
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
+
     # Extract faces from user-chosen images and cluster them
     faces_rows = list(user_choose_images())
     if not faces_rows:
         return
 
     # TODO: Extract this dictionary-querying as function?
-
     embedding_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
                              faces_rows))
     thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],

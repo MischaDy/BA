@@ -37,14 +37,14 @@ class CoreAlgorithm:
     num_embeddings_to_classify = -1
 
     @classmethod
-    def cluster_embeddings(cls, embeddings, embedding_ids, existing_clusters=None):
+    def cluster_embeddings(cls, embeddings, embedding_ids=None, existing_clusters=None):
         """
         Build clusters from face embeddings stored in the given path using the specified classification threshold.
         (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed
         in the same cluster. If cluster_save_path is set, store the resulting clusters as directories in the given path.
 
-        :param embeddings: Either a path (string) to the directory wherein embeddings are located or an iterable
-        containing the embeddings
+        :param embeddings: Iterable containing the embeddings. It embeddings_ids is None, must consist of
+        (id, embedding)-pairs
         :param embedding_ids: Ordered iterable with the embedding ids. Must be at least as long as embeddings.
         :param existing_clusters:
         :return:
@@ -52,9 +52,12 @@ class CoreAlgorithm:
         # TODO: Improve efficiency?
         # TODO: Allow embeddings_ids to be none? Get next id via DB query?
         # TODO: Allow embeddings_ids to be shorter than embeddings and 'fill up' remaining ids?
-        if len(embeddings) > len(embedding_ids):
-            raise ValueError(f'Too few ids for embeddings ({len(embedding_ids)} passed, but {len(embeddings)} needed)')
-        embeddings_with_ids = zip(embedding_ids, embeddings)
+        if embedding_ids is None:
+            embeddings_with_ids = embeddings
+        else:
+            if len(embeddings) > len(embedding_ids):
+                raise ValueError(f'Too few ids for embeddings ({len(embedding_ids)} passed, but {len(embeddings)} needed)')
+            embeddings_with_ids = zip(embedding_ids, embeddings)
 
         if existing_clusters is None:
             existing_clusters = Clusters()

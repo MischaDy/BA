@@ -10,9 +10,44 @@ from database_logic import DBManager
 from input_output_logic import load_clusters_from_db
 from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 
-# TODO: Check out which data structures sqlite3 provides! (Row?)
 
+# -------------- TODOs --------------
+
+# ------- NEEDED -------
+# TODO: Using ground-truths in clustering - put every emb. in new cluster!
+# TODO: Test that rollbacks always work!
 # TODO: How to create CLI?
+# TODO: Select good params for core algorithm
+
+# ------- HELPFUL -------
+# TODO: Check out which data structures sqlite3 provides! (Row?) Create Row dict class if not provided?
+# TODO: Use SQLAlchemy?
+# TODO: Add comments & docstrings
+# TODO: Always allow option to leave current menu item / loop rather than continue!
+# TODO: Consistent paths!
+# TODO: Give option to just start clustering completely anew (rebuilding db completely)?
+# TODO: If local stuff known: return what's stored in table!(?)
+# TODO: How to handle global paths etc.?
+# TODO: (When to) use VACUUM?
+# TODO: Locking db necessary?
+# TODO: Backup necessary?
+
+# ------- OPTIONAL -------
+# TODO: Add type hints where needed
+# TODO: What should / shouldn't be private?
+# TODO: Consistent naming
+# TODO: Use property decorator?
+# TODO: Give useful responses (and loading bar or sth like that?) after option is selected
+#       and when time-consuming process is running
+# TODO:  Check out Software Design Patterns for better params passing to handlers?
+# TODO: Make handlers class in commands file
+# TODO: Split commands file
+# TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
+# TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names?
+# TODO: Allow instances, which have a 'current connection' as only instance attribute?
+
+
+# -------------- PROGRAM --------------
 
 # TODO: How to properly store/use these globals and paths?
 EMBEDDINGS_PATH = 'Logic/ProperLogic/stored_embeddings'
@@ -20,25 +55,6 @@ CLUSTERS_PATH = 'stored_clusters'
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
-
-# TODO: Using ground-truths in clustering - put every emb. in new cluster!
-
-# TODO: Add type hints where needed
-# TODO: What should / shouldn't be private?
-# TODO: Consistent naming
-# TODO: Add comments & docstrings
-# TODO: Always allow option to leave current menu item / loop rather than continue!
-# TODO: Consistent paths!
-
-# TODO: Use property decorator?
-
-# TODO: Give useful responses (and loading bar or sth like that?) after option is selected
-#       and when time-consuming process is running
-# TODO: Give option to just start clustering completely anew (rebuilding db completely)?
-
-# TODO:  Check out Software Design Patterns for better params passing to handlers?
-
-# TODO: If local stuff known: return what's stored in table!(?)
 # TODO: Remove
 ASK_FOR_DELETION = True
 

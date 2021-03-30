@@ -26,9 +26,6 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 # INPUT_SIZE = [112, 112]
 
 
-# TODO: Make handlers class
-# TODO: Split this file?
-
 class Command:
     # TODO: add 'help' command
     commands = dict()

@@ -13,15 +13,6 @@ import io
 from database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema
 from misc_helpers import is_instance_by_type_name, log_error
 
-# TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
-# TODO: (When to) use VACUUM?
-# TODO: Locking db necessary?
-# TODO: Backup necessary?
-# TODO: Use SQLAlchemy?
-
-# TODO: FK faces -> embeddings other way around? Or remove completely?
-# TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names??
-
 
 """
 ----- DB SCHEMA -----
@@ -39,7 +30,6 @@ cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
 
 
-# TODO: Allow instances, which have a 'current connection' as only instance attribute?
 class DBManager:
     db_files_path = 'database'
     central_db_file_name = 'central_db.sqlite'

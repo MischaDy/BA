@@ -129,3 +129,18 @@ def remove_items(iterable, items):
 def overwrite_list(iterable, new_values):
     iterable.clear()
     iterable.extend(new_values)
+
+
+def first_true(iterable, default=False, pred=None):
+    """Returns the first true value in the iterable.
+
+    If no true value is found, returns *default*
+
+    If *pred* is not None, returns the first item
+    for which pred(item) is true.
+
+    Taken from: https://docs.python.org/3/library/itertools.html#itertools-recipes
+    """
+    # first_true([a,b,c], x) --> a or b or c or x
+    # first_true([a,b], x, f) --> a if f(a) else b if f(b) else x
+    return next(filter(pred, iterable), default)

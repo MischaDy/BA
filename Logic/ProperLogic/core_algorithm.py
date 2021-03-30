@@ -3,7 +3,7 @@ from functools import partial
 from typing import Union, Tuple
 
 from cluster import Clusters, Cluster
-from database_logic import DB_Manager
+from database_logic import DBManager
 from misc_helpers import remove_items
 
 from itertools import count, combinations
@@ -21,8 +21,8 @@ EMBEDDINGS_PATH = 'stored_embeddings'
 
 
 class CoreAlgorithm:
-    path_to_central_db = os.path.join(DB_Manager.db_files_path, DB_Manager.central_db_file_name)
-    path_to_local_db = os.path.join(DB_Manager.db_files_path, DB_Manager.local_db_file_name)
+    path_to_central_db = os.path.join(DBManager.db_files_path, DBManager.central_db_file_name)
+    path_to_local_db = os.path.join(DBManager.db_files_path, DBManager.local_db_file_name)
 
     # 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
     classification_threshold = 0.73
@@ -56,7 +56,8 @@ class CoreAlgorithm:
             embeddings_with_ids = embeddings
         else:
             if len(embeddings) > len(embeddings_ids):
-                raise ValueError(f'Too few ids for embeddings ({len(embeddings_ids)} passed, but {len(embeddings)} needed)')
+                raise ValueError(f'Too few ids for embeddings ({len(embeddings_ids)} passed, but {len(embeddings)}'
+                                 f' needed)')
             embeddings_with_ids = zip(embeddings_ids, embeddings)
 
         if existing_clusters is None:
@@ -64,7 +65,7 @@ class CoreAlgorithm:
         clusters = Clusters(existing_clusters)
         modified_clusters_ids, removed_clusters_ids = set(), set()
 
-        next_cluster_id = DB_Manager.get_max_cluster_id() + 1
+        next_cluster_id = DBManager.get_max_cluster_id() + 1
 
         # iterate over remaining embeddings
         counter_vals = range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0 else count(2)
@@ -102,13 +103,6 @@ class CoreAlgorithm:
     @classmethod
     def is_cluster_too_big(cls, cluster):
         return cls.max_cluster_size is not None and cluster.get_size() >= cls.max_cluster_size
-
-    # @classmethod
-    # def get_embs_too_far_from_center(cls, cluster):
-    #     if cls.reclustering_threshold is None:
-    #         return []
-    #     return filter(lambda emb: cluster.compute_dist_to_center(emb) > cls.reclustering_threshold,
-    #                   cluster.get_embeddings())
 
     @classmethod
     def exists_emb_too_far_from_center(cls, cluster):
@@ -164,7 +158,7 @@ class CoreAlgorithm:
         remove_items(embeddings, [cluster_start_emb1, cluster_start_emb2])
         label = cluster_to_split.label
 
-        max_cluster_id = DB_Manager.get_max_cluster_id()
+        max_cluster_id = DBManager.get_max_cluster_id()
         new_cluster1_id, new_cluster2_id = max_cluster_id + 1, max_cluster_id + 2
         new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, cluster_start_emb1, label=label),
                                       Cluster(new_cluster2_id, cluster_start_emb2, label=label))

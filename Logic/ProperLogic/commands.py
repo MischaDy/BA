@@ -1,6 +1,5 @@
 import datetime
 import os
-import weakref
 from functools import partial
 
 import torchvision
@@ -9,7 +8,7 @@ from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
 from cluster import Cluster, Clusters
 from core_algorithm import CoreAlgorithm
-from database_logic import DB_Manager, IncompleteDatabaseOperation
+from database_logic import DBManager, IncompleteDatabaseOperation
 from database_table_defs import Tables, Columns
 from models import Models
 from misc_helpers import log_error, clean_str, wait_for_any_input, get_every_nth_item, have_equal_type_names, \
@@ -165,11 +164,11 @@ def handler_label_clusters(**kwargs):
 
 def handler_edit_faces(clusters, **kwargs):
     # TODO: Include DB-interactions for storing newly chosen labels in central tables!
+
     # TODO: Refactor
     # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
     # TODO: Allow to abort
-
-    # TODO: Allow deletion of face(?)
+    # TODO: Allow deletion of faces(?)
 
     if not clusters:
         log_error('no clusters found, nothing to edit')
@@ -235,6 +234,8 @@ def handler_show_cluster(clusters_path, **kwargs):
 
 
 def handler_process_image_dir(clusters, **kwargs):
+    # TODO: Store more stuff in central tables
+
     # TODO: Refactor + improve efficiency
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
 
@@ -245,7 +246,7 @@ def handler_process_image_dir(clusters, **kwargs):
 
     # TODO: Extract this dictionary-querying as function?
     embeddings_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
-                             faces_rows))
+                              faces_rows))
     thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
                      faces_rows)
     faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
@@ -260,12 +261,12 @@ def handler_process_image_dir(clusters, **kwargs):
     emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
 
     def adjust_clusters_func(con):
-        DB_Manager.remove_clusters(list(removed_clusters), con=con, close_connection=False)
-        DB_Manager.store_clusters(list(modified_clusters), emb_id_to_face_dict, emb_id_to_img_id_dict, con=con,
-                                  close_connection=False)
+        DBManager.remove_clusters(list(removed_clusters), con=con, close_connection=False)
+        DBManager.store_clusters(list(modified_clusters), emb_id_to_face_dict, emb_id_to_img_id_dict, con=con,
+                                 close_connection=False)
 
     try:
-        DB_Manager.connection_wrapper(adjust_clusters_func, open_local=False)
+        DBManager.connection_wrapper(adjust_clusters_func, open_local=False)
         overwrite_list(clusters, updated_clusters)
     except IncompleteDatabaseOperation:
         pass
@@ -280,14 +281,14 @@ def user_choose_images():
     # TODO: Implement check_if_known question!
     # TODO: Make user choose path
     images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
-    path_to_local_db = DB_Manager.get_db_path(images_path, local=True)
-    DB_Manager.create_tables(create_local=True,
-                             path_to_local_db=path_to_local_db,
-                             drop_existing_tables=False)
+    path_to_local_db = DBManager.get_db_path(images_path, local=True)
+    DBManager.create_tables(create_local=True,
+                            path_to_local_db=path_to_local_db,
+                            drop_existing_tables=False)
     # check_if_known_decision = get_user_decision(
-    #     "Should already processed images be processed again? This can be useful if for example some files have changed"
-    #     " in a way the program doesn't recognize, or some faces from these images have been deleted and you would like"
-    #     " to make them available again."
+    #    "Should already processed images be processed again? This can be useful if for example some files have changed"
+    #    " in a way the program doesn't recognize, or some faces from these images have been deleted and you would like"
+    #    " to make them available again."
     # )
     # check_if_known = (check_if_known_decision == "n")
     faces_rows = extract_faces(images_path)
@@ -310,12 +311,12 @@ def extract_faces(path, check_if_known=True):
     # TODO: Outsource db interactions to input-output logic?
     # TODO: Check if max_embedding_id maths checks out!
 
-    path_to_local_db = DB_Manager.get_db_path(path, local=True)
-    imgs_names_and_date = set(DB_Manager.get_images_attributes(path_to_local_db=path_to_local_db))
+    path_to_local_db = DBManager.get_db_path(path, local=True)
+    imgs_names_and_date = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
 
     # Note: 'MAX' returns None / (None, ) as a default value
-    max_img_id = DB_Manager.get_max_image_id(path_to_local_db=path_to_local_db)
-    max_embedding_id = DB_Manager.get_max_embedding_id()
+    max_img_id = DBManager.get_max_image_id(path_to_local_db=path_to_local_db)
+    max_embedding_id = DBManager.get_max_embedding_id()
 
     faces_rows = []
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
@@ -333,7 +334,7 @@ def extract_faces(path, check_if_known=True):
         img_row = {Columns.image_id.col_name: img_id,
                    Columns.file_name.col_name: img_name,
                    Columns.last_modified.col_name: last_modified}
-        DB_Manager.store_in_table(Tables.images_table, [img_row], path_to_local_db=path_to_local_db)
+        DBManager.store_in_table(Tables.images_table, [img_row], path_to_local_db=path_to_local_db)
         cur_faces_rows = [{Columns.thumbnail.col_name: face,
                            Columns.image_id.col_name: img_id,
                            Columns.embedding_id.col_name: embedding_id}
@@ -447,18 +448,21 @@ def _output_cluster_content(cluster_name, cluster_path):
 
 
 def set_cluster_label(cluster, new_label):
+    # TODO: Use certain_labels here too? (Probably not)
     cluster.set_label(new_label)
 
-    # TODO: Outsource as function to DB_Manager?
-    DB_Manager.store_clusters([cluster], close_connection=True)
+    # TODO: Outsource as function to DBManager?
+    def set_cluster_label_worker(con):
+        DBManager.store_clusters([cluster], con=con, close_connection=False)
+
+    # TODO: How to handle possible exception here?
+    DBManager.connection_wrapper(set_cluster_label_worker, close_connection=True)
 
 
 def set_picture_label(embedding_id, new_label, cluster, clusters):
-    # TODO: Use store_certain_labels!
-
-    # TODO: Refactor! Extract parts to DB_Manager?
+    # TODO: Refactor! Extract parts to DBManager?
     # TODO: Don't accept label if it's the same as the old one!
-    new_cluster_id = DB_Manager.get_max_cluster_id() + 1
+    new_cluster_id = DBManager.get_max_cluster_id() + 1
     embedding = cluster.get_embedding(embedding_id)
     cluster.remove_embedding_by_id(embedding_id)
     new_cluster = Cluster(new_cluster_id, [embedding], [embedding_id], new_label)
@@ -471,18 +475,19 @@ def set_picture_label(embedding_id, new_label, cluster, clusters):
 
     def set_pic_label_worker(con):
         if cluster.get_size() == 0:
-            embeddings_row_dicts = DB_Manager.remove_clusters([cluster], con=con, close_connection=False)
+            embeddings_row_dicts = DBManager.remove_clusters([cluster], con=con, close_connection=False)
             emb_id_to_face_dict = make_emb_id_to_face_dict_from_row_dicts(embeddings_row_dicts)
             emb_id_to_img_id_dict = make_emb_id_to_img_id_dict_from_row_dicts(embeddings_row_dicts)
         else:
             emb_id_to_face_dict = None
             emb_id_to_img_id_dict = None
-        DB_Manager.store_clusters(modified_clusters, emb_id_to_face_dict=emb_id_to_face_dict,
-                                  emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con, close_connection=False)
+        DBManager.store_clusters(modified_clusters, emb_id_to_face_dict=emb_id_to_face_dict,
+                                 emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con, close_connection=False)
+        DBManager.store_certain_labels(cluster=new_cluster, con=con, close_connection=False)
 
-    con = DB_Manager.open_connection(open_local=False)
+    con = DBManager.open_connection(open_local=False)
     try:
-        DB_Manager.connection_wrapper(set_pic_label_worker, open_local=False, con=con)
+        DBManager.connection_wrapper(set_pic_label_worker, open_local=False, con=con)
     except IncompleteDatabaseOperation:
         cluster.add_embedding(embedding, embedding_id)
         if cluster.get_size() == 0:
@@ -547,7 +552,7 @@ def user_choose_embedding_id(cluster):
     # TODO: Give option of aborting.
 
     embeddings_ids_dict = cluster.get_embeddings(as_dict=True)
-    faces_dict = dict(DB_Manager.get_thumbnails_from_cluster(cluster.cluster_id, with_embeddings_ids=True))
+    faces_dict = dict(DBManager.get_thumbnails_from_cluster(cluster.cluster_id, with_embeddings_ids=True))
     label = cluster.label
 
     chosen_embedding_id = user_choose_embedding_id_worker(faces_dict, label)

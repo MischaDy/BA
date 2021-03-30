@@ -10,7 +10,7 @@ import torch
 from PIL import Image
 import io
 
-from database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema
+from database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema, TableSchema
 from misc_helpers import is_instance_by_type_name, log_error
 
 
@@ -30,7 +30,7 @@ cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
 
 
-class DB_Manager:
+class DBManager:
     db_files_path = 'database'
     central_db_file_name = 'central_db.sqlite'
     central_db_file_path = os.path.join(db_files_path, central_db_file_name)
@@ -145,7 +145,8 @@ class DB_Manager:
             con.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
 
         # TODO: How to handle possible exception here?
-        cls.connection_wrapper(store_in_table_worker, store_in_local, path_to_local_db, con=con, close_connection=close_connection)
+        cls.connection_wrapper(store_in_table_worker, store_in_local, path_to_local_db, con=con,
+                               close_connection=close_connection)
 
     @classmethod
     def store_clusters(cls, clusters, emb_id_to_face_dict=None, emb_id_to_img_id_dict=None, con=None,
@@ -193,6 +194,27 @@ class DB_Manager:
 
         # TODO: How to handle possible exception here?
         cls.connection_wrapper(store_clusters_worker, open_local=False, con=con, close_connection=close_connection)
+
+    @classmethod
+    def store_certain_labels(cls, embeddings_ids=None, label=None, cluster=None, con=None, close_connection=True):
+        if cluster is not None:
+            embeddings_ids = cluster.get_embeddings_ids()
+            label = cluster.label
+        elif embeddings_ids is None or label is None:
+            raise ValueError('At least one of [embeddings_ids and label] and [cluster] must not be None')
+
+        table = Tables.certain_labels_table
+        row_dicts = table.make_row_dicts(
+            values_objects=[embeddings_ids, label],
+            repetition_flags=[False, True]
+        )
+
+        def store_certain_tables_worker(con):
+            cls.store_in_table(table, row_dicts, con=con, close_connection=False)
+
+        # TODO: How to handle possible exception here?
+        cls.connection_wrapper(store_certain_tables_worker, open_local=False, con=con,
+                               close_connection=close_connection)
 
     @classmethod
     def remove_clusters(cls, clusters_to_remove, con=None, close_connection=True):
@@ -294,7 +316,7 @@ class DB_Manager:
         # cast row of query results to row of usable data
         processed_rows = (starmap(cls.sql_value_to_data, zip(row, col_names))
                           for row in rows)
-        output_func = table.to_row_dict if as_dicts else tuple
+        output_func = table.row_to_row_dict if as_dicts else tuple
         return map(output_func, processed_rows)
 
     @classmethod
@@ -475,7 +497,7 @@ class DB_Manager:
 
         :param data: Either a PyTorch Tensor or a PILLOW Image.
         """
-        data_bytes = None
+        data_bytes = None  # noqa
         buffer = io.BytesIO()
         try:
             if isinstance(data, torch.Tensor):  # case 1: embedding

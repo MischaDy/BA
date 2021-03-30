@@ -6,7 +6,7 @@ from functools import partial
 
 from commands import Command, Commands
 from database_table_defs import Tables, Columns
-from database_logic import DB_Manager
+from database_logic import DBManager
 from input_output_logic import load_clusters_from_db
 from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 
@@ -60,14 +60,14 @@ ASK_FOR_DELETION = True
 
 
 def run_program(path_to_central_dir):
-    # path_to_local_db = os.path.join(path_to_central_dir, DB_Manager.local_db_file_name)
+    # path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
 
     if ASK_FOR_DELETION:
         # TODO: Remove
         print(f'Number of clusters: {len(load_clusters_from_db())}')
         prompt_user_drop_tables()
 
-    DB_Manager.create_tables(create_local=False, drop_existing_tables=False)
+    DBManager.create_tables(create_local=False, drop_existing_tables=False)
     clusters = load_clusters_from_db()
     Commands.initialize()
 
@@ -79,8 +79,8 @@ def run_program(path_to_central_dir):
 
 
 def demo_program(path_to_central_dir):
-    # path_to_local_db = os.path.join(path_to_central_dir, DB_Manager.local_db_file_name)
-    DB_Manager.create_tables(create_local=False, drop_existing_tables=True)
+    # path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
+    DBManager.create_tables(create_local=False, drop_existing_tables=True)
     clusters = load_clusters_from_db()
     Commands.initialize()
 
@@ -90,7 +90,7 @@ def demo_program(path_to_central_dir):
         cmd.handler(clusters=clusters)
         cmd_name = 'exit'
 
-    thumbs = DB_Manager.fetch_from_table(Tables.embeddings_table, col_names=[Columns.thumbnail])
+    thumbs = DBManager.fetch_from_table(Tables.embeddings_table, col_names=[Columns.thumbnail])
     thumbs[0].show()
 
 
@@ -144,13 +144,13 @@ def prompt_user_drop_tables():
 def __drop_local_tables():
     my_images_path = (r'C:\Users\Mischa\Desktop\Uni\20-21 WS'
                       r'\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs')
-    my_path_to_local_db = DB_Manager.get_db_path(my_images_path, local=True)
-    DB_Manager.delete_from_table(Tables.images_table, path_to_local_db=my_path_to_local_db)
+    my_path_to_local_db = DBManager.get_db_path(my_images_path, local=True)
+    DBManager.delete_from_table(Tables.images_table, path_to_local_db=my_path_to_local_db)
 
 
 def __drop_central_tables():
-    DB_Manager.delete_from_table(Tables.embeddings_table)
-    DB_Manager.delete_from_table(Tables.cluster_attributes_table)
+    DBManager.delete_from_table(Tables.embeddings_table)
+    DBManager.delete_from_table(Tables.cluster_attributes_table)
 
 
 def get_user_command():

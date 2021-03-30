@@ -26,9 +26,6 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 # INPUT_SIZE = [112, 112]
 
 
-# TODO: Make handlers class
-# TODO: Split this file?
-
 class Command:
     # TODO: add 'help' command
     commands = dict()
@@ -255,8 +252,6 @@ def handler_process_image_dir(clusters, **kwargs):
     faces_rows = list(user_choose_images())
     if not faces_rows:
         return
-    # TODO: Implement correct processing of faces_rows!
-    # {'thumbnail': <PIL.Image.Image image mode=RGB size=160x160 at 0x21C0B1BAC48>, 'image_id': 1, 'embedding_id': 1}
 
     # TODO: Extract this dictionary-querying as function?
 

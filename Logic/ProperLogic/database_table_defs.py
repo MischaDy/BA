@@ -4,7 +4,7 @@ from enum import Enum
 from misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item
 
 
-# TODO: Change DB Schema!
+# Design decision: Change of DB Schema
 #       --> Remove faces table, add img_id col to embeddings_table, add cross-db FK to images table (do? and how?)
 #       --> Does embeddings_table need an extra id for each? Where is that used? Can rowid be used instead?
 #           --> Probably wouldn't hurt!
@@ -16,19 +16,6 @@ from misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_
 #           --> Choice: Extra-table! Least space use, uses embedding_ids (making them more useful themselves)
 #                       Duplicates some labels, but few and storing labels separately from clusters is kinda the
 #                       point!
-
-
-# # TODO: Comparison problems when using _get_true__attr??
-# def _get_true_attr(obj, enum_, obj_var_name=None):
-#     if isinstance(obj, enum_):
-#         return obj.name
-#     elif isinstance(obj, str):
-#         return enum_[obj]
-#     name_error_str = "The variable" if obj_var_name is None else f"'{obj_var_name}'"
-#     raise TypeError(f"{name_error_str} must be a string or a member of {enum_.__name__}, not {obj}")
-
-
-# TODO: Create Row(dict) class?
 
 class TableSchema:
     def __init__(self, name, columns, constraints=None):

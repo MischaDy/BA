@@ -12,10 +12,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 
-# TODO: Add proper comments!
-# TODO: Select good params
-
-
 # design decision re. splitting: check for cluster size first, because greater efficiency (short-circuit), although if
 # both cluster-size and too far from center apply, it would be better to start reclustering with new embedding.
 

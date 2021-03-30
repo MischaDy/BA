@@ -1,9 +1,8 @@
-import sys
 from collections import OrderedDict
 from enum import Enum
 from itertools import repeat, starmap
 
-from misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item, first_true
+from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item, first_true
 
 
 # Design decision: Change of DB Schema
@@ -100,6 +99,7 @@ class TableSchema:
         :param num_repetitions:
         :return:
         """
+        # TODO: Allow for values_objects to consist of non-iterables!
         # TODO: Use max/min appropriate values_iterable instead of first?
 
         if repetition_flags is None:

@@ -4,9 +4,9 @@ Program containing the main application logic.
 
 from functools import partial
 
-from commands import Command, Commands
-from database_table_defs import Tables, Columns
-from database_logic import DBManager
+from Logic.ProperLogic.commands import Command, Commands
+from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns
+from Logic.ProperLogic.database_modules.database_logic import DBManager
 from input_output_logic import load_clusters_from_db
 from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 
@@ -45,6 +45,7 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 # TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
 # TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names?
 # TODO: Allow instances, which have a 'current connection' as only instance attribute?
+# TODO: Consistent abbreviations vs. full names (e.g. image vs. img)
 
 
 # -------------- PROGRAM --------------

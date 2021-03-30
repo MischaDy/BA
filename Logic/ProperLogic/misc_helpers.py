@@ -144,3 +144,13 @@ def first_true(iterable, default=False, pred=None):
     # first_true([a,b,c], x) --> a or b or c or x
     # first_true([a,b], x, f) --> a if f(a) else b if f(b) else x
     return next(filter(pred, iterable), default)
+
+
+def get_user_input_of_type(class_, obj_name):
+    user_input = None
+    while not isinstance(user_input, class_):
+        try:
+            user_input = class_(input())
+        except ValueError:
+            log_error(f'{obj_name} must be convertible to a(n) {class_}. Please try again.')
+    return user_input

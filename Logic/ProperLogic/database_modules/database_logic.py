@@ -10,8 +10,9 @@ import torch
 from PIL import Image
 import io
 
-from database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, ColumnSchema, TableSchema
-from misc_helpers import is_instance_by_type_name, log_error
+from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails,\
+    ColumnSchema
+from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error
 
 
 """
@@ -31,7 +32,7 @@ cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 
 
 class DBManager:
-    db_files_path = 'database'
+    db_files_path = '../database'
     central_db_file_name = 'central_db.sqlite'
     central_db_file_path = os.path.join(db_files_path, central_db_file_name)
     local_db_file_name = 'local_db.sqlite'
@@ -45,7 +46,8 @@ class DBManager:
         return sqlite3.connect(path)
 
     @classmethod
-    def create_tables(cls, create_local, path_to_local_db=None, drop_existing_tables=False):
+    def create_tables(cls, create_local, path_to_local_db=None, drop_existing_tables=False, con=None,
+                      close_connection=True):
         def create_tables_worker(con):
             if drop_existing_tables:
                 cls.drop_tables(drop_local=create_local, con=con, close_connection=False)
@@ -55,14 +57,17 @@ class DBManager:
             else:
                 cls.create_central_tables(con, close_connection=False)
         # TODO: How to handle possible exception here?
-        cls.connection_wrapper(create_tables_worker, create_local, path_to_local_db)
+        cls.connection_wrapper(create_tables_worker, create_local, path_to_local_db, con=con,
+                               close_connection=close_connection)
 
     @classmethod
     def connection_wrapper(cls, func, open_local=False, path_to_local_db=None, con=None, close_connection=True):
+        # TODO: Remove close_connection assigment from callers not providing con, if they exist
         # TODO: How to make this a decorator?
         # TODO: Make sure callers undo their tasks if exception is raised!
         if con is None:
             con = cls.open_connection(open_local, path_to_local_db)
+            close_connection = True
         try:
             with con:
                 result = func(con)
@@ -92,7 +97,7 @@ class DBManager:
         cls.connection_wrapper(create_temp_table_worker, con=con, close_connection=False)
 
     @classmethod
-    def create_local_tables(cls, con, close_connection=True):
+    def create_local_tables(cls, con=None, close_connection=True):
         # TODO: default param for close_connection as False?
         def create_images_table(con):
             con.execute('PRAGMA foreign_keys = ON;')
@@ -101,7 +106,7 @@ class DBManager:
         cls.connection_wrapper(create_images_table, con=con, close_connection=close_connection)
 
     @classmethod
-    def create_central_tables(cls, con, close_connection=True):
+    def create_central_tables(cls, con=None, close_connection=True):
         def create_central_tables_worker(con):
             con.execute('PRAGMA foreign_keys = ON;')
             # create embeddings table
@@ -124,7 +129,7 @@ class DBManager:
                                close_connection=close_connection)
 
     @classmethod
-    def store_in_table(cls, table, row_dicts, on_conflict='', con=None, path_to_local_db=None, close_connection=True):
+    def store_in_table(cls, table, row_dicts, on_conflict='', path_to_local_db=None, con=None, close_connection=True):
         """
 
         :param con:
@@ -217,6 +222,66 @@ class DBManager:
                                close_connection=close_connection)
 
     @classmethod
+    def store_directory_path(cls, path, path_id=None, con=None, close_connection=True):
+        if path_id is None:
+            max_path_id = cls.get_max_path_id()
+            path_id = max_path_id + 1
+        path_row = {
+            Columns.path_id_col.col_name: path_id,
+            Columns.path.col_name: path
+        }
+
+        def store_directory_path_worker(con):
+            cls.store_in_table(Tables.directory_paths_table, [path_row], con=con, close_connection=False)
+
+        cls.connection_wrapper(store_directory_path_worker, open_local=False, con=con,
+                               close_connection=close_connection)
+        return path_id
+
+    @classmethod
+    def store_image_path(cls, path_to_local_db, img_id=None, path_id=None, con=None, close_connection=True):
+        # TODO: path_to_local_db needed?
+        if img_id is None:
+            max_img_id = cls.get_max_image_id(path_to_local_db)
+            img_id = max_img_id + 1
+        if path_id is None:
+            max_path_id = cls.get_max_path_id()
+            path_id = max_path_id + 1
+        img_path_row = {Columns.image_id.col_name: img_id,
+                        Columns.path_id_col.col_name: path_id}
+
+        def store_image_path_worker(con):
+            cls.store_in_table(Tables.image_paths_table, [img_path_row], con=con, close_connection=False)
+
+        cls.connection_wrapper(store_image_path_worker, open_local=False, con=con, close_connection=close_connection)
+
+    @classmethod
+    def store_image(cls, img_id, file_name, last_modified, path_to_local_db, con=None, close_connection=True):
+        # TODO: Allow img_id to be None?
+        img_row = {Columns.image_id.col_name: img_id,
+                   Columns.file_name.col_name: file_name,
+                   Columns.last_modified.col_name: last_modified}
+
+        def store_image_worker(con):
+            cls.store_in_table(Tables.images_table, [img_row], path_to_local_db=path_to_local_db, con=con,
+                               close_connection=False)
+
+        cls.connection_wrapper(store_image_worker, open_local=True, path_to_local_db=path_to_local_db, con=con,
+                               close_connection=close_connection)
+
+    @classmethod
+    def store_path_id(cls, path_id, path_to_local_db, con=None, close_connection=True):
+        # TODO: Allow img_id to be None?
+        path_id_row = {Columns.path_id_col.col_name: path_id}
+
+        def store_image_worker(con):
+            cls.store_in_table(Tables.path_id_table, [path_id_row], path_to_local_db=path_to_local_db, con=con,
+                               close_connection=False)
+
+        cls.connection_wrapper(store_image_worker, open_local=True, path_to_local_db=path_to_local_db, con=con,
+                               close_connection=close_connection)
+
+    @classmethod
     def remove_clusters(cls, clusters_to_remove, con=None, close_connection=True):
         """
         Removes the data in clusters from the central DB-tables ('cluster_attributes' and 'embeddings').
@@ -272,8 +337,8 @@ class DBManager:
             # TODO: 'Copy' generator instead of cast to list? (Saves space)
             # Cast to list is *necessary* here, since fetch function only returns a generator. It will be executed after
             # the corresponding rows are deleted from table and will thus yield nothing.
-            deleted_row_dicts = list(cls.fetch_from_table(table, path_to_local_db, condition=condition, con=con,
-                                                          close_connection=False, as_dicts=True))
+            deleted_row_dicts = list(cls.fetch_from_table(table, path_to_local_db, condition=condition, as_dicts=True,
+                                                          con=con, close_connection=False))
             con.delete_from_table_worker(f'{with_clause} DELETE FROM {table} {where_clause};')
             return deleted_row_dicts
 
@@ -283,8 +348,8 @@ class DBManager:
         return deleted_row_dicts
 
     @classmethod
-    def fetch_from_table(cls, table, path_to_local_db=None, col_names=None, condition='', con=None,
-                         close_connection=True, as_dicts=False):
+    def fetch_from_table(cls, table, path_to_local_db=None, col_names=None, condition='', as_dicts=False, con=None,
+                         close_connection=True):
         """
 
         :param as_dicts:
@@ -358,15 +423,13 @@ class DBManager:
         return cls.get_thumbnails(with_embeddings_ids, as_dict, cond=f'cluster_id = {cluster_id}')
 
     @classmethod
-    def get_thumbnails(cls, with_embeddings_ids=False, as_dict=True, cond='', con=None, close_connection=True):
-        thumbnails = cls.get_column(Columns.thumbnail, Tables.embeddings_table, with_embeddings_ids, as_dict, cond,
-                                    con=con, close_connection=close_connection)
+    def get_thumbnails(cls, with_embeddings_ids=False, as_dict=True, cond=''):
+        thumbnails = cls.get_column(Columns.thumbnail, Tables.embeddings_table, with_embeddings_ids, as_dict, cond)
         return thumbnails
 
     @classmethod
-    def get_image_ids(cls, with_embeddings_ids=False, as_dict=True, con=None, close_connection=True):
-        image_ids = cls.get_column(Columns.image_id, Tables.embeddings_table, with_embeddings_ids, as_dict, con=con,
-                                   close_connection=close_connection)
+    def get_image_ids(cls, with_embeddings_ids=False, as_dict=True):
+        image_ids = cls.get_column(Columns.image_id, Tables.embeddings_table, with_embeddings_ids, as_dict)
         return image_ids
 
     @classmethod
@@ -405,25 +468,34 @@ class DBManager:
 
     @classmethod
     def get_max_cluster_id(cls):
+        # TODO: Change to 'get_next_cluster_id'?
         max_cluster_id = cls.get_max_num(table=Tables.cluster_attributes_table, col=Columns.cluster_id)
         return max_cluster_id
 
     @classmethod
     def get_max_embedding_id(cls):
+        # TODO: Change to 'get_next_embedding_id'?
         max_embedding_id = cls.get_max_num(table=Tables.embeddings_table, col=Columns.embedding_id)
         return max_embedding_id
 
     @classmethod
     def get_max_image_id(cls, path_to_local_db):
+        # TODO: Change to 'get_next_image_id'?
+        # TODO: path_to_local_db needed? Provide option without it by referring to embeddings/image_paths table?
         max_image_id = cls.get_max_num(table=Tables.images_table, col=Columns.image_id,
                                        path_to_local_db=path_to_local_db)
         return max_image_id
 
     @classmethod
-    def get_images_attributes(cls, path_to_local_db=None, con=None, close_connection=True):
+    def get_max_path_id(cls):
+        # TODO: Change to 'get_next_path_id'?
+        max_path_id = cls.get_max_num(table=Tables.path_id_table, col=Columns.path_id_col)
+        return max_path_id
+
+    @classmethod
+    def get_images_attributes(cls, path_to_local_db=None):
         col_names = [Columns.file_name.col_name, Columns.last_modified.col_name]
-        rows = cls.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db,
-                                    col_names=col_names, con=con, close_connection=close_connection)
+        rows = cls.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db, col_names=col_names)
         return rows
 
     @classmethod

@@ -3,7 +3,7 @@ from functools import partial
 from typing import Union, Tuple
 
 from cluster import Clusters, Cluster
-from database_logic import DBManager
+from Logic.ProperLogic.database_modules.database_logic import DBManager
 from misc_helpers import remove_items
 
 from itertools import count, combinations

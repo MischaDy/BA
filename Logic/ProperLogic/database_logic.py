@@ -30,7 +30,7 @@ cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
 
 
-class DBManager:
+class DB_Manager:
     db_files_path = 'database'
     central_db_file_name = 'central_db.sqlite'
     central_db_file_path = os.path.join(db_files_path, central_db_file_name)

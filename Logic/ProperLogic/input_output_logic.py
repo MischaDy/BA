@@ -12,7 +12,7 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 
 import logging
 
-from database_logic import DBManager
+from database_logic import DB_Manager
 from cluster import Cluster, Clusters
 
 logging.basicConfig(level=logging.INFO)
@@ -42,7 +42,7 @@ def main(imgs_dir_path, embeddings_dir_path):
 
 def load_clusters_from_db():
     # TODO: Refactor + improve efficiency
-    clusters_parts_list, embeddings_parts_list = DBManager.get_clusters_parts()
+    clusters_parts_list, embeddings_parts_list = DB_Manager.get_clusters_parts()
 
     # clusters_dict = dict(
     #     (kwargs[Columns.cluster_id.col_name], Cluster(**kwargs))

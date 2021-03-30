@@ -3,7 +3,7 @@ from functools import partial
 from typing import Union, Tuple
 
 from cluster import Clusters, Cluster
-from database_logic import DBManager
+from database_logic import DB_Manager
 from misc_helpers import remove_items
 
 from itertools import count, combinations
@@ -21,8 +21,8 @@ EMBEDDINGS_PATH = 'stored_embeddings'
 
 
 class CoreAlgorithm:
-    path_to_central_db = os.path.join(DBManager.db_files_path, DBManager.central_db_file_name)
-    path_to_local_db = os.path.join(DBManager.db_files_path, DBManager.local_db_file_name)
+    path_to_central_db = os.path.join(DB_Manager.db_files_path, DB_Manager.central_db_file_name)
+    path_to_local_db = os.path.join(DB_Manager.db_files_path, DB_Manager.local_db_file_name)
 
     # 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
     classification_threshold = 0.73
@@ -64,7 +64,7 @@ class CoreAlgorithm:
         clusters = Clusters(existing_clusters)
         modified_clusters_ids, removed_clusters_ids = set(), set()
 
-        next_cluster_id = DBManager.get_max_cluster_id() + 1
+        next_cluster_id = DB_Manager.get_max_cluster_id() + 1
 
         # iterate over remaining embeddings
         counter_vals = range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0 else count(2)
@@ -164,7 +164,7 @@ class CoreAlgorithm:
         remove_items(embeddings, [cluster_start_emb1, cluster_start_emb2])
         label = cluster_to_split.label
 
-        max_cluster_id = DBManager.get_max_cluster_id()
+        max_cluster_id = DB_Manager.get_max_cluster_id()
         new_cluster1_id, new_cluster2_id = max_cluster_id + 1, max_cluster_id + 2
         new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, cluster_start_emb1, label=label),
                                       Cluster(new_cluster2_id, cluster_start_emb2, label=label))

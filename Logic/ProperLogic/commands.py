@@ -244,7 +244,7 @@ def handler_process_image_dir(clusters, **kwargs):
         return
 
     # TODO: Extract this dictionary-querying as function?
-    embedding_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
+    embeddings_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
                              faces_rows))
     thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
                      faces_rows)
@@ -253,11 +253,11 @@ def handler_process_image_dir(clusters, **kwargs):
     image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
                     faces_rows)
     embeddings = list(faces_to_embeddings(faces))
-    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embedding_ids, existing_clusters=clusters)
+    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids, existing_clusters=clusters)
     updated_clusters, modified_clusters, removed_clusters = clustering_result
 
-    emb_id_to_face_dict = dict(zip(embedding_ids, thumbnails))
-    emb_id_to_img_id_dict = dict(zip(embedding_ids, image_ids))
+    emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
+    emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
 
     def adjust_clusters_func(con):
         DB_Manager.remove_clusters(list(removed_clusters), con=con, close_connection=False)
@@ -448,13 +448,15 @@ def _output_cluster_content(cluster_name, cluster_path):
 
 def set_cluster_label(cluster, new_label):
     cluster.set_label(new_label)
+
     # TODO: Outsource as function to DB_Manager?
     DB_Manager.store_clusters([cluster], close_connection=True)
 
 
 def set_picture_label(embedding_id, new_label, cluster, clusters):
-    # TODO: How to properly delete cluster once it contains no embeddings? Happens automatically? --> Test with weakref!
-    # TODO: Refactor!
+    # TODO: Use store_certain_labels!
+
+    # TODO: Refactor! Extract parts to DB_Manager?
     # TODO: Don't accept label if it's the same as the old one!
     new_cluster_id = DB_Manager.get_max_cluster_id() + 1
     embedding = cluster.get_embedding(embedding_id)
@@ -544,8 +546,8 @@ def user_choose_embedding_id(cluster):
     # TODO: Refactor
     # TODO: Give option of aborting.
 
-    embeddings_ids_dict = dict(cluster.get_embeddings(with_embedding_ids=True))
-    faces_dict = dict(DB_Manager.get_thumbnails_from_cluster(cluster.cluster_id, with_embedding_ids=True))
+    embeddings_ids_dict = cluster.get_embeddings(as_dict=True)
+    faces_dict = dict(DB_Manager.get_thumbnails_from_cluster(cluster.cluster_id, with_embeddings_ids=True))
     label = cluster.label
 
     chosen_embedding_id = user_choose_embedding_id_worker(faces_dict, label)

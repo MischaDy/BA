@@ -13,11 +13,12 @@ from misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_
 #       --> Make own table for labels so clusters and embeddings can have separate labels???
 #           OR: Store label itself in embeddings_table to indicate that it came from user (other rows: NULL)
 #           OR: Store embeddings label separate table
-#           --> Choice: Extra-table! Least space use, uses embedding_ids (making them more useful themselves)
+#           --> Choice: Extra-table! Least space use, uses embeddings_ids (making them more useful themselves)
 #                       Duplicates some labels, but few and storing labels separately from clusters is kinda the
 #                       point!
 
 class TableSchema:
+    # TODO: Create a make_row_dicts function?
     def __init__(self, name, columns, constraints=None):
         if constraints is None:
             constraints = []

@@ -45,10 +45,15 @@ class Cluster:
     def set_label(self, label):
         self.label = label
 
-    def get_embeddings(self, with_embedding_ids=False):
-        if with_embedding_ids:
+    def get_embeddings(self, with_embeddings_ids=False, as_dict=False):
+        if with_embeddings_ids or as_dict:
+            if as_dict:
+                return self.embeddings
             return self.embeddings.items()
         return self.embeddings.values()
+
+    def get_embeddings_ids(self):
+        return self.embeddings.keys()
 
     def get_size(self):
         return len(self.embeddings)

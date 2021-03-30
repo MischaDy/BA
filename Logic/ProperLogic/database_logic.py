@@ -46,7 +46,7 @@ class DB_Manager:
 
     @classmethod
     def create_tables(cls, create_local, path_to_local_db=None, drop_existing_tables=False):
-        def create_tables_body(con):
+        def create_tables_worker(con):
             if drop_existing_tables:
                 cls.drop_tables(drop_local=create_local, con=con, close_connection=False)
 
@@ -55,10 +55,10 @@ class DB_Manager:
             else:
                 cls.create_central_tables(con, close_connection=False)
         # TODO: How to handle possible exception here?
-        cls.connection_wrapper(create_tables_body, create_local, path_to_local_db)
+        cls.connection_wrapper(create_tables_worker, create_local, path_to_local_db)
 
     @classmethod
-    def connection_wrapper(cls, func, open_local=None, path_to_local_db=None, con=None, close_connection=True):
+    def connection_wrapper(cls, func, open_local=False, path_to_local_db=None, con=None, close_connection=True):
         # TODO: How to make this a decorator?
         # TODO: Make sure callers undo their tasks if exception is raised!
         if con is None:
@@ -141,11 +141,11 @@ class DB_Manager:
         store_in_local = Tables.is_local_table(table)
         values_template = cls.make_values_template(len(row_dicts[0]))
 
-        def execute(con):
+        def store_in_table_worker(con):
             con.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
 
         # TODO: How to handle possible exception here?
-        cls.connection_wrapper(execute, store_in_local, path_to_local_db, con=con, close_connection=close_connection)
+        cls.connection_wrapper(store_in_table_worker, store_in_local, path_to_local_db, con=con, close_connection=close_connection)
 
     @classmethod
     def store_clusters(cls, clusters, emb_id_to_face_dict=None, emb_id_to_img_id_dict=None, con=None,
@@ -185,14 +185,14 @@ class DB_Manager:
         attributes_row_dicts = cls.make_attr_row_dicts(clusters)
         embeddings_row_dicts = cls.make_embs_row_dicts(clusters, emb_id_to_face_dict, emb_id_to_img_id_dict)
 
-        def store_in_tables(con):
+        def store_clusters_worker(con):
             cls.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict,
                                con=con, close_connection=False)
             cls.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict,
                                con=con, close_connection=False)
 
         # TODO: How to handle possible exception here?
-        cls.connection_wrapper(store_in_tables, open_local=False, con=con, close_connection=close_connection)
+        cls.connection_wrapper(store_clusters_worker, open_local=False, con=con, close_connection=close_connection)
 
     @classmethod
     def remove_clusters(cls, clusters_to_remove, con=None, close_connection=True):
@@ -246,18 +246,18 @@ class DB_Manager:
         with_clause = f'WITH {with_clause_part}' if with_clause_part else ''
         where_clause = f'WHERE {condition}' if condition else ''
 
-        def execute(con):
+        def delete_from_table_worker(con):
             # TODO: 'Copy' generator instead of cast to list? (Saves space)
             # Cast to list is *necessary* here, since fetch function only returns a generator. It will be executed after
             # the corresponding rows are deleted from table and will thus yield nothing.
             deleted_row_dicts = list(cls.fetch_from_table(table, path_to_local_db, condition=condition, con=con,
                                                           close_connection=False, as_dicts=True))
-            con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
+            con.delete_from_table_worker(f'{with_clause} DELETE FROM {table} {where_clause};')
             return deleted_row_dicts
 
         # TODO: How to handle possible exception here?
-        deleted_row_dicts = cls.connection_wrapper(execute, delete_from_local, path_to_local_db, con=con,
-                                                   close_connection=close_connection)
+        deleted_row_dicts = cls.connection_wrapper(delete_from_table_worker, delete_from_local, path_to_local_db,
+                                                   con=con, close_connection=close_connection)
         return deleted_row_dicts
 
     @classmethod
@@ -332,8 +332,8 @@ class DB_Manager:
         return proc_clusters_parts_list, proc_embeddings_parts_list
 
     @classmethod
-    def get_thumbnails_from_cluster(cls, cluster_id, with_embedding_ids=False, as_dict=True):
-        return cls.get_thumbnails(with_embedding_ids, as_dict, cond=f'cluster_id = {cluster_id}')
+    def get_thumbnails_from_cluster(cls, cluster_id, with_embeddings_ids=False, as_dict=True):
+        return cls.get_thumbnails(with_embeddings_ids, as_dict, cond=f'cluster_id = {cluster_id}')
 
     @classmethod
     def get_thumbnails(cls, with_embeddings_ids=False, as_dict=True, cond='', con=None, close_connection=True):
@@ -560,14 +560,14 @@ class DB_Manager:
                     Columns.image_id.col_name: emb_id_to_img_id_dict[face_id],
                     Columns.embedding_id.col_name: face_id,
                 }
-                for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
+                for face_id, embedding in cluster.get_embeddings(with_embeddings_ids=True)
             ]
 
             # embeddings_row = [
             #     {Columns.cluster_id.col_name: cluster.cluster_id,
             #      Columns.embedding.col_name: embedding,
             #      Columns.embedding_id.col_name: face_id}
-            #     for face_id, embedding in cluster.get_embeddings(with_embedding_ids=True)
+            #     for face_id, embedding in cluster.get_embeddings(with_embeddings_ids=True)
             # ]
 
             embeddings_row_dicts.extend(embeddings_row)

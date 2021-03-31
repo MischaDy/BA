@@ -18,6 +18,7 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 # TODO: Test that rollbacks always work!
 # TODO: How to create CLI?
 # TODO: Select good params for core algorithm
+# TODO: Fix relative/absolute path problems
 
 # ------- HELPFUL -------
 # TODO: Check out which data structures sqlite3 provides! (Row?) Create Row dict class if not provided?

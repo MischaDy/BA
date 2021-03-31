@@ -1,9 +1,9 @@
 from functools import partial
 
 from Logic.ProperLogic.cluster import Cluster, Clusters
-from Logic.ProperLogic.commands import user_choose_cluster
 from Logic.ProperLogic.database_modules.database_logic import DBManager, IncompleteDatabaseOperation
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
+from Logic.ProperLogic.handlers.helpers import user_choose_cluster
 from Logic.ProperLogic.misc_helpers import log_error, get_user_decision, get_user_input_of_type, wait_for_any_input
 
 

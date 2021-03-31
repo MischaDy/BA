@@ -1,4 +1,4 @@
-from Logic.ProperLogic.commands import user_choose_cluster
+from Logic.ProperLogic.handlers.helpers import user_choose_cluster
 from Logic.ProperLogic.misc_helpers import clean_str, wait_for_any_input
 
 

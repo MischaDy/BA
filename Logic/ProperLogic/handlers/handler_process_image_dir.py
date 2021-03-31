@@ -7,7 +7,7 @@ from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
-from Logic.ProperLogic.database_modules.database_table_defs import Columns, Tables
+from Logic.ProperLogic.database_modules.database_table_defs import Columns
 from Logic.ProperLogic.input_output_logic import TO_TENSOR
 from Logic.ProperLogic.misc_helpers import overwrite_list, log_error
 from Logic.ProperLogic.models import Models
@@ -46,6 +46,7 @@ def process_image_dir(clusters, **kwargs):
 
     try:
         DBManager.connection_wrapper(process_image_dir_worker, open_local=False)
+        # TODO: How to handle case where error in overwrite_list?
         overwrite_list(clusters, updated_clusters)
     except IncompleteDatabaseOperation:
         pass
@@ -54,7 +55,7 @@ def process_image_dir(clusters, **kwargs):
 def user_choose_images():
     # TODO: Refactor! (too many different tasks, function name non-descriptive)
     # TODO: make user user choose path
-    images_path = r'/Logic/my_test/facenet_Test/group_imgs'
+    images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
     path_to_local_db = DBManager.get_db_path(images_path, local=True)
     DBManager.create_tables(create_local=True,
                             path_to_local_db=path_to_local_db,

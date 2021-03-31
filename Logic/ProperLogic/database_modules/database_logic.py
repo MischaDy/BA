@@ -4,7 +4,7 @@ import os
 import sqlite3
 import sys
 from functools import partial
-from itertools import starmap
+from itertools import starmap, repeat
 
 import torch
 from PIL import Image
@@ -32,7 +32,7 @@ cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 
 
 class DBManager:
-    db_files_path = '../database'
+    db_files_path = 'database_files'
     central_db_file_name = 'central_db.sqlite'
     central_db_file_path = os.path.join(db_files_path, central_db_file_name)
     local_db_file_name = 'local_db.sqlite'
@@ -239,11 +239,11 @@ class DBManager:
         return path_id
 
     @classmethod
-    def store_image_path(cls, path_to_local_db, img_id=None, path_id=None, con=None, close_connection=True):
-        # TODO: path_to_local_db needed?
-        if img_id is None:
-            max_img_id = cls.get_max_image_id(path_to_local_db)
-            img_id = max_img_id + 1
+    def store_image_path(cls, img_id=None, path_id=None, con=None, close_connection=True):
+        # TODO: Allow img_id to be None?
+        # if img_id is None:
+        #     max_img_id = cls.get_max_image_id(path_to_local_db)
+        #     img_id = max_img_id + 1
         if path_id is None:
             max_path_id = cls.get_max_path_id()
             path_id = max_path_id + 1
@@ -339,7 +339,7 @@ class DBManager:
             # the corresponding rows are deleted from table and will thus yield nothing.
             deleted_row_dicts = list(cls.fetch_from_table(table, path_to_local_db, condition=condition, as_dicts=True,
                                                           con=con, close_connection=False))
-            con.delete_from_table_worker(f'{with_clause} DELETE FROM {table} {where_clause};')
+            con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
             return deleted_row_dicts
 
         # TODO: How to handle possible exception here?
@@ -489,7 +489,7 @@ class DBManager:
     @classmethod
     def get_max_path_id(cls):
         # TODO: Change to 'get_next_path_id'?
-        max_path_id = cls.get_max_num(table=Tables.path_id_table, col=Columns.path_id_col)
+        max_path_id = cls.get_max_num(table=Tables.directory_paths_table, col=Columns.path_id_col)
         return max_path_id
 
     @classmethod

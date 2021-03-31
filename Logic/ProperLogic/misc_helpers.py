@@ -129,3 +129,50 @@ def remove_items(iterable, items):
 def overwrite_list(iterable, new_values):
     iterable.clear()
     iterable.extend(new_values)
+
+
+def first_true(iterable, default=False, pred=None):
+    """Returns the first true value in the iterable.
+
+    If no true value is found, returns *default*
+
+    If *pred* is not None, returns the first item
+    for which pred(item) is true.
+
+    Taken from: https://docs.python.org/3/library/itertools.html#itertools-recipes
+    """
+    # first_true([a,b,c], x) --> a or b or c or x
+    # first_true([a,b], x, f) --> a if f(a) else b if f(b) else x
+    return next(filter(pred, iterable), default)
+
+
+def get_user_input_of_type(class_, obj_name):
+    user_input = None
+    while not isinstance(user_input, class_):
+        try:
+            user_input = class_(input())
+        except ValueError:
+            log_error(f'{obj_name} must be convertible to a(n) {class_}. Please try again.')
+    return user_input
+
+
+def open_nested_contexts(func, args=None, kwargs=None, context_managers=None):
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = dict()
+    if context_managers is None:
+        context_managers = []
+    return _open_nested_contexts_worker(func, args, kwargs, iter(context_managers))
+
+
+def _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator):
+    try:
+        context_manager = next(context_managers_iterator)
+    except StopIteration:
+        result = func(*args, **kwargs)
+        return result
+
+    with context_manager:
+        result = _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator)
+    return result

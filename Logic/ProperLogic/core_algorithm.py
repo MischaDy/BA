@@ -3,7 +3,7 @@ from functools import partial
 from typing import Union, Tuple
 
 from cluster import Clusters, Cluster
-from database_logic import DBManager
+from Logic.ProperLogic.database_modules.database_logic import DBManager
 from misc_helpers import remove_items
 
 from itertools import count, combinations
@@ -37,24 +37,28 @@ class CoreAlgorithm:
     num_embeddings_to_classify = -1
 
     @classmethod
-    def cluster_embeddings(cls, embeddings, embedding_ids, existing_clusters=None):
+    def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_clusters=None):
         """
         Build clusters from face embeddings stored in the given path using the specified classification threshold.
         (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed
         in the same cluster. If cluster_save_path is set, store the resulting clusters as directories in the given path.
 
-        :param embeddings: Either a path (string) to the directory wherein embeddings are located or an iterable
-        containing the embeddings
-        :param embedding_ids: Ordered iterable with the embedding ids. Must be at least as long as embeddings.
+        :param embeddings: Iterable containing the embeddings. It embeddings_ids is None, must consist of
+        (id, embedding)-pairs
+        :param embeddings_ids: Ordered iterable with the embedding ids. Must be at least as long as embeddings.
         :param existing_clusters:
         :return:
         """
         # TODO: Improve efficiency?
         # TODO: Allow embeddings_ids to be none? Get next id via DB query?
         # TODO: Allow embeddings_ids to be shorter than embeddings and 'fill up' remaining ids?
-        if len(embeddings) > len(embedding_ids):
-            raise ValueError(f'Too few ids for embeddings ({len(embedding_ids)} passed, but {len(embeddings)} needed)')
-        embeddings_with_ids = zip(embedding_ids, embeddings)
+        if embeddings_ids is None:
+            embeddings_with_ids = embeddings
+        else:
+            if len(embeddings) > len(embeddings_ids):
+                raise ValueError(f'Too few ids for embeddings ({len(embeddings_ids)} passed, but {len(embeddings)}'
+                                 f' needed)')
+            embeddings_with_ids = zip(embeddings_ids, embeddings)
 
         if existing_clusters is None:
             existing_clusters = Clusters()
@@ -99,13 +103,6 @@ class CoreAlgorithm:
     @classmethod
     def is_cluster_too_big(cls, cluster):
         return cls.max_cluster_size is not None and cluster.get_size() >= cls.max_cluster_size
-
-    # @classmethod
-    # def get_embs_too_far_from_center(cls, cluster):
-    #     if cls.reclustering_threshold is None:
-    #         return []
-    #     return filter(lambda emb: cluster.compute_dist_to_center(emb) > cls.reclustering_threshold,
-    #                   cluster.get_embeddings())
 
     @classmethod
     def exists_emb_too_far_from_center(cls, cluster):

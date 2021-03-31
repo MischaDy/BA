@@ -12,7 +12,7 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 
 import logging
 
-from database_logic import DBManager
+from Logic.ProperLogic.database_modules.database_logic import DBManager
 from cluster import Cluster, Clusters
 
 logging.basicConfig(level=logging.INFO)

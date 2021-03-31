@@ -1,7 +1,8 @@
 from collections import OrderedDict
 from enum import Enum
+from itertools import repeat, starmap
 
-from misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item
+from Logic.ProperLogic.misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_item, first_true
 
 
 # Design decision: Change of DB Schema
@@ -13,11 +14,12 @@ from misc_helpers import have_equal_type_names, have_equal_attrs, get_every_nth_
 #       --> Make own table for labels so clusters and embeddings can have separate labels???
 #           OR: Store label itself in embeddings_table to indicate that it came from user (other rows: NULL)
 #           OR: Store embeddings label separate table
-#           --> Choice: Extra-table! Least space use, uses embedding_ids (making them more useful themselves)
+#           --> Choice: Extra-table! Least space use, uses embeddings_ids (making them more useful themselves)
 #                       Duplicates some labels, but few and storing labels separately from clusters is kinda the
 #                       point!
 
 class TableSchema:
+    # TODO: Create a make_row_dicts function?
     def __init__(self, name, columns, constraints=None):
         if constraints is None:
             constraints = []
@@ -78,8 +80,51 @@ class TableSchema:
             return list(get_every_nth_item(sorted_row_items, n=1))
         return sorted_row_items
 
-    def to_row_dict(self, row):
+    def row_to_row_dict(self, row):
         return dict(zip(self.get_column_names(), row))
+
+    def make_row_dicts(self, values_objects, repetition_flags=None):
+        # TODO: Fix bug!
+        cols_names = self.get_column_names()
+        values_iterables = self.make_values_iterables(values_objects, repetition_flags)
+        row_dicts = [dict(zip(cols_names, values_iterable))
+                     for values_iterable in values_iterables]
+        return row_dicts
+
+    @staticmethod
+    def make_values_iterables(values_objects, repetition_flags=None, num_repetitions=None):
+        """
+
+        :param values_objects:
+        :param repetition_flags:
+        :param num_repetitions:
+        :return:
+        """
+        # TODO: Allow for values_objects to consist of non-iterables!
+        # TODO: Use max/min appropriate values_iterable instead of first?
+
+        if repetition_flags is None:
+            repetition_flags = list(repeat(False, len(values_objects)))
+        if num_repetitions is None:
+            if not any(repetition_flags):
+                raise ValueError("'num_repetitions' must be provided, or an element in 'values_objects' must not be"
+                                 " flagged as to-be-repeated")
+
+            def is_not_repeated(values_obj_with_ind):
+                ind, values_obj = values_obj_with_ind
+                return not repetition_flags[ind]
+
+            first_values_iterable = first_true(enumerate(values_objects), default=None,
+                                               pred=is_not_repeated)
+            num_repetitions = len(first_values_iterable)
+
+        def repeat_object_if_needed(repetition_flag, values_object):
+            if repetition_flag:
+                return list(repeat(values_object, num_repetitions))
+            return values_object
+
+        values_iterables = starmap(repeat_object_if_needed, zip(repetition_flags, values_objects))
+        return values_iterables
 
 
 class ColumnSchema:
@@ -103,6 +148,7 @@ class ColumnSchema:
         return have_equal_attrs(self, other)
 
     def with_constraint(self, col_constraint):
+        # TODO: Allow 'KEY' as constraint with same effect as primary key
         # TODO: Allow multiple constraints and use constraints enum!
         if 'PRIMARY KEY' in col_constraint:
             phrase_unique = 'UNIQUE' if 'UNIQUE' not in col_constraint else ''
@@ -232,7 +278,7 @@ class Tables:
     directory_paths_table = TableSchema(
         'directory_paths',
         [Columns.path_id_col.with_constraint('PRIMARY KEY'),
-         Columns.path.with_constraint('NOT NULL')
+         Columns.path.with_constraint('UNIQUE NOT NULL')
          ],
         [],
     )

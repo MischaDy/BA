@@ -67,6 +67,7 @@ class CoreAlgorithm:
 
         next_cluster_id = DBManager.get_max_cluster_id() + 1
 
+        # TODO: remove this cutoff!!!
         # iterate over remaining embeddings
         counter_vals = range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0 else count(2)
         for counter, (embedding_id, new_embedding) in zip(counter_vals, embeddings_with_ids):

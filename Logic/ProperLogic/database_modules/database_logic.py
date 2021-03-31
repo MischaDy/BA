@@ -1,4 +1,5 @@
 # Credits: https://sebastianraschka.com/Articles/2014_sqlite_in_python_tutorial.html
+
 import datetime
 import os
 import sqlite3
@@ -10,6 +11,7 @@ import torch
 from PIL import Image
 import io
 
+from Logic.ProperLogic.cluster import Cluster, Clusters
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails,\
     ColumnSchema
 from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error, open_nested_contexts
@@ -28,6 +30,10 @@ faces(INT embedding_id, INT image_id, BLOB thumbnail)
 embeddings(INT cluster_id, INT embedding_id, BLOB face_embedding)
 cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 """
+
+
+# TODO: Create iterator which, starting from current cluster_id, provides them sequentially (disregarding when new ones
+#       are stored in the DB
 
 
 class DBManager:
@@ -376,8 +382,8 @@ class DBManager:
         :return:
         """
         delete_from_local = Tables.is_local_table(table)
-        with_clause = f'WITH {with_clause_part}' if with_clause_part else ''
-        where_clause = f'WHERE {condition}' if condition else ''
+        with_clause = cls._build_with_clause(with_clause_part)
+        where_clause = cls._build_where_clause(condition)
 
         def delete_from_table_worker(con):
             # TODO: 'Copy' generator instead of cast to list? (Saves space)
@@ -412,12 +418,13 @@ class DBManager:
         # TODO: More elegant solution?
         if col_names is None or '*' in col_names:
             col_names = table.get_column_names()
-        cond_str = '' if len(condition) == 0 else f'WHERE {condition}'
+        where_clause = cls._build_where_clause(condition)
+
         fetch_from_local = Tables.is_local_table(table)
         cols_template = ','.join(col_names)
 
         def fetch_worker(con):
-            rows = con.execute(f'SELECT {cols_template} FROM {table} {cond_str};').fetchall()
+            rows = con.execute(f'SELECT {cols_template} FROM {table} {where_clause};').fetchall()
             return rows
 
         # TODO: How to handle possible exception here?
@@ -432,37 +439,56 @@ class DBManager:
 
     @classmethod
     def get_clusters_parts(cls):
-        # TODO: Refactor + improve efficiency (don't let attributes of same cluster be processed multiple times)
+        # TODO: Needed?
+        embeddings_parts_list = cls.get_embeddings_parts()
+        cluster_attributes_parts_list = cls.get_cluster_attributes_parts()
 
-        def get_parts_worker(con):
-            clusters_parts_list = con.execute(
-                f"SELECT {Columns.cluster_id}, {Columns.label}, {Columns.center}"
-                f" FROM {Tables.cluster_attributes_table};"
-            ).fetchall()
+        return cluster_attributes_parts_list, embeddings_parts_list
 
-            embeddings_parts_list = con.execute(
+    @classmethod
+    def get_embeddings_parts(cls, cond=''):
+        # TODO: Add con params?
+        where_clause = cls._build_where_clause(cond)
+
+        def get_embeddings_parts_worker(con):
+            embeddings_parts = con.execute(
                 f"SELECT {Columns.cluster_id}, {Columns.embedding}, {Columns.embedding_id}"
-                f" FROM {Tables.embeddings_table};"
+                f" FROM {Tables.embeddings_table}"
+                f" {where_clause};"
             ).fetchall()
-            return clusters_parts_list, embeddings_parts_list
+            return embeddings_parts
 
         # TODO: How to handle possible exception here?
-        parts_lists = cls.connection_wrapper(get_parts_worker, open_local=False)
-        clusters_parts_list, embeddings_parts_list = parts_lists
+        embeddings_parts = cls.connection_wrapper(get_embeddings_parts_worker, open_local=False)
 
-        # TODO: Refactor(?)
-        # convert center point and embedding to tensors rather than bytes
-        proc_clusters_parts_list = [  # processed clusters
-            (cluster_id, label, cls.bytes_to_tensor(center_point))
-            for cluster_id, label, center_point in clusters_parts_list
-        ]
-
-        proc_embeddings_parts_list = [
+        proc_embeddings_parts = [
             (cluster_id, cls.bytes_to_tensor(embedding), embedding_id)
-            for cluster_id, embedding, embedding_id in embeddings_parts_list
+            for cluster_id, embedding, embedding_id in embeddings_parts
         ]
+        return proc_embeddings_parts
 
-        return proc_clusters_parts_list, proc_embeddings_parts_list
+    @classmethod
+    def get_cluster_attributes_parts(cls, cond=''):
+        # TODO: Add con params?
+        # TODO: Refactor + improve efficiency (don't let attributes of same cluster be processed multiple times)
+        where_clause = cls._build_where_clause(cond)
+
+        def get_cluster_attributes_parts_worker(con):
+            cluster_attributes_parts = con.execute(
+                f"SELECT {Columns.cluster_id}, {Columns.label}, {Columns.center}"
+                f" FROM {Tables.cluster_attributes_table}"
+                f" {where_clause};"
+            ).fetchall()
+            return cluster_attributes_parts
+
+        # TODO: How to handle possible exception here?
+        cluster_attributes_parts = cls.connection_wrapper(get_cluster_attributes_parts_worker, open_local=False)
+
+        proc_cluster_attributes_parts = [
+            (cluster_id, label, cls.bytes_to_tensor(center_point))
+            for cluster_id, label, center_point in cluster_attributes_parts
+        ]
+        return proc_cluster_attributes_parts
 
     @classmethod
     def get_thumbnails_from_cluster(cls, cluster_id, with_embeddings_ids=False, as_dict=True):
@@ -619,6 +645,53 @@ class DBManager:
             path_id = None
         return path_id
 
+    @classmethod
+    def get_all_embeddings(cls, with_ids=False):
+        # TODO: Use con params?!
+        # TODO: Refactor?
+        col_names = [Columns.embedding_id.col_name] if with_ids else []
+        col_names.append(Columns.embedding.col_name)
+
+        embeddings = cls.fetch_from_table(Tables.embeddings_table, col_names=col_names)
+        if not with_ids:
+            return map(cls.bytes_to_tensor, embeddings)
+
+        def convert_to_correct_data_types(emb_id, emb):
+            return int(emb_id), cls.bytes_to_tensor(emb)
+
+        return starmap(convert_to_correct_data_types, embeddings)
+
+    @classmethod
+    def get_certain_clusters(cls):
+        # TODO: Refactor!
+
+        # select_stmt = cls.build_select(Columns.embedding_id, Tables.certain_labels_table)
+        # cond = f'{Columns.embedding_id} IN ({select_stmt})'
+        # embeddings_parts = cls.get_embeddings_parts(cond=cond)
+
+        certain_cluster_parts_sql = (
+            f"SELECT {Columns.embedding_id}, {Columns.embedding}, {Columns.label}"
+            f" FROM {Tables.embeddings_table}"
+            f" INNER JOIN {Tables.central_tables} USING ({Columns.embedding_id});"
+        )
+
+        def get_certain_clusters_worker(con):
+            certain_clusters_parts = con.execute(certain_cluster_parts_sql).fetchall()
+            return certain_clusters_parts
+
+        certain_clusters_parts = cls.connection_wrapper(get_certain_clusters_worker)
+
+        max_cluster_id = cls.get_max_cluster_id()
+        certain_clusters = []
+        for next_cluster_id, (embedding_id, embedding, label) in enumerate(certain_clusters_parts,
+                                                                           start=max_cluster_id + 1):
+            proc_embedding_id = int(embedding_id)
+            proc_embedding = cls.bytes_to_tensor(embedding)
+            certain_clusters.append(
+                Cluster(next_cluster_id, [proc_embedding], [proc_embedding_id], label)
+            )
+        return Clusters(certain_clusters)
+
     @staticmethod
     def make_values_template(length, char_to_join='?', sep=','):
         chars_to_join = length * char_to_join if len(char_to_join) == 1 else char_to_join
@@ -736,6 +809,28 @@ class DBManager:
     @staticmethod
     def iso_string_to_date(string):
         return datetime.datetime.fromisoformat(string)
+
+    @classmethod
+    def _build_with_clause(cls, with_clause_part):
+        return cls._build_clause('WITH', with_clause_part)
+
+    @classmethod
+    def _build_where_clause(cls, condition):
+        return cls._build_clause('WHERE', condition)
+
+    @classmethod
+    def _build_from_clause(cls, from_clause):
+        return cls._build_clause('FROM', from_clause)
+
+    @staticmethod
+    def _build_clause(keyword, clause_part):
+        return f'{keyword} {clause_part}' if clause_part else ''
+
+    @classmethod
+    def build_select(cls, select_clause, from_clause='', condition=''):
+        where_clause = cls._build_where_clause(condition)
+        from_clause = cls._build_from_clause(from_clause)
+        return f'SELECT {select_clause} {from_clause} {where_clause}'
 
 
 class IncompleteDatabaseOperation(RuntimeError):

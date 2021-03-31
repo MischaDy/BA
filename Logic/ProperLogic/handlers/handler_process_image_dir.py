@@ -57,9 +57,9 @@ def user_choose_images():
     # TODO: make user user choose path
     images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
     path_to_local_db = DBManager.get_db_path(images_path, local=True)
-    DBManager.create_tables(create_local=True,
-                            path_to_local_db=path_to_local_db,
-                            drop_existing_tables=False)
+    DBManager.create_all_tables(create_local=True,
+                                path_to_local_db=path_to_local_db,
+                                drop_existing_tables=False)
     # TODO: Implement check_if_known question(?)
     # check_if_known_decision = get_user_decision(
     #    "Should already processed images be processed again? This can be useful if for example some files have changed"
@@ -89,7 +89,7 @@ def _to_tensor(img):
 
 
 def extract_faces(path, check_if_known=True):
-    # TODO: Use con etc. to guarantee fail-safety!!
+    # TODO: Add con and close_connections params!!
 
     # TODO: Refactor (extract functions)? + rename
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
@@ -102,38 +102,50 @@ def extract_faces(path, check_if_known=True):
 
     # Note: 'MAX' returns None / (None, ) as a default value
     max_img_id = DBManager.get_max_image_id(path_to_local_db=path_to_local_db)
-    max_embedding_id = DBManager.get_max_embedding_id()
+    initial_max_embedding_id = DBManager.get_max_embedding_id()
 
-    path_id = DBManager.store_directory_path(path)
-
-    faces_rows = []
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
-    img_id = max_img_id + 1
-    for img_path, img_name, img in img_loader:
-        # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
-        #       ---> Done?
-        # Check if image already stored --> don't process again
-        # known = (name, last modified) as a pair known for this directory
-        last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
-        if check_if_known and (img_name, last_modified) in imgs_names_and_date:
-            continue
 
-        DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
-                              path_to_local_db=path_to_local_db)
-        DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db)
+    def extract_faces_worker(global_con, local_con):
+        # TODO: Outsource as function to DBManager?
 
-        DBManager.store_image_path(img_id=img_id, path_id=path_id, path_to_local_db=path_to_local_db)
+        # TODO: how to handle local AND global con?!
+        path_id = DBManager.store_directory_path(path, con=global_con, close_connection=False)
+        DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connection=False)
 
-        img_faces = cut_out_faces(Models.mtcnn, img)
-        # TODO: Better way to create these row_dicts?
-        cur_faces_rows = [{Columns.thumbnail.col_name: face,
-                           Columns.image_id.col_name: img_id,
-                           Columns.embedding_id.col_name: embedding_id}
-                          for embedding_id, face in enumerate(img_faces, start=max_embedding_id + 1)]
-        faces_rows.extend(cur_faces_rows)
-        max_embedding_id += len(img_faces)
-        img_id += 1
+        faces_rows = []
+        img_id = max_img_id + 1
+        max_embedding_id = initial_max_embedding_id
+        for img_path, img_name, img in img_loader:
+            # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
+            #       ---> Done?
+            # Check if image already stored --> don't process again
+            # known = (name, last modified) as a pair known for this directory
+            last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
+            if check_if_known and (img_name, last_modified) in imgs_names_and_date:
+                continue
 
+            # TODO: how to handle local AND global con?!
+            DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
+                                  path_to_local_db=path_to_local_db, con=local_con, close_connection=False)
+            DBManager.store_image_path(img_id=img_id, path_id=path_id, con=global_con, close_connection=False)
+
+            img_faces = cut_out_faces(Models.mtcnn, img)
+            # TODO: Better way to create these row_dicts?
+            cur_faces_rows = [{Columns.thumbnail.col_name: face,
+                               Columns.image_id.col_name: img_id,
+                               Columns.embedding_id.col_name: embedding_id}
+                              for embedding_id, face in enumerate(img_faces, start=max_embedding_id + 1)]
+            faces_rows.extend(cur_faces_rows)
+            max_embedding_id += len(img_faces)
+            img_id += 1
+
+        return faces_rows
+
+    global_con = DBManager.open_connection(open_local=False)
+    local_con = DBManager.open_connection(open_local=True, path_to_local_db=path_to_local_db)
+    faces_rows = DBManager.connection_wrapper(extract_faces_worker, global_con=global_con, local_con=local_con,
+                                              close_connections=True)
     return faces_rows
 
 

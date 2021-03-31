@@ -69,7 +69,7 @@ def run_program(path_to_central_dir):
         print(f'Number of clusters: {len(load_clusters_from_db())}')
         prompt_user_drop_tables()
 
-    DBManager.create_tables(create_local=False, drop_existing_tables=False)
+    DBManager.create_all_tables(create_local=False, drop_existing_tables=False)
     clusters = load_clusters_from_db()
     Commands.initialize()
 
@@ -82,7 +82,7 @@ def run_program(path_to_central_dir):
 
 def demo_program(path_to_central_dir):
     # path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
-    DBManager.create_tables(create_local=False, drop_existing_tables=True)
+    DBManager.create_all_tables(create_local=False, drop_existing_tables=True)
     clusters = load_clusters_from_db()
     Commands.initialize()
 

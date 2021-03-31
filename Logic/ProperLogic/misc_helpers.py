@@ -154,3 +154,25 @@ def get_user_input_of_type(class_, obj_name):
         except ValueError:
             log_error(f'{obj_name} must be convertible to a(n) {class_}. Please try again.')
     return user_input
+
+
+def open_nested_contexts(func, args=None, kwargs=None, context_managers=None):
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = dict()
+    if context_managers is None:
+        context_managers = []
+    return _open_nested_contexts_worker(func, args, kwargs, iter(context_managers))
+
+
+def _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator):
+    try:
+        context_manager = next(context_managers_iterator)
+    except StopIteration:
+        result = func(*args, **kwargs)
+        return result
+
+    with context_manager:
+        result = _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator)
+    return result

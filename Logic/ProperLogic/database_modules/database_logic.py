@@ -98,9 +98,11 @@ class DBManager:
                 connections_dict['local_con'] = local_con
 
         connections = connections_dict.values()
+        commit_connections = True
         try:
-            result = open_nested_contexts(func, kwargs=connections_dict, context_managers=connections)
+            result = func(**connections_dict)
         except Exception as e:
+            commit_connections = False
             for con in connections:
                 con.rollback()
             log_error(f'{e.__class__}, {e.args}')
@@ -109,6 +111,8 @@ class DBManager:
         finally:
             if close_connections:
                 for con in connections:
+                    if commit_connections:
+                        con.commit()
                     con.close()
         return result
 
@@ -152,6 +156,9 @@ class DBManager:
             # TODO: Use executemany?
             for table in tables:
                 con.execute(f'DROP TABLE IF EXISTS {table};')
+            # TODO: Remove
+            l = list(DBManager.fetch_from_table(Tables.path_id_table, path_to_local_db))
+            print(l)
 
         # TODO: How to handle possible exception here?
         cls.connection_wrapper(drop_tables_worker, path_to_local_db=path_to_local_db, con=con,
@@ -238,13 +245,23 @@ class DBManager:
             raise ValueError('At least one of [embeddings_ids and label] and [cluster] must not be None')
 
         table = Tables.certain_labels_table
-        row_dicts = table.make_row_dicts(
-            values_objects=[embeddings_ids, label],
-            repetition_flags=[False, True]
-        )
+        # row_dicts = table.make_row_dicts(
+        #     values_objects=[embeddings_ids, label],
+        #     repetition_flags=[False, True]
+        # )
+        row_dicts = [
+            {Columns.embedding_id.col_name: embedding_id,
+             Columns.label.col_name: label}
+            for embedding_id in embeddings_ids
+        ]
+
+        # Use on conflict clause for when user wants to relabel a known image
+        labels_on_conflict = cls.build_on_conflict_sql(conflict_target_cols=[Columns.embedding_id],
+                                                       update_cols=[Columns.label],
+                                                       update_expressions=[f'excluded.{Columns.label}'])
 
         def store_certain_tables_worker(con):
-            cls.store_in_table(table, row_dicts, con=con, close_connection=False)
+            cls.store_in_table(table, row_dicts, on_conflict=labels_on_conflict, con=con, close_connection=False)
 
         # TODO: How to handle possible exception here?
         cls.connection_wrapper(store_certain_tables_worker, open_local=False, con=con,
@@ -303,11 +320,11 @@ class DBManager:
         # TODO: Allow img_id to be None?
         path_id_row = {Columns.path_id_col.col_name: path_id}
 
-        def store_image_worker(con):
+        def store_path_id_worker(con):
             cls.store_in_table(Tables.path_id_table, [path_id_row], path_to_local_db=path_to_local_db, con=con,
                                close_connection=False)
 
-        cls.connection_wrapper(store_image_worker, open_local=True, path_to_local_db=path_to_local_db, con=con,
+        cls.connection_wrapper(store_path_id_worker, open_local=True, path_to_local_db=path_to_local_db, con=con,
                                close_connections=close_connection)
 
     @classmethod
@@ -585,6 +602,22 @@ class DBManager:
     @classmethod
     def bytes_to_tensor(cls, data_bytes):
         return cls.bytes_to_data(data_bytes, data_type=ColumnDetails.tensor)
+
+    @classmethod
+    def get_path_id(cls, path):
+        # TODO: con params needed?
+        cond = f"{Columns.path} = '{path}'"
+        path_id_rows = list(cls.fetch_from_table(
+            Tables.directory_paths_table,
+            col_names=[Columns.path_id_col.col_name],
+            condition=cond
+        ))
+        if path_id_rows:
+            path_id_row = path_id_rows[0]
+            path_id = path_id_row[0]
+        else:
+            path_id = None
+        return path_id
 
     @staticmethod
     def make_values_template(length, char_to_join='?', sep=','):

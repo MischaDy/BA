@@ -84,6 +84,7 @@ class TableSchema:
         return dict(zip(self.get_column_names(), row))
 
     def make_row_dicts(self, values_objects, repetition_flags=None):
+        # TODO: Fix bug!
         cols_names = self.get_column_names()
         values_iterables = self.make_values_iterables(values_objects, repetition_flags)
         row_dicts = [dict(zip(cols_names, values_iterable))
@@ -147,6 +148,7 @@ class ColumnSchema:
         return have_equal_attrs(self, other)
 
     def with_constraint(self, col_constraint):
+        # TODO: Allow 'KEY' as constraint with same effect as primary key
         # TODO: Allow multiple constraints and use constraints enum!
         if 'PRIMARY KEY' in col_constraint:
             phrase_unique = 'UNIQUE' if 'UNIQUE' not in col_constraint else ''
@@ -276,7 +278,7 @@ class Tables:
     directory_paths_table = TableSchema(
         'directory_paths',
         [Columns.path_id_col.with_constraint('PRIMARY KEY'),
-         Columns.path.with_constraint('NOT NULL')
+         Columns.path.with_constraint('UNIQUE NOT NULL')
          ],
         [],
     )

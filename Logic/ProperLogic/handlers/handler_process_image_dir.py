@@ -109,9 +109,11 @@ def extract_faces(path, check_if_known=True):
     def extract_faces_worker(global_con, local_con):
         # TODO: Outsource as function to DBManager?
 
-        # TODO: how to handle local AND global con?!
-        path_id = DBManager.store_directory_path(path, con=global_con, close_connection=False)
-        DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connection=False)
+        path_id = DBManager.get_path_id(path)
+        if path_id is None:
+            # path not yet known
+            path_id = DBManager.store_directory_path(path, con=global_con, close_connection=False)
+            DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connection=False)
 
         faces_rows = []
         img_id = max_img_id + 1
@@ -125,7 +127,6 @@ def extract_faces(path, check_if_known=True):
             if check_if_known and (img_name, last_modified) in imgs_names_and_date:
                 continue
 
-            # TODO: how to handle local AND global con?!
             DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
                                   path_to_local_db=path_to_local_db, con=local_con, close_connection=False)
             DBManager.store_image_path(img_id=img_id, path_id=path_id, con=global_con, close_connection=False)

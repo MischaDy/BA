@@ -46,6 +46,7 @@ def edit_faces(clusters, **kwargs):
                 set_cluster_label(cluster, new_label)
             else:
                 try:
+                    # TODO: Undo actions that cause face to disappear --> Done
                     set_picture_label(embedding_id, new_label, cluster, clusters)
                 except IncompleteDatabaseOperation:
                     pass
@@ -180,6 +181,7 @@ def print_face_ids(faces_dict, label):
     # TODO: Remove list casting
     faces_strs = list(map(lambda face_id: f'- Face {face_id}', faces_dict))
     print()
-    wait_for_any_input(f"Please enter a face id to view the face. The current label of each of them is '{label}'."
+    wait_for_any_input(f"Please enter a face id to view the face, or press Enter to skip viewing. The current label of"
+                       f" each of them is '{label}'."
                        "\n(Press Enter to continue.)")
     print('\n'.join(faces_strs))

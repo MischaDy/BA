@@ -118,7 +118,7 @@ class DBManager:
         def create_local_tables_worker(con):
             if drop_existing_tables:
                 cls.drop_tables(drop_local=True, path_to_local_db=path_to_local_db, con=con, close_connections=False)
-            cls._create_tables(Tables.local_tables, fk_on=True, con=con, close_connections=close_connections)
+            cls._create_tables(Tables.local_tables, fk_on=True, con=con, close_connections=False)
 
         # TODO: How to handle possible exception here?
         cls.connection_wrapper(create_local_tables_worker, open_local=True, path_to_local_db=path_to_local_db, con=con,
@@ -130,7 +130,7 @@ class DBManager:
         def create_central_tables_worker(con):
             if drop_existing_tables:
                 cls.drop_tables(drop_local=False, con=con, close_connections=False)
-            cls._create_tables(Tables.central_tables, fk_on=True, con=con, close_connections=close_connections)
+            cls._create_tables(Tables.central_tables, fk_on=True, con=con, close_connections=False)
 
         # TODO: How to handle possible exception here?
         cls.connection_wrapper(create_central_tables_worker, open_local=False, con=con,

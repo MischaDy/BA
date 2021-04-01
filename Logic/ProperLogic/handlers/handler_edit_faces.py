@@ -108,7 +108,7 @@ def set_cluster_label(cluster, new_label):
 
     # TODO: Outsource as function to DBManager?
     def set_cluster_label_worker(con):
-        DBManager.store_clusters([cluster], con=con, close_connection=False)
+        DBManager.store_clusters([cluster], con=con, close_connections=False)
 
     # TODO: How to handle possible exception here?
     DBManager.connection_wrapper(set_cluster_label_worker)
@@ -130,15 +130,15 @@ def set_picture_label(embedding_id, new_label, cluster, clusters):
 
     def set_pic_label_worker(con):
         if cluster.get_size() == 0:
-            embeddings_row_dicts = DBManager.remove_clusters([cluster], con=con, close_connection=False)
+            embeddings_row_dicts = DBManager.remove_clusters([cluster], con=con, close_connections=False)
             emb_id_to_face_dict = make_emb_id_to_face_dict_from_row_dicts(embeddings_row_dicts)
             emb_id_to_img_id_dict = make_emb_id_to_img_id_dict_from_row_dicts(embeddings_row_dicts)
         else:
             emb_id_to_face_dict = None
             emb_id_to_img_id_dict = None
         DBManager.store_clusters(modified_clusters, emb_id_to_face_dict=emb_id_to_face_dict,
-                                 emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con, close_connection=False)
-        DBManager.store_certain_labels(cluster=new_cluster, con=con, close_connection=False)
+                                 emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con, close_connections=False)
+        DBManager.store_certain_labels(cluster=new_cluster, con=con, close_connections=False)
 
     con = DBManager.open_connection(open_local=False)
     try:

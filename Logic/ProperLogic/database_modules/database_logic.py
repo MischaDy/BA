@@ -679,7 +679,7 @@ class DBManager:
         certain_cluster_parts_sql = (
             f"SELECT {Columns.embedding_id}, {Columns.embedding}, {Columns.label}"
             f" FROM {Tables.embeddings_table}"
-            f" INNER JOIN {Tables.central_tables} USING ({Columns.embedding_id});"
+            f" INNER JOIN {Tables.certain_labels_table} USING ({Columns.embedding_id});"
         )
 
         def get_certain_clusters_worker(con):

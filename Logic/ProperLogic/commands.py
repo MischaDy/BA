@@ -1,6 +1,6 @@
 import torchvision
 
-from Logic.ProperLogic.handlers.handler_edit_faces import edit_faces
+from Logic.ProperLogic.handlers.handler_edit_labels import edit_labels
 from Logic.ProperLogic.handlers.handler_find_person import find_person
 from Logic.ProperLogic.handlers.handler_process_image_dir import process_image_dir
 from Logic.ProperLogic.handlers.handler_reclassify import reclassify
@@ -142,7 +142,7 @@ class Commands:
     @classmethod
     def initialize(cls):
         cls.process_images.set_handler(process_image_dir)
-        cls.edit_faces.set_handler(edit_faces)
+        cls.edit_faces.set_handler(edit_labels)
         cls.find.set_handler(find_person)
         cls.reclassify.set_handler(reclassify)
         cls.show_cluster.set_handler(show_cluster)

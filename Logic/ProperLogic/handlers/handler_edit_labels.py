@@ -7,7 +7,7 @@ from Logic.ProperLogic.handlers.helpers import user_choose_cluster
 from Logic.ProperLogic.misc_helpers import log_error, get_user_decision, get_user_input_of_type, wait_for_any_input
 
 
-def edit_faces(clusters, **kwargs):
+def edit_labels(clusters, **kwargs):
     # TODO: Refactor
     # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
     # TODO: Allow to abort --> done?

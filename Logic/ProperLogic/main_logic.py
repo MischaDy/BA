@@ -14,12 +14,16 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 # -------------- TODOs --------------
 
 # ------- NEEDED -------
-# TODO: Test that rollbacks always work! --> Make sure that ALL writing DB interactions of ALL handlers use con params!
+# TODO: Test that rollbacks always work!
+#       --> Make sure that ALL writing DB interactions of ALL handlers use con params!
 # TODO: How to create CLI?
 # TODO: Select good params for core algorithm
-# TODO: Fix relative/absolute path problems
+# TODO: Test edge cases (e.g. calling handlers when nothing has been processed yet)!
+# TODO: Add function to reset cluster ids to smallest possible! (sequential too?)
 
 # ------- HELPFUL -------
+# TODO: Give option to not view face but edit directly
+# TODO: Add reset cluster ids command
 # TODO: Clean + figure out what to do with input_output module!
 # TODO: Allow to exit at any time!
 # TODO: Check out which data structures sqlite3 provides! (Row?) Create Row dict class if not provided?

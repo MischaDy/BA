@@ -4,7 +4,7 @@ from typing import Union, Tuple
 
 from cluster import Clusters, Cluster
 from Logic.ProperLogic.database_modules.database_logic import DBManager
-from misc_helpers import remove_items
+from misc_helpers import remove_items, starfilterfalse
 
 from itertools import count, combinations
 

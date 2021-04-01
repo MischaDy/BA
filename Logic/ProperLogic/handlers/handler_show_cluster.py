@@ -3,7 +3,7 @@ from Logic.ProperLogic.misc_helpers import clean_str, wait_for_any_input
 
 
 def show_cluster(clusters_path, **kwargs):
-    # TODO: Needed? Or can be included in / adapted from edit_faces?
+    # TODO: Needed? Or can be included in / adapted from edit_labels?
     # TODO: Finish implementing
     should_continue = ''
     while not should_continue.startswith('n'):

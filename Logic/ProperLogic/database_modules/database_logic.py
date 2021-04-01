@@ -152,10 +152,6 @@ class DBManager:
         cls.connection_wrapper(_create_tables_worker, con=con, close_connections=close_connections)
 
     @classmethod
-    def create_all_tables(cls):
-        pass
-
-    @classmethod
     def drop_tables(cls, drop_local, path_to_local_db=None, con=None, close_connections=True):
         def drop_tables_worker(con):
             tables = Tables.local_tables if drop_local else Tables.central_tables

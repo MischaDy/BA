@@ -13,6 +13,9 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 # -------------- TODOs --------------
 
 # ------- NEEDED -------
+
+# TODO: Convert project to exe and test!
+# TODO: Replace all stored links with user choices!
 # TODO: Test that rollbacks always work!
 #       --> Make sure that ALL writing DB interactions of ALL handlers use con params!
 # TODO: How to create CLI?

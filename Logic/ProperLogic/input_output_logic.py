@@ -12,9 +12,6 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 
 import logging
 
-from Logic.ProperLogic.database_modules.database_logic import DBManager
-from cluster import Cluster, Clusters
-
 logging.basicConfig(level=logging.INFO)
 
 
@@ -38,28 +35,6 @@ def main(imgs_dir_path, embeddings_dir_path):
 
     _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet)
     _test_loading_embeddings(embeddings_dir_path)
-
-
-def load_clusters_from_db():
-    # TODO: Refactor + improve efficiency
-    cluster_attributes_parts = DBManager.get_cluster_attributes_parts()
-    embeddings_parts = DBManager.get_embeddings_parts()
-
-    # clusters_dict = dict(
-    #     (kwargs[Columns.cluster_id.col_name], Cluster(**kwargs))
-    #     for kwargs in clusters_parts
-    # )
-
-    clusters_dict = dict()
-    for cluster_id, label, center in cluster_attributes_parts:
-        clusters_dict[cluster_id] = Cluster(cluster_id, label=label, center_point=center)
-
-    for cluster_id, embedding, embedding_id in embeddings_parts:
-        cluster = clusters_dict[cluster_id]
-        cluster.add_embedding(embedding, embedding_id)
-
-    clusters = Clusters(clusters_dict.values())
-    return clusters
 
 
 def _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet):

@@ -431,6 +431,28 @@ class DBManager:
         return map(output_func, processed_rows)
 
     @classmethod
+    def load_clusters(cls):
+        # TODO: Refactor + improve efficiency
+        cluster_attributes_parts = DBManager.get_cluster_attributes_parts()
+        embeddings_parts = DBManager.get_embeddings_parts()
+
+        # clusters_dict = dict(
+        #     (kwargs[Columns.cluster_id.col_name], Cluster(**kwargs))
+        #     for kwargs in clusters_parts
+        # )
+
+        clusters_dict = dict()
+        for cluster_id, label, center in cluster_attributes_parts:
+            clusters_dict[cluster_id] = Cluster(cluster_id, label=label, center_point=center)
+
+        for cluster_id, embedding, embedding_id in embeddings_parts:
+            cluster = clusters_dict[cluster_id]
+            cluster.add_embedding(embedding, embedding_id)
+
+        clusters = Clusters(clusters_dict.values())
+        return clusters
+
+    @classmethod
     def get_embeddings_parts(cls, cond=''):
         # TODO: Add con params?
         where_clause = cls._build_where_clause(cond)

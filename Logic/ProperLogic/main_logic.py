@@ -7,7 +7,6 @@ from functools import partial
 from Logic.ProperLogic.commands import Command, Commands
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns
 from Logic.ProperLogic.database_modules.database_logic import DBManager
-from input_output_logic import load_clusters_from_db
 from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 
 
@@ -75,7 +74,7 @@ def run_program(path_to_central_dir):
 
     # TODO: Make this failsafe!!!
     DBManager.create_central_tables(drop_existing_tables=False)
-    clusters = load_clusters_from_db()
+    clusters = DBManager.load_clusters()
     # TODO: More elegant way around this?
     Commands.initialize()
 

@@ -327,15 +327,27 @@ class DBManager:
                                close_connections=close_connections)
 
     @classmethod
-    def remove_clusters(cls, clusters_to_remove, con=None, close_connections=True):
+    def remove_clusters(cls, clusters_to_remove=None, remove_all=False, con=None, close_connections=True):
         """
         Removes the data in clusters from the central DB-tables ('cluster_attributes' and 'embeddings').
+        Exactly one of *clusters_to_remove* and *remove_all* must be set.
 
-        :param close_connections:
-        :param con:
         :param clusters_to_remove: Iterable of clusters to remove.
+        :param remove_all: If true, all clusters are removed.
+        :param con:
+        :param close_connections:
         :return: None
         """
+        if not clusters_to_remove and not remove_all:
+            log_error(f"cannot provide both 'clusters_to_remove' and 'remove_all' (safety feature)")
+            return
+        elif clusters_to_remove and remove_all:
+            log_error(f"'clusters_to_remove' or 'remove_all' must be provided")
+            return
+
+        if remove_all:
+            clusters_to_remove = DBManager.load_clusters()
+
         temp_table = Tables.temp_cluster_ids_table
         embs_table = Tables.embeddings_table
         attrs_table = Tables.cluster_attributes_table
@@ -653,20 +665,15 @@ class DBManager:
         return path_id
 
     @classmethod
-    def get_all_embeddings(cls, with_ids=False):
+    def get_all_embeddings(cls, with_ids=False, as_dict=False):
         # TODO: Use con params?!
         # TODO: Refactor?
         col_names = [Columns.embedding_id.col_name] if with_ids else []
         col_names.append(Columns.embedding.col_name)
-
         embeddings = cls.fetch_from_table(Tables.embeddings_table, col_names=col_names)
-        if not with_ids:
-            return map(cls.bytes_to_tensor, embeddings)
-
-        def convert_to_correct_data_types(emb_id, emb):
-            return int(emb_id), cls.bytes_to_tensor(emb)
-
-        return starmap(convert_to_correct_data_types, embeddings)
+        if with_ids and as_dict:
+            return dict(embeddings)
+        return embeddings
 
     @classmethod
     def get_certain_clusters(cls):

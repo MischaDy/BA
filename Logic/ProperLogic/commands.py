@@ -134,7 +134,7 @@ class Commands:
     process_images = Command('process images', 'select new faces', 'p')
     edit_faces = Command('edit faces', 'edit existing faces', 'e')
     find = Command('find person', 'find person', 'f')
-    reclassify = Command('reclassify', 'reclassify individuals', 'r')
+    reclassify = Command('reclassify', 'reclassify individuals', 'c')
     show_cluster = Command('show cluster', 'show a cluster', 's')
     reset_cluster_ids = Command('reset cluster ids', 'reset the cluster ids', 'r')
     exit = Command('exit', 'exit', 'exit')

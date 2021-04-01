@@ -111,7 +111,7 @@ def set_cluster_label(cluster, new_label):
         DBManager.store_clusters([cluster], con=con, close_connection=False)
 
     # TODO: How to handle possible exception here?
-    DBManager.connection_wrapper(set_cluster_label_worker, close_connections=True)
+    DBManager.connection_wrapper(set_cluster_label_worker)
 
 
 def set_picture_label(embedding_id, new_label, cluster, clusters):

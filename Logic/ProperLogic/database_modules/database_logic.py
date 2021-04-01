@@ -12,9 +12,9 @@ from PIL import Image
 import io
 
 from Logic.ProperLogic.cluster import Cluster, Clusters
-from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails,\
+from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, \
     ColumnSchema
-from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error, open_nested_contexts
+from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error
 
 """
 ----- DB SCHEMA -----
@@ -37,7 +37,7 @@ cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 
 
 class DBManager:
-    db_files_path = 'database_files'
+    db_files_path = 'database_modules'
     central_db_file_name = 'central_db.sqlite'
     central_db_file_path = os.path.join(db_files_path, central_db_file_name)
     local_db_file_name = 'local_db.sqlite'
@@ -49,22 +49,6 @@ class DBManager:
     def open_connection(cls, open_local, path_to_local_db=None):
         path = path_to_local_db if open_local else cls.central_db_file_path
         return sqlite3.connect(path)
-
-    @classmethod
-    def create_all_tables(cls, create_local, path_to_local_db=None, drop_existing_tables=False, con=None,
-                          close_connection=True):
-        # TODO: Rename?
-        def create_all_tables_worker(con):
-            if drop_existing_tables:
-                cls.drop_tables(drop_local=create_local, con=con, close_connection=False)
-
-            if create_local:
-                cls.create_local_tables(con, close_connection=False)
-            else:
-                cls.create_central_tables(con, close_connection=False)
-        # TODO: How to handle possible exception here?
-        cls.connection_wrapper(create_all_tables_worker, create_local, path_to_local_db, con=con,
-                               close_connections=close_connection)
 
     @classmethod
     def connection_wrapper(cls, func, open_local=False, path_to_local_db=None, con=None, global_con=None,
@@ -84,7 +68,6 @@ class DBManager:
         # TODO: Allow to not pass global/local con, but still open it here (and thus close it)?
         # TODO: Make sure callers undo their tasks if exception is raised!
         # TODO: Generalize to allow for one global and any number of local connections?
-        # TODO: Remove close_connections assignment from callers not providing con, if they exist
         # TODO: How to make this a decorator?
 
         if not any([con, global_con, local_con]):
@@ -127,21 +110,34 @@ class DBManager:
         # TODO: Create table in memory? (sqlite3.connect(":memory:"))
         #       ---> Not possible, since other stuff isn't in memory(?)
         table = Tables.temp_cluster_ids_table if temp_table is None else temp_table
-        cls._create_tables([table], create_temp_flags=[True], con=con, close_connection=False)
+        cls._create_tables([table], create_temp_flags=[True], con=con, close_connections=False)
 
     @classmethod
-    def create_local_tables(cls, con=None, close_connection=True):
-        tables = Tables.local_tables
-        cls._create_tables(tables, fk_on=True, con=con, close_connection=close_connection)
+    def create_local_tables(cls, drop_existing_tables=False, path_to_local_db=None, con=None, close_connections=True):
+
+        def create_local_tables_worker(con):
+            if drop_existing_tables:
+                cls.drop_tables(drop_local=True, path_to_local_db=path_to_local_db, con=con, close_connections=False)
+            cls._create_tables(Tables.local_tables, fk_on=True, con=con, close_connections=close_connections)
+
+        # TODO: How to handle possible exception here?
+        cls.connection_wrapper(create_local_tables_worker, open_local=True, path_to_local_db=path_to_local_db, con=con,
+                               close_connections=close_connections)
 
     @classmethod
-    def create_central_tables(cls, con=None, close_connection=True):
-        # TODO: Create image_paths and directory_paths tables, too!
-        tables = Tables.central_tables
-        cls._create_tables(tables, fk_on=True, con=con, close_connection=close_connection)
+    def create_central_tables(cls, drop_existing_tables=False, con=None, close_connections=True):
+
+        def create_central_tables_worker(con):
+            if drop_existing_tables:
+                cls.drop_tables(drop_local=False, con=con, close_connections=False)
+            cls._create_tables(Tables.central_tables, fk_on=True, con=con, close_connections=close_connections)
+
+        # TODO: How to handle possible exception here?
+        cls.connection_wrapper(create_central_tables_worker, open_local=False, con=con,
+                               close_connections=close_connections)
 
     @classmethod
-    def _create_tables(cls, tables, fk_on=False, create_temp_flags=None, con=None, close_connection=True):
+    def _create_tables(cls, tables, fk_on=False, create_temp_flags=None, con=None, close_connections=True):
         # TODO: Rename?
         if create_temp_flags is None:
             create_temp_flags = repeat(False, len(tables))
@@ -153,29 +149,30 @@ class DBManager:
                 create_table_sql = cls.build_create_table_sql(table, create_temp=create_temp_flag)
                 con.execute(create_table_sql)
 
-        cls.connection_wrapper(_create_tables_worker, con=con, close_connections=close_connection)
+        cls.connection_wrapper(_create_tables_worker, con=con, close_connections=close_connections)
 
     @classmethod
-    def drop_tables(cls, drop_local, path_to_local_db=None, con=None, close_connection=True):
+    def create_all_tables(cls):
+        pass
+
+    @classmethod
+    def drop_tables(cls, drop_local, path_to_local_db=None, con=None, close_connections=True):
         def drop_tables_worker(con):
             tables = Tables.local_tables if drop_local else Tables.central_tables
             # TODO: Use executemany?
             for table in tables:
                 con.execute(f'DROP TABLE IF EXISTS {table};')
-            # TODO: Remove
-            l = list(DBManager.fetch_from_table(Tables.path_id_table, path_to_local_db))
-            print(l)
 
         # TODO: How to handle possible exception here?
         cls.connection_wrapper(drop_tables_worker, path_to_local_db=path_to_local_db, con=con,
-                               close_connections=close_connection)
+                               close_connections=close_connections)
 
     @classmethod
-    def store_in_table(cls, table, row_dicts, on_conflict='', path_to_local_db=None, con=None, close_connection=True):
+    def store_in_table(cls, table, row_dicts, on_conflict='', path_to_local_db=None, con=None, close_connections=True):
         """
 
         :param con:
-        :param close_connection:
+        :param close_connections:
         :param table:
         :param row_dicts: iterable of dicts storing (col_name, col_value)-pairs
         :param on_conflict:
@@ -193,15 +190,15 @@ class DBManager:
 
         # TODO: How to handle possible exception here?
         cls.connection_wrapper(store_in_table_worker, store_in_local, path_to_local_db, con=con,
-                               close_connections=close_connection)
+                               close_connections=close_connections)
 
     @classmethod
     def store_clusters(cls, clusters, emb_id_to_face_dict=None, emb_id_to_img_id_dict=None, con=None,
-                       close_connection=True):
+                       close_connections=True):
         """
         Store the data in clusters in the central DB-tables ('cluster_attributes' and 'embeddings').
 
-        :param close_connection:
+        :param close_connections:
         :param con:
         :param emb_id_to_img_id_dict:
         :param emb_id_to_face_dict:
@@ -235,15 +232,15 @@ class DBManager:
 
         def store_clusters_worker(con):
             cls.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict,
-                               con=con, close_connection=False)
+                               con=con, close_connections=False)
             cls.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict,
-                               con=con, close_connection=False)
+                               con=con, close_connections=False)
 
         # TODO: How to handle possible exception here?
-        cls.connection_wrapper(store_clusters_worker, open_local=False, con=con, close_connections=close_connection)
+        cls.connection_wrapper(store_clusters_worker, open_local=False, con=con, close_connections=close_connections)
 
     @classmethod
-    def store_certain_labels(cls, embeddings_ids=None, label=None, cluster=None, con=None, close_connection=True):
+    def store_certain_labels(cls, embeddings_ids=None, label=None, cluster=None, con=None, close_connections=True):
         if cluster is not None:
             embeddings_ids = cluster.get_embeddings_ids()
             label = cluster.label
@@ -267,14 +264,14 @@ class DBManager:
                                                        update_expressions=[f'excluded.{Columns.label}'])
 
         def store_certain_tables_worker(con):
-            cls.store_in_table(table, row_dicts, on_conflict=labels_on_conflict, con=con, close_connection=False)
+            cls.store_in_table(table, row_dicts, on_conflict=labels_on_conflict, con=con, close_connections=False)
 
         # TODO: How to handle possible exception here?
         cls.connection_wrapper(store_certain_tables_worker, open_local=False, con=con,
-                               close_connections=close_connection)
+                               close_connections=close_connections)
 
     @classmethod
-    def store_directory_path(cls, path, path_id=None, con=None, close_connection=True):
+    def store_directory_path(cls, path, path_id=None, con=None, close_connections=True):
         if path_id is None:
             max_path_id = cls.get_max_path_id()
             path_id = max_path_id + 1
@@ -284,14 +281,14 @@ class DBManager:
         }
 
         def store_directory_path_worker(con):
-            cls.store_in_table(Tables.directory_paths_table, [path_row], con=con, close_connection=False)
+            cls.store_in_table(Tables.directory_paths_table, [path_row], con=con, close_connections=False)
 
         cls.connection_wrapper(store_directory_path_worker, open_local=False, con=con,
-                               close_connections=close_connection)
+                               close_connections=close_connections)
         return path_id
 
     @classmethod
-    def store_image_path(cls, img_id=None, path_id=None, con=None, close_connection=True):
+    def store_image_path(cls, img_id=None, path_id=None, con=None, close_connections=True):
         # TODO: Allow img_id to be None?
         # if img_id is None:
         #     max_img_id = cls.get_max_image_id(path_to_local_db)
@@ -303,12 +300,12 @@ class DBManager:
                         Columns.path_id_col.col_name: path_id}
 
         def store_image_path_worker(con):
-            cls.store_in_table(Tables.image_paths_table, [img_path_row], con=con, close_connection=False)
+            cls.store_in_table(Tables.image_paths_table, [img_path_row], con=con, close_connections=False)
 
-        cls.connection_wrapper(store_image_path_worker, open_local=False, con=con, close_connections=close_connection)
+        cls.connection_wrapper(store_image_path_worker, open_local=False, con=con, close_connections=close_connections)
 
     @classmethod
-    def store_image(cls, img_id, file_name, last_modified, path_to_local_db, con=None, close_connection=True):
+    def store_image(cls, img_id, file_name, last_modified, path_to_local_db, con=None, close_connections=True):
         # TODO: Allow img_id to be None?
         img_row = {Columns.image_id.col_name: img_id,
                    Columns.file_name.col_name: file_name,
@@ -316,29 +313,29 @@ class DBManager:
 
         def store_image_worker(con):
             cls.store_in_table(Tables.images_table, [img_row], path_to_local_db=path_to_local_db, con=con,
-                               close_connection=False)
+                               close_connections=False)
 
         cls.connection_wrapper(store_image_worker, open_local=True, path_to_local_db=path_to_local_db, con=con,
-                               close_connections=close_connection)
+                               close_connections=close_connections)
 
     @classmethod
-    def store_path_id(cls, path_id, path_to_local_db, con=None, close_connection=True):
+    def store_path_id(cls, path_id, path_to_local_db, con=None, close_connections=True):
         # TODO: Allow img_id to be None?
         path_id_row = {Columns.path_id_col.col_name: path_id}
 
         def store_path_id_worker(con):
             cls.store_in_table(Tables.path_id_table, [path_id_row], path_to_local_db=path_to_local_db, con=con,
-                               close_connection=False)
+                               close_connections=False)
 
         cls.connection_wrapper(store_path_id_worker, open_local=True, path_to_local_db=path_to_local_db, con=con,
-                               close_connections=close_connection)
+                               close_connections=close_connections)
 
     @classmethod
-    def remove_clusters(cls, clusters_to_remove, con=None, close_connection=True):
+    def remove_clusters(cls, clusters_to_remove, con=None, close_connections=True):
         """
         Removes the data in clusters from the central DB-tables ('cluster_attributes' and 'embeddings').
 
-        :param close_connection:
+        :param close_connections:
         :param con:
         :param clusters_to_remove: Iterable of clusters to remove.
         :return: None
@@ -357,23 +354,23 @@ class DBManager:
 
         def remove_clusters_worker(con):
             cls.create_temp_table(con, temp_table)
-            cls.store_in_table(temp_table, rows_dicts, con=con, close_connection=False)
+            cls.store_in_table(temp_table, rows_dicts, con=con, close_connections=False)
             deleted_embeddings_row_dicts = cls.delete_from_table(embs_table, condition=embs_condition, con=con,
-                                                                 close_connection=False)
-            cls.delete_from_table(attrs_table, condition=attrs_condition, con=con, close_connection=False)
+                                                                 close_connections=False)
+            cls.delete_from_table(attrs_table, condition=attrs_condition, con=con, close_connections=False)
             return deleted_embeddings_row_dicts
 
         # TODO: How to handle possible exception here?
         deleted_embeddings_row_dicts = cls.connection_wrapper(remove_clusters_worker, open_local=False, con=con,
-                                                              close_connections=close_connection)
+                                                              close_connections=close_connections)
         return deleted_embeddings_row_dicts
 
     @classmethod
     def delete_from_table(cls, table, with_clause_part='', condition='', con=None, path_to_local_db=None,
-                          close_connection=True):
+                          close_connections=True):
         """
 
-        :param close_connection:
+        :param close_connections:
         :param con:
         :param table:
         :param with_clause_part:
@@ -390,22 +387,22 @@ class DBManager:
             # Cast to list is *necessary* here, since fetch function only returns a generator. It will be executed after
             # the corresponding rows are deleted from table and will thus yield nothing.
             deleted_row_dicts = list(cls.fetch_from_table(table, path_to_local_db, condition=condition, as_dicts=True,
-                                                          con=con, close_connection=False))
+                                                          con=con, close_connections=False))
             con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
             return deleted_row_dicts
 
         # TODO: How to handle possible exception here?
         deleted_row_dicts = cls.connection_wrapper(delete_from_table_worker, delete_from_local, path_to_local_db,
-                                                   con=con, close_connections=close_connection)
+                                                   con=con, close_connections=close_connections)
         return deleted_row_dicts
 
     @classmethod
     def fetch_from_table(cls, table, path_to_local_db=None, col_names=None, condition='', as_dicts=False, con=None,
-                         close_connection=True):
+                         close_connections=True):
         """
 
         :param as_dicts:
-        :param close_connection:
+        :param close_connections:
         :param con:
         :param table:
         :param path_to_local_db:
@@ -429,21 +426,13 @@ class DBManager:
 
         # TODO: How to handle possible exception here?
         rows = cls.connection_wrapper(fetch_worker, fetch_from_local, path_to_local_db, con=con,
-                                      close_connections=close_connection)
+                                      close_connections=close_connections)
 
         # cast row of query results to row of usable data
         processed_rows = (starmap(cls.sql_value_to_data, zip(row, col_names))
                           for row in rows)
         output_func = table.row_to_row_dict if as_dicts else tuple
         return map(output_func, processed_rows)
-
-    @classmethod
-    def get_clusters_parts(cls):
-        # TODO: Needed?
-        embeddings_parts_list = cls.get_embeddings_parts()
-        cluster_attributes_parts_list = cls.get_cluster_attributes_parts()
-
-        return cluster_attributes_parts_list, embeddings_parts_list
 
     @classmethod
     def get_embeddings_parts(cls, cond=''):
@@ -505,17 +494,17 @@ class DBManager:
         return image_ids
 
     @classmethod
-    def get_column(cls, col, table, with_embeddings_ids=False, as_dict=True, cond='', con=None, close_connection=True):
+    def get_column(cls, col, table, with_embeddings_ids=False, as_dict=True, cond='', con=None, close_connections=True):
         col_names = [Columns.embedding_id.col_name] if with_embeddings_ids else []
         col_names.append(col.col_name)
         query_results = cls.fetch_from_table(table, col_names=col_names, condition=cond, con=con,
-                                             close_connection=close_connection)
+                                             close_connections=close_connections)
         if with_embeddings_ids and as_dict:
             return dict(query_results)
         return query_results
 
     @classmethod
-    def aggregate_col(cls, table, col, func, path_to_local_db=None, con=None, close_connection=True):
+    def aggregate_col(cls, table, col, func, path_to_local_db=None, con=None, close_connections=True):
         aggregate_from_local = Tables.is_local_table(table)
 
         def aggregate_worker(con):
@@ -526,13 +515,13 @@ class DBManager:
 
         # TODO: How to handle possible exception here?
         agg_value = cls.connection_wrapper(aggregate_worker, aggregate_from_local, path_to_local_db,
-                                           con=con, close_connections=close_connection)
+                                           con=con, close_connections=close_connections)
         return agg_value
 
     @classmethod
-    def get_max_num(cls, table, col, default=0, path_to_local_db=None, con=None, close_connection=True):
+    def get_max_num(cls, table, col, default=0, path_to_local_db=None, con=None, close_connections=True):
         max_num_rows = cls.aggregate_col(table=table, col=col, func='MAX', path_to_local_db=path_to_local_db, con=con,
-                                         close_connection=close_connection)
+                                         close_connections=close_connections)
         max_num = max_num_rows[0]
         if isinstance(max_num, int) or isinstance(max_num, float):
             return max_num

@@ -14,13 +14,13 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 # -------------- TODOs --------------
 
 # ------- NEEDED -------
-# TODO: Using ground-truths in clustering - put every emb. in new cluster!
-# TODO: Test that rollbacks always work!
+# TODO: Test that rollbacks always work! --> Make sure that ALL writing DB interactions of ALL handlers use con params!
 # TODO: How to create CLI?
 # TODO: Select good params for core algorithm
 # TODO: Fix relative/absolute path problems
 
 # ------- HELPFUL -------
+# TODO: Clean + figure out what to do with input_output module!
 # TODO: Check out which data structures sqlite3 provides! (Row?) Create Row dict class if not provided?
 # TODO: Use SQLAlchemy?
 # TODO: Add comments & docstrings
@@ -47,6 +47,7 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 # TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names?
 # TODO: Allow instances, which have a 'current connection' as only instance attribute?
 # TODO: Consistent abbreviations vs. full names (e.g. image vs. img)
+# TODO: Remove unused imports at end
 
 
 # -------------- PROGRAM --------------
@@ -62,15 +63,15 @@ ASK_FOR_DELETION = True
 
 
 def run_program(path_to_central_dir):
-    # path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
-
     if ASK_FOR_DELETION:
         # TODO: Remove
-        print(f'Number of clusters: {len(load_clusters_from_db())}')
+        # print(f'Number of clusters: {len(load_clusters_from_db())}')
         prompt_user_clear_tables()
 
-    DBManager.create_all_tables(create_local=False, drop_existing_tables=False)
+    # TODO: Make this failsafe!!!
+    DBManager.create_central_tables(drop_existing_tables=False)
     clusters = load_clusters_from_db()
+    # TODO: More elegant way around this?
     Commands.initialize()
 
     cmd_name = get_user_command()
@@ -80,18 +81,7 @@ def run_program(path_to_central_dir):
         cmd_name = get_user_command()
 
 
-def demo_program(path_to_central_dir):
-    # path_to_local_db = os.path.join(path_to_central_dir, DBManager.local_db_file_name)
-    DBManager.create_all_tables(create_local=False, drop_existing_tables=True)
-    clusters = load_clusters_from_db()
-    Commands.initialize()
-
-    cmd_name = get_user_command()
-    while cmd_name != str(Commands.exit):
-        cmd = Command.get_command(cmd_name)
-        cmd.handler(clusters=clusters)
-        cmd_name = 'exit'
-
+def _show_thumbnail():
     thumbs = DBManager.fetch_from_table(Tables.embeddings_table, col_names=[Columns.thumbnail])
     thumbs[0].show()
 

@@ -42,7 +42,7 @@ def main(imgs_dir_path, embeddings_dir_path):
 
 def load_clusters_from_db():
     # TODO: Refactor + improve efficiency
-    clusters_parts = DBManager.get_clusters_parts()
+    cluster_attributes_parts = DBManager.get_cluster_attributes_parts()
     embeddings_parts = DBManager.get_embeddings_parts()
 
     # clusters_dict = dict(
@@ -51,7 +51,7 @@ def load_clusters_from_db():
     # )
 
     clusters_dict = dict()
-    for cluster_id, label, center in clusters_parts:
+    for cluster_id, label, center in cluster_attributes_parts:
         clusters_dict[cluster_id] = Cluster(cluster_id, label=label, center_point=center)
 
     for cluster_id, embedding, embedding_id in embeddings_parts:

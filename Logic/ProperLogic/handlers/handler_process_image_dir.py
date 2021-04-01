@@ -40,9 +40,9 @@ def process_image_dir(clusters, **kwargs):
     emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
 
     def process_image_dir_worker(con):
-        DBManager.remove_clusters(list(removed_clusters), con=con, close_connection=False)
+        DBManager.remove_clusters(list(removed_clusters), con=con, close_connections=False)
         DBManager.store_clusters(list(modified_clusters), emb_id_to_face_dict, emb_id_to_img_id_dict, con=con,
-                                 close_connection=False)
+                                 close_connections=False)
 
     try:
         DBManager.connection_wrapper(process_image_dir_worker, open_local=False)
@@ -53,13 +53,13 @@ def process_image_dir(clusters, **kwargs):
 
 
 def user_choose_images():
+    # TODO: Use con params!!!
+
     # TODO: Refactor! (too many different tasks, function name non-descriptive)
     # TODO: make user user choose path
     images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
     path_to_local_db = DBManager.get_db_path(images_path, local=True)
-    DBManager.create_all_tables(create_local=True,
-                                path_to_local_db=path_to_local_db,
-                                drop_existing_tables=False)
+    DBManager.create_local_tables(drop_existing_tables=False, path_to_local_db=path_to_local_db)
     # TODO: Implement check_if_known question(?)
     # check_if_known_decision = get_user_decision(
     #    "Should already processed images be processed again? This can be useful if for example some files have changed"
@@ -112,8 +112,8 @@ def extract_faces(path, check_if_known=True):
         path_id = DBManager.get_path_id(path)
         if path_id is None:
             # path not yet known
-            path_id = DBManager.store_directory_path(path, con=global_con, close_connection=False)
-            DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connection=False)
+            path_id = DBManager.store_directory_path(path, con=global_con, close_connections=False)
+            DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
 
         faces_rows = []
         img_id = max_img_id + 1
@@ -128,8 +128,8 @@ def extract_faces(path, check_if_known=True):
                 continue
 
             DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
-                                  path_to_local_db=path_to_local_db, con=local_con, close_connection=False)
-            DBManager.store_image_path(img_id=img_id, path_id=path_id, con=global_con, close_connection=False)
+                                  path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
+            DBManager.store_image_path(img_id=img_id, path_id=path_id, con=global_con, close_connections=False)
 
             img_faces = cut_out_faces(Models.mtcnn, img)
             # TODO: Better way to create these row_dicts?

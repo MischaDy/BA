@@ -2,9 +2,9 @@ import torchvision
 
 from Logic.ProperLogic.handlers.handler_edit_faces import edit_faces
 from Logic.ProperLogic.handlers.handler_find_person import find_person
-from Logic.ProperLogic.handlers.handler_label_clusters import label_clusters
 from Logic.ProperLogic.handlers.handler_process_image_dir import process_image_dir
 from Logic.ProperLogic.handlers.handler_reclassify import reclassify
+from Logic.ProperLogic.handlers.handler_reset_cluster_ids import reset_cluster_ids
 from Logic.ProperLogic.handlers.handler_show_cluster import show_cluster
 from Logic.ProperLogic.misc_helpers import log_error, wait_for_any_input, have_equal_type_names, get_user_input_of_type
 
@@ -26,7 +26,7 @@ class Command:
     def __init__(self, cmd_name, cmd_desc, cmd_shorthand, handler=None, handler_params=None):
         if not cmd_shorthand:
             raise ValueError('command shorthand cannot be empty')
-        elif not cmd_name.startswith(cmd_shorthand):
+        elif cmd_shorthand not in cmd_name:
             raise ValueError(f"command name '{cmd_name}' doesn't start with '{cmd_shorthand}'")
         elif cmd_shorthand in self.get_command_shorthands():
             # TODO: Also output to which command?
@@ -136,7 +136,7 @@ class Commands:
     find = Command('find person', 'find person', 'f')
     reclassify = Command('reclassify', 'reclassify individuals', 'r')
     show_cluster = Command('show cluster', 'show a cluster', 's')
-    label_clusters = Command('label clusters', '(re-)name clusters', 'l')
+    reset_cluster_ids = Command('reset cluster ids', 'reset the cluster ids', 'r')
     exit = Command('exit', 'exit', 'exit')
 
     @classmethod
@@ -146,4 +146,4 @@ class Commands:
         cls.find.set_handler(find_person)
         cls.reclassify.set_handler(reclassify)
         cls.show_cluster.set_handler(show_cluster)
-        cls.label_clusters.set_handler(label_clusters)
+        cls.reset_cluster_ids.set_handler(reset_cluster_ids)

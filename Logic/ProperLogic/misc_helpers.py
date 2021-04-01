@@ -146,13 +146,34 @@ def first_true(iterable, default=False, pred=None):
     return next(filter(pred, iterable), default)
 
 
-def get_user_input_of_type(class_, obj_name):
+def get_user_input_of_type(class_, obj_name, exceptions=None, allow_empty=False, empty_as_none=True):
+    """
+
+    :param class_:
+    :param obj_name:
+    :param exceptions: Iterable of other valid values the user may enter
+    :param allow_empty: If true, add empty string to list of exceptions
+    :param empty_as_none: If empty is explicitly allowed and
+    :return:
+    """
+    exceptions = [] if exceptions is None else list(exceptions)
+    if allow_empty:
+        exceptions.append('')
+
     user_input = None
     while not isinstance(user_input, class_):
+        user_input = input()
+        if user_input in exceptions:
+            break
         try:
-            user_input = class_(input())
+            user_input = class_(user_input)
         except ValueError:
-            log_error(f'{obj_name} must be convertible to a(n) {class_}. Please try again.')
+            exceptions_str = "'" + "', '".join(['1', 'peanut butter', '', 'bob']) + "'"
+            cleaned_exceptions_str = exceptions_str.replace("''", "<empty string>")
+            log_error(f"{obj_name} must be convertible to a(n) {class_.__name__} or be one of:"
+                      f" {cleaned_exceptions_str}.\nPlease try again.")
+    if empty_as_none and user_input == '':
+        return None
     return user_input
 
 

@@ -21,6 +21,7 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 
 # ------- HELPFUL -------
 # TODO: Clean + figure out what to do with input_output module!
+# TODO: Allow to exit at any time!
 # TODO: Check out which data structures sqlite3 provides! (Row?) Create Row dict class if not provided?
 # TODO: Use SQLAlchemy?
 # TODO: Add comments & docstrings
@@ -156,7 +157,7 @@ def get_user_command():
 
 
 def get_user_command_shorthand():
-    wait_for_any_input('\nWhat would you like to do next? (Press any key to continue).')
+    wait_for_any_input('\nWhat would you like to do next? (Press Enter to continue).')
     print_command_options()
     return clean_str(input())
 

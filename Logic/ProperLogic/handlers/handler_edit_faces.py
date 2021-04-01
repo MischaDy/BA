@@ -10,7 +10,7 @@ from Logic.ProperLogic.misc_helpers import log_error, get_user_decision, get_use
 def edit_faces(clusters, **kwargs):
     # TODO: Refactor
     # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
-    # TODO: Allow to abort
+    # TODO: Allow to abort --> done?
     # TODO: Allow deletion of faces(?)
 
     if not clusters:
@@ -27,17 +27,17 @@ def edit_faces(clusters, **kwargs):
     continue_cluster = ''
     while continue_cluster != 'n':
         cluster = user_choose_cluster(clusters)
-        if cluster is None:  # TODO: Correct?
+        if cluster is None:
             continue_cluster = get_cluster_decision()
             continue
         continue_face = ''
         while continue_face != 'n':
             embedding_id = user_choose_embedding_id(cluster)
             if embedding_id is None:
-                continue_face = get_face_decision()
-                continue
+                # User *doesn't* want to edit another face in this cluster!
+                break
             new_label = user_choose_face_label(cluster.label)
-            if not new_label:
+            if not new_label:  # TODO: Use 'is None' here instead?
                 continue_face = get_face_decision()
                 continue
 
@@ -46,7 +46,6 @@ def edit_faces(clusters, **kwargs):
                 set_cluster_label(cluster, new_label)
             else:
                 try:
-                    # TODO: Undo actions that cause face to disappear --> Done
                     set_picture_label(embedding_id, new_label, cluster, clusters)
                 except IncompleteDatabaseOperation:
                     pass
@@ -55,32 +54,26 @@ def edit_faces(clusters, **kwargs):
 
 
 def user_choose_embedding_id(cluster):
-    # TODO: Don't ask user twice if he wants to continue in that cluster!
     # TODO: Refactor
-    # TODO: Give option of aborting.
 
-    embeddings_ids_dict = cluster.get_embeddings(as_dict=True)
     faces_dict = dict(DBManager.get_thumbnails_from_cluster(cluster.cluster_id, with_embeddings_ids=True))
-    label = cluster.label
-
-    chosen_embedding_id = user_choose_embedding_id_worker(faces_dict, label)
-    while chosen_embedding_id is not None and chosen_embedding_id not in embeddings_ids_dict:
-        log_error(f"face id '{chosen_embedding_id}' not found. Please try again.")
-        chosen_embedding_id = user_choose_embedding_id_worker(faces_dict, label)
+    chosen_embedding_id = user_choose_embedding_id_worker(faces_dict, cluster.label)
     return chosen_embedding_id
 
 
 def user_choose_embedding_id_worker(faces_dict, label):
-    # TODO: Allow to abort
     # TODO: Allow specific command to label face as unknown
 
-    get_id_decision = partial(get_user_decision, 'Would you like to view another face?')
+    get_id_decision = partial(get_user_decision, 'Would you like to relabel another face in this cluster?')
 
     face_id = None
     continue_id = ''
     while continue_id != 'n':
         print_face_ids(faces_dict, label)
-        face_id = get_user_input_of_type(int, 'face id')
+        face_id = get_user_input_of_type(int, 'face id', allow_empty=True, empty_as_none=True)
+        if face_id is None:
+            continue_id = get_id_decision()
+            continue
         try:
             face = faces_dict[face_id]
         except KeyError:
@@ -98,7 +91,7 @@ def user_choose_embedding_id_worker(faces_dict, label):
 
 def user_choose_face_label(old_label):
     new_label = input(f"The current label of the face is: '{old_label}'."
-                      "\nWhat should the new label be? (Press Enter to abort).")
+                      "\nPlease enter a new label, or press Enter to cancel.")
     return new_label
 
 
@@ -177,11 +170,10 @@ def make_dict_from_row_dicts(row_dicts, key_col_name, value_col_name):
 
 def print_face_ids(faces_dict, label):
     # TODO: print limited number of faces at a time (Enter=continue)
-    # TODO: Explain to user how to abort.
     # TODO: Remove list casting
     faces_strs = list(map(lambda face_id: f'- Face {face_id}', faces_dict))
     print()
-    wait_for_any_input(f"Please enter a face id to view the face, or press Enter to skip viewing. The current label of"
-                       f" each of them is '{label}'."
+    wait_for_any_input(f"Please enter a face id to view the face, or press Enter to cancel viewing. The current label"
+                       f" of each face is '{label}'."
                        "\n(Press Enter to continue.)")
     print('\n'.join(faces_strs))

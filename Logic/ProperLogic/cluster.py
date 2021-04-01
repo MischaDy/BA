@@ -45,6 +45,9 @@ class Cluster:
     def set_label(self, label):
         self.label = label
 
+    def set_cluster_id(self, cluster_id):
+        self.cluster_id = cluster_id
+
     def get_embeddings(self, with_embeddings_ids=False, as_dict=False):
         if with_embeddings_ids or as_dict:
             if as_dict:
@@ -96,6 +99,9 @@ class Cluster:
     def get_embedding(self, embedding_id):
         return self.embeddings[embedding_id]
 
+    def contains_embedding(self, embedding_id):
+        return self.embeddings.get(embedding_id) is not None
+
     def compute_dist_to_center(self, embedding):
         return Cluster.compute_dist(self.center_point, embedding)
 
@@ -109,10 +115,12 @@ class Cluster:
 
 
 class Clusters(list):
+    # TODO: Make sure constructor is only called when needed / doesn't produce more work than necessary!
+
     def get_cluster_by_id(self, cluster_id):
-        cluster_list = self.get_clusters_by_ids([cluster_id])
+        cluster_iterator = self.get_clusters_by_ids([cluster_id])
         try:
-            return next(cluster_list)
+            return next(cluster_iterator)
         except StopIteration:
             log_error(f"no cluster with an id in '{cluster_id}' found")
             return None
@@ -130,3 +138,10 @@ class Clusters(list):
     def get_cluster_attrs(self, attr):
         attr_getter = operator.attrgetter(attr)
         return map(attr_getter, self)
+
+    def reset_ids(self, start_id=1):
+        for new_cluster_id, cluster in enumerate(self, start=start_id):
+            cluster.set_cluster_id(new_cluster_id)
+
+    def any_cluster_with_emb(self, emb):
+        return any(filter(lambda cluster: cluster.contains_embedding(emb), self))

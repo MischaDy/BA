@@ -33,7 +33,8 @@ def process_image_dir(clusters, **kwargs):
                     faces_rows)
     embeddings = list(faces_to_embeddings(faces))
 
-    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids, existing_clusters=clusters)
+    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids, existing_clusters=clusters,
+                                                         final_clusters_only=False)
     updated_clusters, modified_clusters, removed_clusters = clustering_result
 
     emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))

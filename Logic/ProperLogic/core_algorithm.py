@@ -6,7 +6,7 @@ from cluster import Clusters, Cluster
 from Logic.ProperLogic.database_modules.database_logic import DBManager
 from misc_helpers import remove_items, starfilterfalse
 
-from itertools import count, combinations
+from itertools import combinations
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +37,7 @@ class CoreAlgorithm:
     num_embeddings_to_classify = -1
 
     @classmethod
-    def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_clusters=None):
+    def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_clusters=None, final_clusters_only=True):
         """
         Build clusters from face embeddings stored in the given path using the specified classification threshold.
         (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed
@@ -47,11 +47,18 @@ class CoreAlgorithm:
         (id, embedding)-pairs
         :param embeddings_ids: Ordered iterable with the embedding ids. Must be at least as long as embeddings.
         :param existing_clusters:
+        :param final_clusters_only: If true, only the final iterable of clusters is returned. Otherwise, return that
+        final iterable, as well as a list of modified/newly created and deleted clusters
         :return:
         """
         # TODO: Improve efficiency?
         # TODO: Allow embeddings_ids to be none? Get next id via DB query?
         # TODO: Allow embeddings_ids to be shorter than embeddings and 'fill up' remaining ids?
+        if not embeddings:
+            if final_clusters_only:
+                return []
+            return [], [], []
+
         if embeddings_ids is None:
             embeddings_with_ids = embeddings
         else:
@@ -62,15 +69,21 @@ class CoreAlgorithm:
 
         if existing_clusters is None:
             existing_clusters = Clusters()
+        else:
+            # TODO: Improve efficiency? (better algorithm)
+            # Don't iterate over embeddings in existing clusters
+            def exists_in_any_cluster(emb_id, _):
+                return existing_clusters.any_cluster_with_emb(emb_id)
+
+            embeddings_with_ids = starfilterfalse(exists_in_any_cluster, embeddings_with_ids)
         clusters = Clusters(existing_clusters)
         modified_clusters_ids, removed_clusters_ids = set(), set()
 
         next_cluster_id = DBManager.get_max_cluster_id() + 1
 
-        # TODO: remove this cutoff!!!
-        # iterate over remaining embeddings
-        counter_vals = range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0 else count(2)
-        for counter, (embedding_id, new_embedding) in zip(counter_vals, embeddings_with_ids):
+        # counter_vals = (range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0
+        #                 else count(2))
+        for embedding_id, new_embedding in embeddings_with_ids:
 
             # sort clusters by distance from their center to embedding; only consider closest clusters
             clusters_by_center_dist = sorted(clusters,
@@ -97,9 +110,12 @@ class CoreAlgorithm:
                 next_cluster_id += 1
                 clusters.append(new_cluster)
                 modified_clusters_ids.add(new_cluster.cluster_id)
+
+        if final_clusters_only:
+            return clusters
         modified_clusters = clusters.get_clusters_by_ids(modified_clusters_ids)
         removed_clusters = clusters.get_clusters_by_ids(removed_clusters_ids)
-        return clusters, modified_clusters, removed_clusters
+        return clusters, Clusters(modified_clusters), Clusters(removed_clusters)
 
     @classmethod
     def is_cluster_too_big(cls, cluster):

@@ -1,7 +1,7 @@
 import logging
 import operator
 
-from itertools import zip_longest
+from itertools import zip_longest, filterfalse
 
 
 # ----- OOP -----
@@ -18,9 +18,46 @@ def is_instance_by_type_name(obj, class_):
     return type(obj).__name__ == class_.__name__
 
 
+# ----- FUNCTIONAL -----
+
+def starfilter(pred, iterable):
+    """
+    Analogous to starmap from the itertools module, but wrt. filter. Basic functionality only.
+
+    :param pred:
+    :param iterable:
+    :return:
+    """
+    if pred is None:
+        return filter(None, iterable)
+
+    def new_pred(args):
+        return pred(*args)
+
+    return filter(new_pred, iterable)
+
+
+def starfilterfalse(pred, iterable):  # noqa
+    """
+    Analogous to starmap and filterfalse from the itertools module. Basic functionality only.
+
+    :param pred:
+    :param iterable:
+    :return:
+    """
+    if pred is None:
+        return filterfalse(None, iterable)
+
+    def new_pred(args):
+        return pred(*args)
+
+    return filterfalse(new_pred, iterable)
+
+
 # ----- I/O -----
 
 def log_error(msg):
+    # TODO: Raise errors instead!
     logging.error(f'Error: {msg}')
 
 

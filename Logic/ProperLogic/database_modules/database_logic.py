@@ -847,19 +847,69 @@ class DBManager:
         return f'SELECT {select_clause} {from_clause} {where_clause}'
 
     @classmethod
-    def get_image_paths(cls, person_label):
+    def get_dir_paths_with_img_ids(cls, person_label):
         """
-        1. get all clusters with that label
+        1. get all clusters with given label
         2. get all embeddings of these clusters
-        3. get all (unique!) image ids of these embeddings
-        4. get all directory paths of these images (grouped!)
-        5. create an image path for each image
-        6. return these image paths
+        3. get all unique image ids of these embeddings
+        4. get all directory paths of these image ids (grouped)
+        5. return these directory paths and image ids
 
         :param person_label:
         :return:
         """
-        return []
+        # TODO: Correct docstring
+        # TODO: Add con params?
+        # TODO: Refactor?
+        # TODO: More efficient distinct image ids?
+
+        # Using strange separator " || ", because windows doesn't allow pipes in file names, according to this:
+        # https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
+        # Note that the double quotes need to be part of the sql, so must be preserved here
+        strange_separator = '" || "'
+
+        person_cluster_ids_table = 'person_cluster_ids'
+        with_clause_sql = f"""
+            WITH {person_cluster_ids_table}({Columns.cluster_id}) AS (
+                SELECT {Columns.cluster_id}
+                FROM {Tables.cluster_attributes_table}
+                WHERE {Columns.label} = {person_label}
+            )
+        """
+        from_clause_sql = f"""
+            {person_cluster_ids_table}
+             NATURAL JOIN {Tables.embeddings_table}
+             NATURAL JOIN {Tables.image_paths_table}
+             NATURAL JOIN {Tables.directory_paths_table}
+        """
+
+        # JOIN {Tables.embeddings_table} USING ({Columns.cluster_id})
+        # JOIN {Tables.image_paths_table} USING ({Columns.image_id})
+        # JOIN {Tables.directory_paths_table} USING ({Columns.path_id_col})
+
+        get_dir_paths_sql = f"""
+            {with_clause_sql}
+            SELECT DISTINCT {Columns.path}, group_concat({Columns.image_id}, {strange_separator})
+            FROM {from_clause_sql}
+            GROUP BY {Columns.path}
+        """
+
+        def get_dir_paths_with_img_ids_worker(con):
+            return con.execute(get_dir_paths_sql).fetchall()
+
+        dir_paths_with_img_ids = cls.connection_wrapper(get_dir_paths_with_img_ids_worker, open_local=False)
+        return dir_paths_with_img_ids
+
+    @classmethod
+    def get_image_paths(cls, directory_path):
+        """
+        1. create an image path for each image
+        2. return these image paths
+
+        :param directory_path:
+        :return:
+        """
+        pass
 
 
 class IncompleteDatabaseOperation(RuntimeError):

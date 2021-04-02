@@ -26,10 +26,9 @@ def user_choose_cluster(clusters):
 
 def print_cluster_ids(clusters):
     # TODO: print limited number of clusters at a time (Enter=continue)
-    cluster_labels = clusters.get_cluster_labels()
-    cluster_ids = clusters.get_cluster_ids()
+    cluster_labels_with_ids = clusters.get_cluster_labels(with_ids=True)
     clusters_strs = (f"- Cluster {cluster_id} ('{label}')"
-                     for cluster_id, label in zip(cluster_ids, cluster_labels))
+                     for cluster_id, label in cluster_labels_with_ids)
     wait_for_any_input('\nPlease enter the id of the cluster you would like to view, or press Enter to cancel.'
                        '\n(Press Enter to continue.)')
     print('\n'.join(clusters_strs))

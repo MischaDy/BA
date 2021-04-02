@@ -132,12 +132,27 @@ class Clusters(list):
     def get_cluster_ids(self):
         return self.get_cluster_attrs('cluster_id')
 
-    def get_cluster_labels(self):
-        return self.get_cluster_attrs('label')
+    def get_cluster_labels(self, with_ids=False, unique=True):
+        """
+        If with_ids is provided, unique is ignored.
 
-    def get_cluster_attrs(self, attr):
-        attr_getter = operator.attrgetter(attr)
-        return map(attr_getter, self)
+        :param with_ids:
+        :param unique:
+        :return:
+        """
+        attrs = ['cluster_id'] if with_ids else []
+        attrs.append('label')
+        cluster_labels = self.get_cluster_attrs(*attrs)
+
+        if unique and not with_ids:
+            # TODO: More efficient solution?
+            return list(set(cluster_labels))
+        return list(cluster_labels)
+
+    def get_cluster_attrs(self, *attrs):
+        # TODO: Check that this works too!
+        attrs_getter = operator.attrgetter(*attrs)
+        return map(attrs_getter, self)
 
     def reset_ids(self, start_id=1):
         for new_cluster_id, cluster in enumerate(self, start=start_id):

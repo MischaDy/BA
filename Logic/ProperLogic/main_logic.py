@@ -19,9 +19,11 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 # TODO: Test that rollbacks always work!
 #       --> Make sure that ALL writing DB interactions of ALL handlers use con params!
 # TODO: How to create CLI?
-# TODO: Select good params for core algorithm
+# TODO: Improve core algorithm (params + metric(?))!
 # TODO: Test edge cases (e.g. calling handlers when nothing has been processed yet)!
 # TODO: Add function to reset cluster ids to smallest possible! (sequential too?)
+# TODO: Test quality with private pictures + bigger mixed dataset!
+# TODO: How to handle empty user inputs?
 
 # ------- HELPFUL -------
 # TODO: Give option to not view face but edit directly
@@ -39,6 +41,7 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 # TODO: (When to) use VACUUM?
 # TODO: Locking db necessary?
 # TODO: Backup necessary?
+# TODO: Closing images necessary?
 
 # ------- OPTIONAL -------
 # TODO: Add type hints where needed
@@ -55,6 +58,7 @@ from misc_helpers import clean_str, wait_for_any_input, get_user_decision
 # TODO: Allow instances, which have a 'current connection' as only instance attribute?
 # TODO: Consistent abbreviations vs. full names (e.g. image vs. img)
 # TODO: Remove unused imports at end
+# TODO: Assume that every person from same photo is distinct from each other, unless user explicitly disagrees
 
 
 # -------------- PROGRAM --------------

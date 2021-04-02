@@ -55,7 +55,6 @@ def edit_labels(clusters, **kwargs):
 
 def user_choose_embedding_id(cluster):
     # TODO: Refactor
-
     faces_dict = dict(DBManager.get_thumbnails_from_cluster(cluster.cluster_id, with_embeddings_ids=True))
     chosen_embedding_id = user_choose_embedding_id_worker(faces_dict, cluster.label)
     return chosen_embedding_id
@@ -82,7 +81,7 @@ def user_choose_embedding_id_worker(faces_dict, label):
             continue
         face.show()
         choose_cur_face_id = get_user_decision('Would you like to edit the face you just viewed?')
-        if not choose_cur_face_id.startswith('n'):
+        if choose_cur_face_id == 'y':
             break
         face_id = None
         continue_id = get_id_decision()
@@ -171,9 +170,9 @@ def make_dict_from_row_dicts(row_dicts, key_col_name, value_col_name):
 def print_face_ids(faces_dict, label):
     # TODO: print limited number of faces at a time (Enter=continue)
     # TODO: Remove list casting
-    faces_strs = list(map(lambda face_id: f'- Face {face_id}', faces_dict))
     print()
     wait_for_any_input(f"Please enter a face id to view the face, or press Enter to cancel viewing. The current label"
                        f" of each face is '{label}'."
                        "\n(Press Enter to continue.)")
+    faces_strs = map(lambda face_id: f'- Face {face_id}', faces_dict)
     print('\n'.join(faces_strs))

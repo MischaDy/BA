@@ -846,6 +846,21 @@ class DBManager:
         from_clause = cls._build_from_clause(from_clause)
         return f'SELECT {select_clause} {from_clause} {where_clause}'
 
+    @classmethod
+    def get_image_paths(cls, person_label):
+        """
+        1. get all clusters with that label
+        2. get all embeddings of these clusters
+        3. get all (unique!) image ids of these embeddings
+        4. get all directory paths of these images (grouped!)
+        5. create an image path for each image
+        6. return these image paths
+
+        :param person_label:
+        :return:
+        """
+        return []
+
 
 class IncompleteDatabaseOperation(RuntimeError):
     pass

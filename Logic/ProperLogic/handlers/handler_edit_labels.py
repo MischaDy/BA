@@ -69,7 +69,8 @@ def user_choose_embedding_id_worker(faces_dict, label):
     continue_id = ''
     while continue_id != 'n':
         print_face_ids(faces_dict, label)
-        face_id = get_user_input_of_type(int, 'face id', allow_empty=True, empty_as_none=True)
+        face_id = get_user_input_of_type(prompt='', obj_name='face id', class_=int, allow_empty=True,
+                                         empty_as_none=True)
         if face_id is None:
             continue_id = get_id_decision()
             continue

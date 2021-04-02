@@ -65,25 +65,48 @@ def wait_for_any_input(prompt):
     input(prompt + '\n')
 
 
-def get_user_decision(prompt, choices_strs=('[y]es', '[n]o'), valid_choices=('y', 'n'), sep=' / ', prefix='\n',
-                      postfix='\n', should_clean_decision=True):
+def get_user_decision(prompt, choices_strs=None, valid_choices=None, no_choices_strs=False, allow_empty=True,
+                      empty_as_none=True, sep=' / ', prefix='\n', postfix='\n', should_clean_decision=True):
+    """
+
+    :param no_choices_strs: If true, valid_choices is also used as choices_strs, the latter being ignored.
+    :param empty_as_none:
+    :param allow_empty:
+    :param prompt:
+    :param choices_strs: Choices presented to user.
+    :param valid_choices:
+    :param sep:
+    :param prefix:
+    :param postfix:
+    :param should_clean_decision:
+    :return:
+    """
     # TODO: Create Enum of different user decisions and use that for evaluating choice?
     # TODO: Allow to abort (param what the abort input should look like)
+    if valid_choices is None:
+        valid_choices = ['y', 'n']
+
+    if no_choices_strs:
+        choices_strs = valid_choices
+    elif choices_strs is None:
+        choices_strs = ['[y]es', '[n]o']
 
     choices_str = sep.join(choices_strs)
     full_prompt = prefix + f'{prompt} ({choices_str})' + postfix
-    user_decision = get_user_input(full_prompt, valid_choices=valid_choices, should_clean_input=should_clean_decision)
+    user_decision = get_user_decision_worker(full_prompt, valid_choices=valid_choices, allow_empty=allow_empty,
+                                             empty_as_none=empty_as_none, should_clean_input=should_clean_decision)
     return user_decision
 
 
-def get_user_input(prompt, valid_choices=None, print_valid_inputs=False, should_clean_input=True):
+def get_user_decision_worker(prompt, valid_choices=None, allow_empty=True, empty_as_none=True,
+                             print_valid_inputs=False, should_clean_input=True):
     if valid_choices is None:
         valid_choices = []
 
     def get_processed_input():
-        if should_clean_input:
-            return clean_str(input(prompt))
-        return input(prompt)
+        proc_input = get_user_input_of_type(prompt, allow_empty=allow_empty, empty_as_none=empty_as_none,
+                                            should_clean_input_str=should_clean_input)
+        return proc_input
 
     def make_error_msg():
         msg = 'Error: invalid choice'
@@ -96,6 +119,47 @@ def get_user_input(prompt, valid_choices=None, print_valid_inputs=False, should_
     while user_input not in valid_choices:
         print(make_error_msg())
         user_input = get_processed_input()
+    return user_input
+
+
+def get_user_input_of_type(prompt=None, obj_name='object', class_=str, exceptions=None, allow_empty=False,
+                           empty_as_none=True, should_clean_input_str=True):
+    """
+
+    :param prompt:
+    :param should_clean_input_str:
+    :param class_:
+    :param obj_name:
+    :param exceptions: Iterable of other valid values the user may enter
+    :param allow_empty: If true, add empty string to list of exceptions
+    :param empty_as_none: If empty is explicitly allowed and
+    :return:
+    """
+    exceptions = [] if exceptions is None else list(exceptions)
+    if allow_empty:
+        exceptions.append('')
+    exceptions_str = "'" + "', '".join(exceptions) + "'"
+    cleaned_exceptions_str = exceptions_str.replace("''", "<empty string>")
+
+    if prompt is None:
+        class_str = f"a {class_} or " if class_ != str else ""
+        prompt = f"Please enter the {obj_name} (must be {class_str}one of: {cleaned_exceptions_str})."
+
+    user_input = None
+    while not isinstance(user_input, class_):
+        user_input = input(prompt)
+        if user_input in exceptions:
+            break
+        try:
+            user_input = class_(user_input)
+        except ValueError:
+            log_error(f"{obj_name} must be convertible to a(n) {class_.__name__} or be one of:"
+                      f" {cleaned_exceptions_str}.\nPlease try again.")
+    if empty_as_none and user_input == '':
+        return None
+
+    if class_ == str and should_clean_input_str:
+        return clean_str(user_input)
     return user_input
 
 
@@ -181,37 +245,6 @@ def first_true(iterable, default=False, pred=None):
     # first_true([a,b,c], x) --> a or b or c or x
     # first_true([a,b], x, f) --> a if f(a) else b if f(b) else x
     return next(filter(pred, iterable), default)
-
-
-def get_user_input_of_type(class_, obj_name, exceptions=None, allow_empty=False, empty_as_none=True):
-    """
-
-    :param class_:
-    :param obj_name:
-    :param exceptions: Iterable of other valid values the user may enter
-    :param allow_empty: If true, add empty string to list of exceptions
-    :param empty_as_none: If empty is explicitly allowed and
-    :return:
-    """
-    exceptions = [] if exceptions is None else list(exceptions)
-    if allow_empty:
-        exceptions.append('')
-
-    user_input = None
-    while not isinstance(user_input, class_):
-        user_input = input()
-        if user_input in exceptions:
-            break
-        try:
-            user_input = class_(user_input)
-        except ValueError:
-            exceptions_str = "'" + "', '".join(['1', 'peanut butter', '', 'bob']) + "'"
-            cleaned_exceptions_str = exceptions_str.replace("''", "<empty string>")
-            log_error(f"{obj_name} must be convertible to a(n) {class_.__name__} or be one of:"
-                      f" {cleaned_exceptions_str}.\nPlease try again.")
-    if empty_as_none and user_input == '':
-        return None
-    return user_input
 
 
 def open_nested_contexts(func, args=None, kwargs=None, context_managers=None):

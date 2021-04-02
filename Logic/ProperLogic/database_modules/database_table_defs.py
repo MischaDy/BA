@@ -302,7 +302,12 @@ class Tables:
         [Columns.cluster_id]
     )
 
-    temp_tables = (temp_cluster_ids_table, )
+    temp_image_ids_table = TableSchema(
+        'temp_image_ids',
+        [Columns.image_id]
+    )
+
+    temp_tables = (temp_cluster_ids_table, temp_image_ids_table)
 
     @classmethod
     def is_local_table(cls, table):

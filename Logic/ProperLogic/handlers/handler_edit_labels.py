@@ -133,7 +133,7 @@ def set_picture_label(embedding_id, new_label, cluster, clusters):
                                  emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con, close_connections=False)
         DBManager.store_certain_labels(cluster=new_cluster, con=con, close_connections=False)
 
-    con = DBManager.open_connection(open_local=False)
+    con = DBManager.open_central_connection()
     try:
         DBManager.connection_wrapper(set_pic_label_worker, open_local=False, con=con)
     except IncompleteDatabaseOperation:

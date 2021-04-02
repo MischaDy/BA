@@ -44,15 +44,18 @@ def show_person(clusters, **kwargs):
         if chosen_label is None:
             continue_label = get_label_decision()
             continue
-        person_directory_paths = DBManager.get_dir_paths_with_img_ids(chosen_label)
+        person_dir_paths_to_img_ids = DBManager.get_dir_paths_to_img_ids(chosen_label)
+        person_dir_paths = person_dir_paths_to_img_ids.keys()
 
         continue_directory = ''
         while continue_directory != 'n':
-            chosen_directory_path = user_choose_directory_path(person_directory_paths)
+            chosen_directory_path = user_choose_directory_path(person_dir_paths)
             if chosen_directory_path is None:
                 continue_directory = get_directory_decision()
                 continue
-            person_image_paths = DBManager.get_image_paths(chosen_directory_path)
+
+            image_ids = person_dir_paths_to_img_ids[chosen_directory_path]
+            person_image_paths = DBManager.get_image_paths(chosen_directory_path, image_ids)
 
             continue_image = ''
             while continue_image != 'n':

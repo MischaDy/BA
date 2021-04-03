@@ -214,6 +214,8 @@ class Columns:
     thumbnail = ColumnSchema('thumbnail', ColumnTypes.blob, col_details=ColumnDetails.image)
     path_id_col = ColumnSchema('path_id_col', ColumnTypes.integer)
     path = ColumnSchema('path', ColumnTypes.text)
+    old_cluster_id = ColumnSchema('old_cluster_id', ColumnTypes.integer)
+    new_cluster_id = ColumnSchema('new_cluster_id', ColumnTypes.integer)
 
     @classmethod
     def get_column(cls, col_name):
@@ -297,6 +299,8 @@ class Tables:
     central_tables = (embeddings_table, cluster_attributes_table, certain_labels_table, directory_paths_table,
                       image_paths_table)
 
+    # ----- temp tables -----
+
     temp_cluster_ids_table = TableSchema(
         'temp_cluster_ids',
         [Columns.cluster_id]
@@ -305,6 +309,12 @@ class Tables:
     temp_image_ids_table = TableSchema(
         'temp_image_ids',
         [Columns.image_id]
+    )
+
+    temp_old_and_new_ids = TableSchema(
+        'temp_old_and_new_ids',
+        [Columns.old_cluster_id,
+         Columns.new_cluster_id]
     )
 
     temp_tables = (temp_cluster_ids_table, temp_image_ids_table)

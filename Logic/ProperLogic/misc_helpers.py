@@ -66,9 +66,13 @@ def wait_for_any_input(prompt):
 
 
 def get_user_decision(prompt, choices_strs=None, valid_choices=None, no_choices_strs=False, allow_empty=True,
-                      empty_as_none=True, sep=' / ', prefix='\n', postfix='\n', should_clean_decision=True):
+                      empty_as_none=True, sep=' / ', prefix='\n', postfix='\n', strip_input_str=True, to_lower=False,
+                      to_upper=False):
     """
 
+    :param to_upper:
+    :param to_lower:
+    :param strip_input_str:
     :param no_choices_strs: If true, valid_choices is also used as choices_strs, the latter being ignored.
     :param empty_as_none:
     :param allow_empty:
@@ -78,7 +82,6 @@ def get_user_decision(prompt, choices_strs=None, valid_choices=None, no_choices_
     :param sep:
     :param prefix:
     :param postfix:
-    :param should_clean_decision:
     :return:
     """
     # TODO: Create Enum of different user decisions and use that for evaluating choice?
@@ -94,18 +97,16 @@ def get_user_decision(prompt, choices_strs=None, valid_choices=None, no_choices_
     choices_str = sep.join(choices_strs)
     full_prompt = prefix + f'{prompt} ({choices_str})' + postfix
     user_decision = get_user_decision_worker(full_prompt, valid_choices=valid_choices, allow_empty=allow_empty,
-                                             empty_as_none=empty_as_none, should_clean_input=should_clean_decision)
+                                             empty_as_none=empty_as_none, strip_input_str=strip_input_str,
+                                             to_lower=to_lower, to_upper=to_upper)
     return user_decision
 
 
 def get_user_decision_worker(prompt, valid_choices=None, allow_empty=True, empty_as_none=True,
-                             print_valid_inputs=False, should_clean_input=True):
-    if valid_choices is None:
-        valid_choices = []
-
+                             print_valid_inputs=False, strip_input_str=True, to_lower=False, to_upper=False):
     def get_processed_input():
         proc_input = get_user_input_of_type(prompt, allow_empty=allow_empty, empty_as_none=empty_as_none,
-                                            should_clean_input_str=should_clean_input)
+                                            strip_input_str=strip_input_str, to_lower=to_lower, to_upper=to_upper)
         return proc_input
 
     def make_error_msg():
@@ -115,6 +116,9 @@ def get_user_decision_worker(prompt, valid_choices=None, allow_empty=True, empty
             return msg + f" (valid choices: {valid_choices_str})"
         return msg
 
+    if valid_choices is None:
+        valid_choices = []
+
     user_input = get_processed_input()
     while user_input not in valid_choices:
         print(make_error_msg())
@@ -123,11 +127,13 @@ def get_user_decision_worker(prompt, valid_choices=None, allow_empty=True, empty
 
 
 def get_user_input_of_type(prompt=None, obj_name='object', class_=str, exceptions=None, allow_empty=False,
-                           empty_as_none=True, should_clean_input_str=True):
+                           empty_as_none=True, strip_input_str=True, to_lower=False, to_upper=False):
     """
 
+    :param to_upper:
+    :param to_lower:
+    :param strip_input_str:
     :param prompt:
-    :param should_clean_input_str:
     :param class_:
     :param obj_name:
     :param exceptions: Iterable of other valid values the user may enter
@@ -138,12 +144,11 @@ def get_user_input_of_type(prompt=None, obj_name='object', class_=str, exception
     exceptions = [] if exceptions is None else list(exceptions)
     if allow_empty:
         exceptions.append('')
-    exceptions_str = "'" + "', '".join(exceptions) + "'"
-    cleaned_exceptions_str = exceptions_str.replace("''", "<empty string>")
 
+    must_be_str = __make_must_be_str(class_, exceptions)
     if prompt is None:
-        class_str = f"a {class_} or " if class_ != str else ""
-        prompt = f"Please enter the {obj_name} (must be {class_str}one of: {cleaned_exceptions_str})."
+        prompt = __make_prompt(obj_name, must_be_str)
+    error_msg = __make_error_msg(obj_name, must_be_str)
 
     user_input = None
     while not isinstance(user_input, class_):
@@ -153,23 +158,56 @@ def get_user_input_of_type(prompt=None, obj_name='object', class_=str, exception
         try:
             user_input = class_(user_input)
         except ValueError:
-            log_error(f"{obj_name} must be convertible to a(n) {class_.__name__} or be one of:"
-                      f" {cleaned_exceptions_str}.\nPlease try again.")
+            log_error(error_msg)
     if empty_as_none and user_input == '':
         return None
 
-    if class_ == str and should_clean_input_str:
-        return clean_str(user_input)
+    if class_ == str:
+        return clean_string(user_input, strip=strip_input_str, to_lower=to_lower, to_upper=to_upper)
     return user_input
+
+
+def __make_prompt(obj_name, must_be):
+    prompt = "\n" + f"Please enter the {obj_name} ({must_be})."
+    return prompt
+
+
+def __make_error_msg(obj_name, must_be):
+    error_msg = f"{obj_name} {must_be}." + "\nPlease try again."
+    return error_msg
+
+
+def __make_must_be_str(class_, exceptions):
+    exceptions_str = "'" + "', '".join(exceptions) + "'"
+    cleaned_exceptions_str = exceptions_str.replace("''", "<empty string>")
+
+    must_be = "must be "
+    if class_ != str:
+        must_be += f"convertible to a(n) {class_.__name__}"
+
+    if len(exceptions) == 1:
+        must_be += f" or have the value {cleaned_exceptions_str}"
+    elif len(exceptions) > 1:
+        must_be += f" or one of: {cleaned_exceptions_str}"
+    return must_be
 
 
 # ----- MISC -----
 
-def clean_str(string, to_lower=True):
-    clean_string = ' '.join(string.strip().split())
+def clean_string(string, strip=True, to_lower=False, to_upper=False):
+    if to_lower and to_upper:
+        log_error("at most one of 'to_lower' and 'to_upper' may be provided")
+        return
+    clean_str = string
+    if strip:
+        clean_str = ' '.join(clean_str.strip().split())
+
     if to_lower:
-        return clean_string.lower()
-    return clean_string.upper()
+        return clean_str.lower()
+    elif to_upper:
+        return clean_str.upper()
+
+    return clean_str
 
 
 def get_every_nth_item(iterables, n=0):
@@ -267,3 +305,9 @@ def _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator):
     with context_manager:
         result = _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator)
     return result
+
+
+def enumerate_strs(iterable, start=0):
+    str_enumeration = ((str(count), item)
+                       for count, item in enumerate(iterable, start))
+    return str_enumeration

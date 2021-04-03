@@ -155,8 +155,20 @@ class Clusters(list):
         return map(attrs_getter, self)
 
     def reset_ids(self, start_id=1):
+        old_ids = []
         for new_cluster_id, cluster in enumerate(self, start=start_id):
+            old_ids.append(cluster.cluster_id)
             cluster.set_cluster_id(new_cluster_id)
+
+        max_id = start_id + len(self)
+        new_ids = list(range(start_id, max_id))
+        return old_ids, new_ids
+
+    def set_ids(self, old_ids, new_ids):
+        old_to_new_ids_dict = dict(zip(old_ids, new_ids))
+        for cluster in self:
+            new_id = old_to_new_ids_dict[cluster.cluster_id]
+            cluster.set_cluster_id(new_id)
 
     def any_cluster_with_emb(self, emb):
         return any(filter(lambda cluster: cluster.contains_embedding(emb), self))

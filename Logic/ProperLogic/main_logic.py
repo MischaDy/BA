@@ -7,7 +7,7 @@ from functools import partial
 from Logic.ProperLogic.commands import Command, Commands
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns
 from Logic.ProperLogic.database_modules.database_logic import DBManager
-from misc_helpers import clean_str, wait_for_any_input, get_user_decision
+from misc_helpers import clean_string, wait_for_any_input, get_user_decision
 
 
 # -------------- TODOs --------------
@@ -70,7 +70,7 @@ CLUSTERS_PATH = 'stored_clusters'
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
 # TODO: Remove
-ASK_FOR_DELETION = True
+ASK_FOR_DELETION = False
 
 
 def run_program(path_to_central_dir):
@@ -109,7 +109,7 @@ def prompt_user_clear_tables():
 
     should_drop_tables_func = partial(get_user_decision,
                                       warning
-                                      + "Do you want to clear the local/global tables?"
+                                      + "Would you like to clear the local/global tables?"
                                         " Don't worry, you will have to re-confirm a 'yes'.")
     table_kind_to_drop_func = partial(get_user_decision,
                                       choices_strs=tuple(tables_kinds.values()),
@@ -118,9 +118,9 @@ def prompt_user_clear_tables():
     should_drop_tables = should_drop_tables_func()
     while should_drop_tables == 'y':
         table_kind_to_drop = table_kind_to_drop_func(
-            prompt=warning
-                   + "Which kinds of tables would you like to clear?"
-                     " Don't worry, you will have to re-confirm your choice."
+            prompt=(warning
+                    + "Which kinds of tables would you like to clear?"
+                      " Don't worry, you will have to re-confirm your choice.")
         )
         if table_kind_to_drop == 'n':
             should_drop_tables = should_drop_tables_func()
@@ -128,9 +128,9 @@ def prompt_user_clear_tables():
 
         chosen_table_to_drop_str = tables_kinds[table_kind_to_drop].replace('[', '').replace(']', '')
         confirm_tables_to_drop = table_kind_to_drop_func(
-            prompt=warning
-                   + f"Are you sure that you want to clear {chosen_table_to_drop_str}?"
-                     f" This action cannot be undone. To confirm your choice, simply re-enter it."
+            prompt=(warning
+                    + f"Are you sure that you want to clear {chosen_table_to_drop_str}?"
+                      f" This action cannot be undone. To confirm your choice, simply re-enter it.")
         )
 
         if confirm_tables_to_drop != table_kind_to_drop:
@@ -169,7 +169,7 @@ def get_user_command():
 def get_user_command_shorthand():
     wait_for_any_input('\nWhat would you like to do next? (Press Enter to continue).')
     print_command_options()
-    return clean_str(input())
+    return clean_string(input(), to_lower=True)
 
 
 def print_command_options():

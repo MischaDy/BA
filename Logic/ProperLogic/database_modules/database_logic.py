@@ -14,7 +14,7 @@ import io
 from Logic.ProperLogic.cluster import Cluster, Clusters
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, \
     ColumnSchema
-from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error
+from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error, get_every_nth_item
 
 """
 ----- DB SCHEMA -----
@@ -371,8 +371,8 @@ class DBManager:
         embs_table = Tables.embeddings_table
         attrs_table = Tables.cluster_attributes_table
 
-        embs_condition = f'{embs_table}.{Columns.cluster_id} IN {temp_table}'
-        attrs_condition = f'{attrs_table}.{Columns.cluster_id} IN {temp_table}'
+        embs_cond = f'{embs_table}.{Columns.cluster_id} IN {temp_table}'
+        attrs_cond = f'{attrs_table}.{Columns.cluster_id} IN {temp_table}'
 
         cluster_ids_to_remove = map(lambda c: c.cluster_id, clusters_to_remove)
         # TODO: Rename
@@ -382,9 +382,9 @@ class DBManager:
         def remove_clusters_worker(con):
             cls.create_temp_table(con, temp_table)
             cls.store_in_table(temp_table, rows_dicts, con=con, close_connections=False)
-            deleted_embeddings_row_dicts = cls.delete_from_table(embs_table, condition=embs_condition, con=con,
+            deleted_embeddings_row_dicts = cls.delete_from_table(embs_table, cond=embs_cond, con=con,
                                                                  close_connections=False)
-            cls.delete_from_table(attrs_table, condition=attrs_condition, con=con, close_connections=False)
+            cls.delete_from_table(attrs_table, cond=attrs_cond, con=con, close_connections=False)
             return deleted_embeddings_row_dicts
 
         # TODO: How to handle possible exception here?
@@ -393,7 +393,7 @@ class DBManager:
         return deleted_embeddings_row_dicts
 
     @classmethod
-    def delete_from_table(cls, table, with_clause_part='', condition='', con=None, path_to_local_db=None,
+    def delete_from_table(cls, table, with_clause_part='', cond='', con=None, path_to_local_db=None,
                           close_connections=True):
         """
 
@@ -401,19 +401,21 @@ class DBManager:
         :param con:
         :param table:
         :param with_clause_part:
-        :param condition:
+        :param cond:
         :param path_to_local_db:
         :return:
         """
         with_clause = cls._build_with_clause(with_clause_part)
-        where_clause = cls._build_where_clause(condition)
+        where_clause = cls._build_where_clause(cond)
 
         def delete_from_table_worker(con):
             # TODO: 'Copy' generator instead of cast to list? (Saves space)
             # Cast to list is *necessary* here, since fetch function only returns a generator. It will be executed after
             # the corresponding rows are deleted from table and will thus yield nothing.
-            deleted_row_dicts = list(cls.fetch_from_table(table, path_to_local_db, condition=condition, as_dicts=True,
-                                                          con=con, close_connections=False))
+            deleted_row_dicts = list(
+                cls.fetch_from_table(table, path_to_local_db, cond=cond, as_dicts=True, con=con,
+                                     close_connections=False)
+            )
             con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
             return deleted_row_dicts
 
@@ -423,17 +425,18 @@ class DBManager:
         return deleted_row_dicts
 
     @classmethod
-    def fetch_from_table(cls, table, path_to_local_db=None, col_names=None, condition='', as_dicts=False, con=None,
-                         close_connections=True):
+    def fetch_from_table(cls, table, path_to_local_db=None, col_names=None, cond='', cond_params=None, as_dicts=False,
+                         con=None, close_connections=True):
         """
 
+        :param cond_params:
         :param as_dicts:
         :param close_connections:
         :param con:
         :param table:
         :param path_to_local_db:
         :param col_names: An iterable of column names, or an iterable containing only the string '*' (default).
-        :param condition:
+        :param cond:
         :return:
         """
         # TODO: allow for multiple conditions(?)
@@ -441,16 +444,18 @@ class DBManager:
         # TODO: More elegant solution?
         if col_names is None or '*' in col_names:
             col_names = table.get_column_names()
-        where_clause = cls._build_where_clause(condition)
-
         cols_template = ','.join(col_names)
+        where_clause = cls._build_where_clause(cond)
+        fetch_sql = f'SELECT {cols_template} FROM {table} {where_clause};'
 
-        def fetch_worker(con):
-            rows = con.execute(f'SELECT {cols_template} FROM {table} {where_clause};').fetchall()
-            return rows
+        def fetch_from_table_worker(con):
+            if cond_params is None:
+                return con.execute(fetch_sql).fetchall()
+            return con.execute(fetch_sql, cond_params).fetchall()
 
         # TODO: How to handle possible exception here?
-        rows = cls.connection_wrapper(fetch_worker, path_to_local_db, con=con, close_connections=close_connections)
+        rows = cls.connection_wrapper(fetch_from_table_worker, path_to_local_db, con=con,
+                                      close_connections=close_connections)
 
         # cast row of query results to row of usable data
         processed_rows = (starmap(cls.sql_value_to_data, zip(row, col_names))
@@ -543,7 +548,7 @@ class DBManager:
     def get_column(cls, col, table, with_embeddings_ids=False, as_dict=True, cond='', con=None, close_connections=True):
         col_names = [Columns.embedding_id.col_name] if with_embeddings_ids else []
         col_names.append(col.col_name)
-        query_results = cls.fetch_from_table(table, col_names=col_names, condition=cond, con=con,
+        query_results = cls.fetch_from_table(table, col_names=col_names, cond=cond, con=con,
                                              close_connections=close_connections)
         if with_embeddings_ids and as_dict:
             return dict(query_results)
@@ -666,11 +671,13 @@ class DBManager:
     @classmethod
     def get_path_id(cls, path):
         # TODO: con params needed?
-        cond = f"{Columns.path} = '{path}'"
+        cond = f"{Columns.path} = ?"
+        cond_params = [path]
         path_id_rows = list(cls.fetch_from_table(
             Tables.directory_paths_table,
             col_names=[Columns.path_id_col.col_name],
-            condition=cond
+            cond=cond,
+            cond_params=cond_params
         ))
         if path_id_rows:
             path_id_row = path_id_rows[0]
@@ -844,8 +851,8 @@ class DBManager:
         return cls._build_clause('WITH', with_clause_part)
 
     @classmethod
-    def _build_where_clause(cls, condition):
-        return cls._build_clause('WHERE', condition)
+    def _build_where_clause(cls, cond):
+        return cls._build_clause('WHERE', cond)
 
     @classmethod
     def _build_from_clause(cls, from_clause):
@@ -856,8 +863,8 @@ class DBManager:
         return f'{keyword} {clause_part}' if clause_part else ''
 
     @classmethod
-    def build_select(cls, select_clause, from_clause='', condition=''):
-        where_clause = cls._build_where_clause(condition)
+    def build_select(cls, select_clause, from_clause='', cond=''):
+        where_clause = cls._build_where_clause(cond)
         from_clause = cls._build_from_clause(from_clause)
         return f'SELECT {select_clause} {from_clause} {where_clause}'
 
@@ -875,7 +882,7 @@ class DBManager:
         """
         # TODO: Correct docstring
         # TODO: Add con params?
-        # TODO: Refactor?
+        # TODO: Refactor!
         # TODO: More efficient distinct image ids?
 
         # Using strange separator " || ", because windows doesn't allow pipes in file names, according to this:
@@ -888,7 +895,7 @@ class DBManager:
             WITH {person_cluster_ids_table}({Columns.cluster_id}) AS (
                 SELECT {Columns.cluster_id}
                 FROM {Tables.cluster_attributes_table}
-                WHERE {Columns.label} = {person_label}
+                WHERE {Columns.label} = ?
             )
         """
         from_clause_sql = f"""
@@ -909,15 +916,17 @@ class DBManager:
             GROUP BY {Columns.path};
         """
 
+        cond_params = [person_label]
+
         def get_dir_paths_with_img_ids_worker(con):
-            return con.execute(get_dir_paths_sql).fetchall()
+            return con.execute(get_dir_paths_sql, cond_params).fetchall()
 
         dir_paths_with_img_ids = cls.connection_wrapper(get_dir_paths_with_img_ids_worker)
         dir_paths_to_img_ids_dict = cls._key_values_str_pairs_to_dict(dir_paths_with_img_ids)
         return dir_paths_to_img_ids_dict
 
     @classmethod
-    def get_image_paths(cls, dir_path, image_ids):
+    def get_image_name_to_path_dict(cls, dir_path, image_ids):
         """
         1. create an image path for each image
         2. return these image paths
@@ -932,14 +941,14 @@ class DBManager:
         temp_table = Tables.temp_image_ids_table
         images_table = Tables.images_table
 
-        condition = f'{images_table}.{Columns.image_id} IN {temp_table}'
-        image_id_row_dicts = [{Columns.image_id: image_id}
+        cond = f'{images_table}.{Columns.image_id} IN {temp_table}'
+        image_id_row_dicts = [{Columns.image_id.col_name: image_id}
                               for image_id in image_ids]
 
         get_image_names_sql = f"""
             SELECT {Columns.file_name}
             FROM {images_table}
-            WHERE {condition};
+            WHERE {cond};
         """
 
         def get_image_names(con):
@@ -947,10 +956,13 @@ class DBManager:
             cls.store_in_table(temp_table, image_id_row_dicts, con=con, close_connections=False)
             return con.execute(get_image_names_sql).fetchall()
 
-        image_names = cls.connection_wrapper(get_image_names, path_to_local_db=path_to_local_db)
-        image_paths = map(lambda img_name: os.path.join(dir_path, img_name),
-                          image_names)
-        return image_paths
+        image_names_tuples = cls.connection_wrapper(get_image_names, path_to_local_db=path_to_local_db)
+        image_names = get_every_nth_item(image_names_tuples, n=0)
+        image_name_to_path_dict = {
+            image_name: os.path.join(dir_path, image_name)
+            for image_name in image_names
+        }
+        return image_name_to_path_dict
 
     @classmethod
     def _key_values_str_pairs_to_dict(cls, key_values_str_pairs, sep=None):
@@ -970,6 +982,57 @@ class DBManager:
             for key, values_str in key_values_str_pairs
         }
         return result_dict
+
+    @classmethod
+    def reset_cluster_ids(cls, old_ids, new_ids, con=None, close_connections=True):
+        # TODO: Refactor!!
+        temp_table = Tables.temp_old_and_new_ids
+        temp_row_dicts = [
+            {Columns.old_cluster_id.col_name: old_id,
+             Columns.new_cluster_id.col_name: new_id}
+            for old_id, new_id in zip(old_ids, new_ids)
+        ]
+
+        col_names_to_update = [Columns.cluster_id.col_name]
+        set_values = f"{temp_table}.{Columns.new_cluster_id.col_name}"
+
+        def reset_cluster_ids_worker(con):
+            cls.create_temp_table(con, temp_table)
+            cls.store_in_table(temp_table, temp_row_dicts, con=con, close_connections=False)
+            cls._custom_update_table(Tables.cluster_attributes_table, col_names_to_update, set_values, con=con,
+                                     close_connections=False)
+            cls._custom_update_table(Tables.embeddings_table, col_names_to_update, set_values, con=con,
+                                     close_connections=False)
+
+        cls.connection_wrapper(reset_cluster_ids_worker, con=con, close_connections=close_connections)
+
+    @classmethod
+    def _custom_update_table(cls, table, col_names, set_values, on_clause=None, con=None, close_connections=True):
+        if on_clause is None:
+            on_clause = ''
+
+        col_names_str = ', '.join(col_names)
+        # values_template = cls.make_values_template(len(col_names))
+
+        temp_table = Tables.temp_old_and_new_ids
+        where_clause = f"{table}.{Columns.cluster_id} = {temp_table}.{Columns.old_cluster_id}"
+
+        update_sql = f"""
+            UPDATE {on_clause} {table}
+            SET ({col_names_str}) = ({set_values})
+            FROM ({temp_table}) AS {temp_table}
+            WHERE {where_clause} 
+        """
+
+        #     UPDATE inventory
+        #     SET quantity = quantity - daily.amt
+        #     FROM (SELECT sum(quantity) AS amt, itemId FROM sales GROUP BY 2) AS daily
+        #     WHERE inventory.itemId = daily.itemId;
+
+        def custom_update_table_worker(con):
+            con.execute(update_sql)
+
+        cls.connection_wrapper(custom_update_table_worker, con=con, close_connections=close_connections)
 
 
 class IncompleteDatabaseOperation(RuntimeError):

@@ -135,7 +135,7 @@ def set_picture_label(embedding_id, new_label, cluster, clusters):
 
     con = DBManager.open_central_connection()
     try:
-        DBManager.connection_wrapper(set_pic_label_worker, open_local=False, con=con)
+        DBManager.connection_wrapper(set_pic_label_worker, con=con)
     except IncompleteDatabaseOperation:
         cluster.add_embedding(embedding, embedding_id)
         if cluster.get_size() == 0:

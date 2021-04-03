@@ -46,7 +46,7 @@ def process_image_dir(clusters, **kwargs):
                                  close_connections=False)
 
     try:
-        DBManager.connection_wrapper(process_image_dir_worker, open_local=False)
+        DBManager.connection_wrapper(process_image_dir_worker)
         # TODO: How to handle case where error in overwrite_list?
         overwrite_list(clusters, updated_clusters)
     except IncompleteDatabaseOperation:
@@ -144,8 +144,8 @@ def extract_faces(path, check_if_known=True):
 
         return faces_rows
 
-    global_con = DBManager.open_connection(open_local=False)
-    local_con = DBManager.open_connection(open_local=True, path_to_local_db=path_to_local_db)
+    global_con = DBManager.open_central_connection()
+    local_con = DBManager.open_local_connection(path_to_local_db)
     faces_rows = DBManager.connection_wrapper(extract_faces_worker, global_con=global_con, local_con=local_con,
                                               close_connections=True)
     return faces_rows

@@ -1,5 +1,5 @@
 from Logic.ProperLogic.handlers.helpers import user_choose_cluster
-from Logic.ProperLogic.misc_helpers import clean_str, wait_for_any_input
+from Logic.ProperLogic.misc_helpers import clean_string, wait_for_any_input
 
 
 def show_cluster(clusters_path, **kwargs):
@@ -10,7 +10,7 @@ def show_cluster(clusters_path, **kwargs):
         cluster_name, cluster_path = user_choose_cluster(clusters_path)
         _output_cluster_content(cluster_name, cluster_path)
         ...
-        should_continue = clean_str(input('Choose another cluster?\n'))
+        should_continue = clean_string(input('Choose another cluster?\n'), to_lower=True)
 
 
 def _output_cluster_content(cluster_name, cluster_path):

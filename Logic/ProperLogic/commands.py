@@ -1,7 +1,7 @@
 import torchvision
 
 from Logic.ProperLogic.handlers.handler_edit_labels import edit_labels
-from Logic.ProperLogic.handlers.handler_find_person import find_person
+from Logic.ProperLogic.handlers.handler_show_person import view_person
 from Logic.ProperLogic.handlers.handler_process_image_dir import process_image_dir
 from Logic.ProperLogic.handlers.handler_reclassify import reclassify
 from Logic.ProperLogic.handlers.handler_reset_cluster_ids import reset_cluster_ids
@@ -132,8 +132,8 @@ class Command:
 
 class Commands:
     process_images = Command('process images', 'select new faces', 'p')
-    edit_faces = Command('edit faces', 'edit existing faces', 'e')
-    find = Command('find person', 'find person', 'f')
+    edit_labels = Command('edit labels', 'edit labels of faces or clusters', 'e')
+    view_person = Command('view person', 'view person', 'v')
     reclassify = Command('reclassify', 'reclassify individuals', 'c')
     show_cluster = Command('show cluster', 'show a cluster', 's')
     reset_cluster_ids = Command('reset cluster ids', 'reset the cluster ids', 'r')
@@ -142,8 +142,8 @@ class Commands:
     @classmethod
     def initialize(cls):
         cls.process_images.set_handler(process_image_dir)
-        cls.edit_faces.set_handler(edit_labels)
-        cls.find.set_handler(find_person)
+        cls.edit_labels.set_handler(edit_labels)
+        cls.view_person.set_handler(view_person)
         cls.reclassify.set_handler(reclassify)
         cls.show_cluster.set_handler(show_cluster)
         cls.reset_cluster_ids.set_handler(reset_cluster_ids)

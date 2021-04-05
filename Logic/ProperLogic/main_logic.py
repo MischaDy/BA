@@ -69,16 +69,8 @@ CLUSTERS_PATH = 'stored_clusters'
 
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
-# TODO: Remove
-ASK_FOR_DELETION = False
-
 
 def run_program(path_to_central_dir):
-    if ASK_FOR_DELETION:
-        # TODO: Remove
-        # print(f'Number of clusters: {len(load_clusters_from_db())}')
-        prompt_user_clear_tables()
-
     # TODO: Make this failsafe!!!
     DBManager.create_central_tables(drop_existing_tables=False)
     clusters = DBManager.load_clusters()
@@ -100,67 +92,10 @@ def _show_thumbnail():
 # ----- I/O -----
 
 
-def prompt_user_clear_tables():
-    tables_kinds = {'l': '[l]ocal tables',
-                    'g': '[g]lobal tables',
-                    'b': '[b]oth kinds of tables',
-                    'n': '[n]either'}
-    warning = "----- WARNING: DESTRUCTIVE ACTION -----\n"
-
-    should_drop_tables_func = partial(get_user_decision,
-                                      warning
-                                      + "Would you like to clear the local/global tables?"
-                                        " Don't worry, you will have to re-confirm a 'yes'.")
-    table_kind_to_drop_func = partial(get_user_decision,
-                                      choices_strs=tuple(tables_kinds.values()),
-                                      valid_choices=tuple(tables_kinds.keys()))
-
-    should_drop_tables = should_drop_tables_func()
-    while should_drop_tables == 'y':
-        table_kind_to_drop = table_kind_to_drop_func(
-            prompt=(warning
-                    + "Which kinds of tables would you like to clear?"
-                      " Don't worry, you will have to re-confirm your choice.")
-        )
-        if table_kind_to_drop == 'n':
-            should_drop_tables = should_drop_tables_func()
-            continue
-
-        chosen_table_to_drop_str = tables_kinds[table_kind_to_drop].replace('[', '').replace(']', '')
-        confirm_tables_to_drop = table_kind_to_drop_func(
-            prompt=(warning
-                    + f"Are you sure that you want to clear {chosen_table_to_drop_str}?"
-                      f" This action cannot be undone. To confirm your choice, simply re-enter it.")
-        )
-
-        if confirm_tables_to_drop != table_kind_to_drop:
-            should_drop_tables = should_drop_tables_func()
-            continue
-
-        if table_kind_to_drop in ('l', 'b'):
-            __clear_local_tables()
-        if table_kind_to_drop in ('g', 'b'):
-            __clear_central_tables()
-        should_drop_tables = 'n'
-
-
-def __clear_local_tables():
-    my_images_path = (r'C:\Users\Mischa\Desktop\Uni\20-21 WS'
-                      r'\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs')
-    my_path_to_local_db = DBManager.get_db_path(my_images_path, local=True)
-    for table in Tables.local_tables:
-        DBManager.delete_from_table(table, path_to_local_db=my_path_to_local_db)
-
-
-def __clear_central_tables():
-    for table in Tables.central_tables:
-        DBManager.delete_from_table(table)
-
-
 def get_user_command():
     cmd_shorthand = get_user_command_shorthand()
     while cmd_shorthand not in Command.get_command_shorthands():
-        print(f'unknown command {cmd_shorthand}, please try again.')
+        print(f"Unknown command '{cmd_shorthand}', please try again.")
         cmd_shorthand = get_user_command_shorthand()
     cmd = Command.get_cmd_name_by_shorthand(cmd_shorthand)
     return cmd

@@ -6,7 +6,8 @@ from Logic.ProperLogic.handlers.handler_process_image_dir import process_image_d
 from Logic.ProperLogic.handlers.handler_reclassify import reclassify
 from Logic.ProperLogic.handlers.handler_reset_cluster_ids import reset_cluster_ids
 from Logic.ProperLogic.handlers.handler_show_cluster import show_cluster
-from Logic.ProperLogic.misc_helpers import log_error, wait_for_any_input, have_equal_type_names, get_user_input_of_type
+from Logic.ProperLogic.handlers.handler_clear_data import clear_data
+from Logic.ProperLogic.misc_helpers import log_error, have_equal_type_names
 
 # TODO: Where to put this and how to handle general case?
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
@@ -131,12 +132,13 @@ class Command:
 
 
 class Commands:
-    process_images = Command('process images', 'select new faces', 'p')
+    process_images = Command('process images', 'process new images', 'p')
     edit_labels = Command('edit labels', 'edit labels of faces or clusters', 'e')
     view_person = Command('view person', 'view person', 'v')
     reclassify = Command('reclassify', 'reclassify individuals', 'c')
     show_cluster = Command('show cluster', 'show a cluster', 's')
     reset_cluster_ids = Command('reset cluster ids', 'reset the cluster ids', 'r')
+    clear_data = Command('clear data', 'clear the processed data', 'd')
     exit = Command('exit', 'exit', 'exit')
 
     @classmethod
@@ -147,3 +149,4 @@ class Commands:
         cls.reclassify.set_handler(reclassify)
         cls.show_cluster.set_handler(show_cluster)
         cls.reset_cluster_ids.set_handler(reset_cluster_ids)
+        cls.clear_data.set_handler(clear_data)

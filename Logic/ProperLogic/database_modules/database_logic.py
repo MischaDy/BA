@@ -357,11 +357,14 @@ class DBManager:
         :param close_connections:
         :return: None
         """
-        if not clusters_to_remove and not remove_all:
-            log_error(f"cannot provide both 'clusters_to_remove' and 'remove_all' (safety feature)")
+        if clusters_to_remove is None and not remove_all:
+            log_error(f"'clusters_to_remove' or 'remove_all' must be provided")
+            return
+        elif not clusters_to_remove:
+            # Iterable has been provided, but is empty. Not an error.
             return
         elif clusters_to_remove and remove_all:
-            log_error(f"'clusters_to_remove' or 'remove_all' must be provided")
+            log_error(f"cannot provide both 'clusters_to_remove' and 'remove_all' (safety feature)")
             return
 
         if remove_all:

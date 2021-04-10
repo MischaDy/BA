@@ -21,14 +21,11 @@ class Cluster:
             label = 'Unknown Person'
         self.label = label
         if embeddings is None:
-            self.embeddings = {}
+            self.embeddings = dict()
             self.num_embeddings = 0
             self.center_point = None
-            # max number ever assigned as id for an embedding in this cluster
-            Cluster.max_embedding_id = 0
+            self.max_embedding_id = 0
         else:
-            # TODO: refactor
-            # TODO: consistent class_ for embedding ids(?)
             if embeddings_ids is None:
                 embeddings_ids = count(1)
             # cast embeddings to dict

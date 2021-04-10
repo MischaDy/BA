@@ -121,6 +121,7 @@ class DBManager:
             tb = sys.exc_info()[2]
             raise IncompleteDatabaseOperation(e).with_traceback(tb)
         finally:
+            # TODO: Check if connection is still open before committing + closing?
             if close_connections:
                 for con in connections:
                     if commit_connections:

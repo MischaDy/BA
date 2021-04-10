@@ -84,7 +84,6 @@ class TableSchema:
         return dict(zip(self.get_column_names(), row))
 
     def make_row_dicts(self, values_objects, repetition_flags=None):
-        # TODO: Fix bug!
         cols_names = self.get_column_names()
         values_iterables = self.make_values_iterables(values_objects, repetition_flags)
         row_dicts = [dict(zip(cols_names, values_iterable))
@@ -317,7 +316,7 @@ class Tables:
          Columns.new_cluster_id]
     )
 
-    temp_tables = (temp_cluster_ids_table, temp_image_ids_table)
+    temp_tables = (temp_cluster_ids_table, temp_image_ids_table, temp_old_and_new_ids)
 
     @classmethod
     def is_local_table(cls, table):

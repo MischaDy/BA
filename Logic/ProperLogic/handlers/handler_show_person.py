@@ -23,6 +23,7 @@ def view_person(clusters, **kwargs):
     :param kwargs:
     :return:
     """
+    # TODO: Make user choose file *name*, not path (and just inform them of the path they're on beforehand)
     # TODO: When only one choice (to pick path or image), make choice for user and inform them about it!
     # TODO: Refactor? (Extract functions)
     # TODO: Give option of renaming a file/directory?

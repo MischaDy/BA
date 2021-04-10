@@ -27,10 +27,10 @@ def process_image_dir(clusters, **kwargs):
                               faces_rows))
     thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
                      faces_rows)
-    faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
-                faces_rows)
     image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
                     faces_rows)
+    faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
+                faces_rows)
     embeddings = list(faces_to_embeddings(faces))
 
     clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids, existing_clusters=clusters,
@@ -109,6 +109,7 @@ def extract_faces(path, check_if_known=True):
 
     def extract_faces_worker(global_con, local_con):
         # TODO: Outsource as function to DBManager?
+        # TODO: Check whether known locally and centrally separately?
 
         path_id = DBManager.get_path_id(path)
         if path_id is None:
@@ -146,6 +147,7 @@ def extract_faces(path, check_if_known=True):
 
     global_con = DBManager.open_central_connection()
     local_con = DBManager.open_local_connection(path_to_local_db)
+    # TODO: How to handle possible exception here?!
     faces_rows = DBManager.connection_wrapper(extract_faces_worker, global_con=global_con, local_con=local_con,
                                               close_connections=True)
     return faces_rows
@@ -188,7 +190,7 @@ def choose_args(indices, *args):
 def cut_out_faces(mtcnn, img):
     """
     NOTE: This part is copied from the extract_face function in facenet_pytorch/models/utils/detect_face.py,
-    since this particular functionality is only provided for saving, not returning the face pictures.
+    since this particular functionality is only provided for saving, not for returning the face pictures.
     """
     # TODO: Use a file buffer or something like that to save from the original function instead of doing this??
     boxes, _ = mtcnn.detect(img)

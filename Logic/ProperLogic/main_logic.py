@@ -2,18 +2,16 @@
 Program containing the main application logic.
 """
 
-from functools import partial
-
 from Logic.ProperLogic.commands import Command, Commands
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns
 from Logic.ProperLogic.database_modules.database_logic import DBManager
-from misc_helpers import clean_string, wait_for_any_input, get_user_decision
+from misc_helpers import clean_string, wait_for_any_input
 
 
 # -------------- TODOs --------------
 
 # ------- NEEDED -------
-
+# TODO: Everytime when run, determine own absolute path and use that for central database file(?)
 # TODO: Convert project to exe and test!
 # TODO: Replace all stored links with user choices!
 # TODO: Test that rollbacks always work!
@@ -24,8 +22,24 @@ from misc_helpers import clean_string, wait_for_any_input, get_user_decision
 # TODO: Add function to reset cluster ids to smallest possible! (sequential too?)
 # TODO: Test quality with private pictures + bigger mixed dataset!
 # TODO: How to handle empty user inputs?
+# TODO: Make sure, no TODOs were overlooked!!
+# TODO: Is the local path_id being compared to the global path id and see if the paths match?!?!
+# TODO: Are images not found in a local directory being removed from the global namespace, too?!
+# TODO: Handle case where directory path points to non-existent directory!!
 
 # ------- HELPFUL -------
+# TODO: Implement logical conditional searching (and, or, not) of multiple people!
+# TODO: Remove reset cluster ids command entirely by not allowing empty spots to form? (Not really possible if clusters
+#       as a whole can be deleted?)
+# TODO: Use less generic names for central and local database files to avoid collisions (and notify user if collision
+#       would occur)!
+# TODO: Check on start-up, which directory paths cannot be found anymore, so user can fix errors sooner!
+# TODO: Prevent passing around connections by instead passing around DBManager object?!
+# TODO: Give user option to choose existing local path instead of providing new one! Esp. in the context of deletion.
+# TODO: Make splitting decision by computing average/median/... and max distance to center? Should be computationally
+#       easier!
+# TODO: Allow user to delete individual images as well as whole clusters (edit handler?!)
+# TODO: When given a file path, accept both director path and path to file (e.g. db)
 # TODO: Give option to not view face but edit directly
 # TODO: Add reset cluster ids command
 # TODO: Clean + figure out what to do with input_output module!

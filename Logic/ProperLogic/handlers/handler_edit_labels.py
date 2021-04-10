@@ -7,8 +7,8 @@ from Logic.ProperLogic.handlers.helpers import user_choose_cluster
 from Logic.ProperLogic.misc_helpers import log_error, get_user_decision, get_user_input_of_type, wait_for_any_input
 
 
-# TODO: Sqaure brackets around cluster numbers!
-# TODO: Sqaure brackets around face numbers!
+# TODO: Square brackets around cluster numbers!
+# TODO: Square brackets around face numbers!
 
 def edit_labels(clusters, **kwargs):
     # TODO: Refactor
@@ -65,6 +65,10 @@ def user_choose_embedding_id(cluster):
 
 def user_choose_embedding_id_worker(faces_dict, label):
     # TODO: Allow specific command to label face as unknown
+    # TODO: Choose cluster add newline!
+    #       "Please enter the cluster id (must be convertible to a(n) int or have the value <empty string>)."
+    # TODO: Enter new label add newline!
+    # TODO: "Would you like to choose another cluster" appears too late / after prompt?!
 
     get_id_decision = partial(get_user_decision, 'Would you like to relabel another face in this cluster?')
 

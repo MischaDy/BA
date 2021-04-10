@@ -5,48 +5,52 @@ from Logic.ProperLogic.database_modules.database_table_defs import Tables
 from Logic.ProperLogic.misc_helpers import get_user_decision
 
 
+# TODO: Add handler which not only allows to clear, but to completely drop the database files.
+#       Or actually convert the clear data handler to that?
+
 def clear_data(**kwargs):
+    # TODO: Allow user to choose local database to clear
     tables_kinds = {'l': '[l]ocal tables',
                     'g': '[g]lobal tables',
                     'b': '[b]oth kinds of tables',
                     'n': '[n]either'}
     warning = "----- WARNING: DESTRUCTIVE ACTION -----\n"
 
-    should_drop_tables_func = partial(get_user_decision,
-                                      warning
-                                      + "Would you like to clear the local/global tables?"
-                                        " Don't worry, you will have to re-confirm a 'yes'.")
-    table_kind_to_drop_func = partial(get_user_decision,
-                                      choices_strs=tuple(tables_kinds.values()),
-                                      valid_choices=tuple(tables_kinds.keys()))
+    should_clear_tables_func = partial(get_user_decision,
+                                       warning
+                                       + "Would you like to clear the local/global tables?"
+                                         " Don't worry, you will have to re-confirm a 'yes'.")
+    table_kind_to_clear_func = partial(get_user_decision,
+                                       choices_strs=tuple(tables_kinds.values()),
+                                       valid_choices=tuple(tables_kinds.keys()))
 
-    should_drop_tables = should_drop_tables_func()
-    while should_drop_tables == 'y':
-        table_kind_to_drop = table_kind_to_drop_func(
+    should_clear_tables = should_clear_tables_func()
+    while should_clear_tables == 'y':
+        table_kind_to_clear = table_kind_to_clear_func(
             prompt=(warning
                     + "Which kinds of tables would you like to clear?"
                       " Don't worry, you will have to re-confirm your choice.")
         )
-        if table_kind_to_drop == 'n':
-            should_drop_tables = should_drop_tables_func()
+        if table_kind_to_clear == 'n':
+            should_clear_tables = should_clear_tables_func()
             continue
 
-        chosen_table_to_drop_str = tables_kinds[table_kind_to_drop].replace('[', '').replace(']', '')
-        confirm_tables_to_drop = table_kind_to_drop_func(
+        chosen_table_to_clear_str = tables_kinds[table_kind_to_clear].replace('[', '').replace(']', '')
+        confirm_tables_to_clear = table_kind_to_clear_func(
             prompt=(warning
-                    + f"Are you sure that you want to clear {chosen_table_to_drop_str}?"
+                    + f"Are you sure that you want to clear {chosen_table_to_clear_str}?"
                       f" This action cannot be undone. To confirm your choice, simply re-enter it.")
         )
 
-        if confirm_tables_to_drop != table_kind_to_drop:
-            should_drop_tables = should_drop_tables_func()
+        if confirm_tables_to_clear != table_kind_to_clear:
+            should_clear_tables = should_clear_tables_func()
             continue
 
-        if table_kind_to_drop in ('l', 'b'):
+        if table_kind_to_clear in ('l', 'b'):
             clear_local_tables()
-        if table_kind_to_drop in ('g', 'b'):
+        if table_kind_to_clear in ('g', 'b'):
             clear_central_tables()
-        should_drop_tables = 'n'
+        should_clear_tables = 'n'
 
 
 def clear_local_tables():

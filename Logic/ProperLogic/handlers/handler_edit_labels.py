@@ -43,13 +43,13 @@ def edit_labels(clusters, **kwargs):
                 continue
 
             label_scope = get_label_scope_decision()
-            if label_scope == 'c':
-                set_cluster_label(cluster, new_label)
-            else:
-                try:
+            try:
+                if label_scope == 'c':
+                    set_cluster_label(cluster, new_label)
+                else:
                     set_picture_label(embedding_id, new_label, cluster, clusters)
-                except IncompleteDatabaseOperation:
-                    pass
+            except IncompleteDatabaseOperation:
+                pass
 
             # Auto-stop choosing faces if cluster is empty or consists of only one face
             continue_choosing_face = get_face_decision() if cluster.get_size() > 2 else 'n'

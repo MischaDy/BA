@@ -1,5 +1,6 @@
 import logging
 import operator
+from functools import reduce
 
 from itertools import zip_longest, filterfalse
 
@@ -52,6 +53,27 @@ def starfilterfalse(pred, iterable):  # noqa
         return pred(*args)
 
     return filterfalse(new_pred, iterable)
+
+
+class Reducer:
+    def __init__(self, func, default):
+        self.func = func
+        self.default = default
+        self.state = self.default
+
+    def __call__(self, *args):
+        self.state = reduce(self.func, args, self.state)
+
+    def get_state(self):
+        return self.state
+
+    def reset(self):
+        self.state = self.default
+
+
+class MaxReducer(Reducer):
+    def __init__(self, default=float('-inf')):
+        super().__init__(max, default)
 
 
 # ----- I/O -----
@@ -265,9 +287,14 @@ def remove_items(iterable, items):
             log_error(f'Item {item} not found, could not be removed')
 
 
-def overwrite_list(iterable, new_values):
-    iterable.clear()
-    iterable.extend(new_values)
+def overwrite_list(list_, new_values):
+    list_.clear()
+    list_.extend(new_values)
+
+
+def overwrite_dict(dict_, other_dict):
+    dict_.clear()
+    dict_.update(other_dict)
 
 
 def first_true(iterable, default=False, pred=None):

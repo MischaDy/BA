@@ -1,7 +1,7 @@
 import torchvision
 
 from Logic.ProperLogic.handlers.handler_edit_labels import edit_labels
-from Logic.ProperLogic.handlers.handler_show_person import view_person
+from Logic.ProperLogic.handlers.handler_view_person import view_person
 from Logic.ProperLogic.handlers.handler_process_image_dir import process_image_dir
 from Logic.ProperLogic.handlers.handler_reclassify import reclassify
 from Logic.ProperLogic.handlers.handler_reset_cluster_ids import reset_cluster_ids

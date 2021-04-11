@@ -1,6 +1,7 @@
 from functools import partial
 
-from Logic.ProperLogic.cluster import Cluster, Clusters
+from Logic.ProperLogic.cluster_modules.cluster import Cluster
+from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import DBManager, IncompleteDatabaseOperation
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
 from Logic.ProperLogic.handlers.helpers import user_choose_cluster
@@ -10,11 +11,11 @@ from Logic.ProperLogic.misc_helpers import log_error, get_user_decision, get_use
 # TODO: Square brackets around cluster numbers!
 # TODO: Square brackets around face numbers!
 
-def edit_labels(clusters, **kwargs):
+def edit_labels(cluster_dict, **kwargs):
     # TODO: Refactor
     # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
 
-    if not clusters:
+    if not cluster_dict:
         log_error('no clusters found, no labels to edit')
         return
 
@@ -27,7 +28,7 @@ def edit_labels(clusters, **kwargs):
 
     continue_choosing_cluster = ''
     while continue_choosing_cluster != 'n':
-        cluster = user_choose_cluster(clusters)
+        cluster = user_choose_cluster(cluster_dict)
         if cluster is None:
             continue_choosing_cluster = get_cluster_decision()
             continue
@@ -47,7 +48,7 @@ def edit_labels(clusters, **kwargs):
                 if label_scope == 'c':
                     set_cluster_label(cluster, new_label)
                 else:
-                    set_picture_label(embedding_id, new_label, cluster, clusters)
+                    set_picture_label(embedding_id, new_label, cluster, cluster_dict)
             except IncompleteDatabaseOperation:
                 pass
 
@@ -116,19 +117,19 @@ def set_cluster_label(cluster, new_label):
     DBManager.connection_wrapper(set_cluster_label_worker)
 
 
-def set_picture_label(embedding_id, new_label, cluster, clusters):
+def set_picture_label(embedding_id, new_label, cluster, cluster_dict):
     # TODO: Refactor! Extract parts to DBManager?
     # TODO: Don't accept label if it's the same as the old one!
     new_cluster_id = DBManager.get_max_cluster_id() + 1
     embedding = cluster.get_embedding(embedding_id)
     cluster.remove_embedding_by_id(embedding_id)
     new_cluster = Cluster(new_cluster_id, [embedding], [embedding_id], new_label)
-    clusters.append(new_cluster)
+    cluster_dict.add_cluster(new_cluster)
     if cluster.get_size() == 0:
-        clusters.remove(cluster)
-        modified_clusters = Clusters([new_cluster])
+        cluster_dict.remove_cluster(cluster)
+        modified_clusters = ClusterDict([new_cluster])
     else:
-        modified_clusters = Clusters([new_cluster, cluster])
+        modified_clusters = ClusterDict([new_cluster, cluster])
 
     def set_pic_label_worker(con):
         if cluster.get_size() == 0:
@@ -148,8 +149,8 @@ def set_picture_label(embedding_id, new_label, cluster, clusters):
     except IncompleteDatabaseOperation:
         cluster.add_embedding(embedding, embedding_id)
         if cluster.get_size() == 0:
-            clusters.append(cluster)
-        clusters.remove(new_cluster)
+            cluster_dict.add_cluster(cluster)
+        cluster_dict.remove_cluster(new_cluster)
         raise
 
 

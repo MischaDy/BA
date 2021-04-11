@@ -11,7 +11,8 @@ import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.cluster import Cluster, Clusters
+from Logic.ProperLogic.cluster_modules.cluster import Cluster
+from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, \
     ColumnSchema
 from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error, get_every_nth_item
@@ -232,6 +233,9 @@ class DBManager:
         if emb_id_to_img_id_dict is None:
             emb_id_to_img_id_dict = cls.get_image_ids(with_embeddings_ids=True, as_dict=True)
 
+        if is_instance_by_type_name(clusters, ClusterDict):
+            clusters = clusters.get_clusters()
+
         # Store in cluster_attributes and embeddings tables
         # Use on conflict clause for when cluster label and/or center change
         attrs_update_cols = [Columns.label, Columns.center]
@@ -347,6 +351,11 @@ class DBManager:
                                close_connections=close_connections)
 
     @classmethod
+    def remove_cluster(cls, cluster_to_remove, con=None, close_connections=True):
+        clusters_to_remove = ClusterDict([cluster_to_remove])
+        return cls.remove_clusters(clusters_to_remove, con=con, close_connections=close_connections)
+
+    @classmethod
     def remove_clusters(cls, clusters_to_remove=None, remove_all=False, con=None, close_connections=True):
         """
         Removes the data in clusters from the central DB-tables ('cluster_attributes' and 'embeddings').
@@ -358,6 +367,7 @@ class DBManager:
         :param close_connections:
         :return: None
         """
+        # TODO: More efficient way of deleting all clusters!
         if clusters_to_remove is None and not remove_all:
             log_error(f"'clusters_to_remove' or 'remove_all' must be provided")
             return
@@ -369,7 +379,9 @@ class DBManager:
             return
 
         if remove_all:
-            clusters_to_remove = DBManager.load_clusters()
+            clusters_to_remove = DBManager.load_cluster_dict()
+        elif not is_instance_by_type_name(clusters_to_remove, ClusterDict):
+            clusters_to_remove = ClusterDict(clusters_to_remove)
 
         temp_table = Tables.temp_cluster_ids_table
         embs_table = Tables.embeddings_table
@@ -378,7 +390,7 @@ class DBManager:
         embs_cond = f'{embs_table}.{Columns.cluster_id} IN {temp_table}'
         attrs_cond = f'{attrs_table}.{Columns.cluster_id} IN {temp_table}'
 
-        cluster_ids_to_remove = map(lambda c: c.cluster_id, clusters_to_remove)
+        cluster_ids_to_remove = clusters_to_remove.get_cluster_ids()
         # TODO: Rename
         rows_dicts = [{Columns.cluster_id.col_name: cluster_id}
                       for cluster_id in cluster_ids_to_remove]
@@ -468,7 +480,7 @@ class DBManager:
         return map(output_func, processed_rows)
 
     @classmethod
-    def load_clusters(cls):
+    def load_cluster_dict(cls):
         # TODO: Refactor + improve efficiency
         cluster_attributes_parts = DBManager.get_cluster_attributes_parts()
         embeddings_parts = DBManager.get_embeddings_parts()
@@ -478,7 +490,7 @@ class DBManager:
         #     for kwargs in clusters_parts
         # )
 
-        clusters_dict = dict()
+        clusters_dict = ClusterDict()
         for cluster_id, label, center in cluster_attributes_parts:
             clusters_dict[cluster_id] = Cluster(cluster_id, label=label, center_point=center)
 
@@ -486,8 +498,7 @@ class DBManager:
             cluster = clusters_dict[cluster_id]
             cluster.add_embedding(embedding, embedding_id)
 
-        clusters = Clusters(clusters_dict.values())
-        return clusters
+        return clusters_dict
 
     @classmethod
     def get_embeddings_parts(cls, cond=''):
@@ -722,15 +733,15 @@ class DBManager:
         certain_clusters_parts = cls.connection_wrapper(get_certain_clusters_worker)
 
         max_cluster_id = cls.get_max_cluster_id()
-        certain_clusters = []
+        certain_clusters_dict = ClusterDict()
         for next_cluster_id, (embedding_id, embedding, label) in enumerate(certain_clusters_parts,
                                                                            start=max_cluster_id + 1):
             proc_embedding_id = int(embedding_id)
             proc_embedding = cls.bytes_to_tensor(embedding)
-            certain_clusters.append(
+            certain_clusters_dict.add_cluster(
                 Cluster(next_cluster_id, [proc_embedding], [proc_embedding_id], label)
             )
-        return Clusters(certain_clusters)
+        return certain_clusters_dict
 
     @staticmethod
     def make_values_template(length, char_to_join='?', sep=','):
@@ -819,27 +830,18 @@ class DBManager:
 
     @staticmethod
     def make_embs_row_dicts(clusters, emb_id_to_face_dict, emb_id_to_img_id_dict):
-        embeddings_row_dicts = []
-        for cluster in clusters:
-            embeddings_row = [
-                {
-                    Columns.cluster_id.col_name: cluster.cluster_id,
-                    Columns.embedding.col_name: embedding,
-                    Columns.thumbnail.col_name: emb_id_to_face_dict[face_id],
-                    Columns.image_id.col_name: emb_id_to_img_id_dict[face_id],
-                    Columns.embedding_id.col_name: face_id,
-                }
-                for face_id, embedding in cluster.get_embeddings(with_embeddings_ids=True)
-            ]
-
-            # embeddings_row = [
-            #     {Columns.cluster_id.col_name: cluster.cluster_id,
-            #      Columns.embedding.col_name: embedding,
-            #      Columns.embedding_id.col_name: face_id}
-            #     for face_id, embedding in cluster.get_embeddings(with_embeddings_ids=True)
-            # ]
-
-            embeddings_row_dicts.extend(embeddings_row)
+        # TODO: Improve efficiency?
+        embeddings_row_dicts = [
+            {
+                Columns.cluster_id.col_name: cluster.cluster_id,
+                Columns.embedding.col_name: embedding,
+                Columns.thumbnail.col_name: emb_id_to_face_dict[face_id],
+                Columns.image_id.col_name: emb_id_to_img_id_dict[face_id],
+                Columns.embedding_id.col_name: face_id,
+            }
+            for cluster in clusters
+            for face_id, embedding in cluster.get_embeddings(with_embeddings_ids=True)
+        ]
         return embeddings_row_dicts
 
     @staticmethod

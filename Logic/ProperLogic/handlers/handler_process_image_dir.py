@@ -9,7 +9,7 @@ from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
 from Logic.ProperLogic.input_output_logic import TO_TENSOR
-from Logic.ProperLogic.misc_helpers import overwrite_list, log_error
+from Logic.ProperLogic.misc_helpers import overwrite_list, log_error, overwrite_dict
 from Logic.ProperLogic.models import Models
 
 
@@ -35,20 +35,20 @@ def process_image_dir(cluster_dict, **kwargs):
 
     clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids, existing_cluster_dict=cluster_dict,
                                                          final_clusters_only=False)
-    updated_cluster_dict, modified_cluster_dict, removed_cluster_dict = clustering_result
+    updated_clusters_dict, modified_clusters_dict, removed_clusters_dict = clustering_result
 
     emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
     emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
 
     def process_image_dir_worker(con):
-        DBManager.remove_clusters(list(removed_cluster_dict), con=con, close_connections=False)
-        DBManager.store_clusters(list(modified_cluster_dict), emb_id_to_face_dict, emb_id_to_img_id_dict, con=con,
+        DBManager.remove_clusters(removed_clusters_dict, con=con, close_connections=False)
+        DBManager.store_clusters(modified_clusters_dict, emb_id_to_face_dict, emb_id_to_img_id_dict, con=con,
                                  close_connections=False)
 
     try:
         DBManager.connection_wrapper(process_image_dir_worker)
-        # TODO: How to handle case where error in overwrite_list?
-        overwrite_list(cluster_dict, updated_cluster_dict)
+        # TODO: How to handle case where error in overwrite_dict?
+        overwrite_dict(cluster_dict, updated_clusters_dict)
     except IncompleteDatabaseOperation:
         pass
 

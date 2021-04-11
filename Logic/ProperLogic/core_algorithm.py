@@ -2,7 +2,8 @@ import os
 from functools import partial
 from typing import Union, Tuple
 
-from cluster import ClusterDict, Cluster
+from Logic.ProperLogic.cluster_modules.cluster import Cluster
+from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import DBManager
 from misc_helpers import remove_items, starfilterfalse
 
@@ -19,6 +20,8 @@ logging.basicConfig(level=logging.INFO)
 CLUSTERS_PATH = 'stored_clusters'
 EMBEDDINGS_PATH = 'stored_embeddings'
 
+
+# TODO: Test, that cluster-split works and that params are ok!
 
 class CoreAlgorithm:
     path_to_central_db = os.path.join(DBManager.db_files_path, DBManager.central_db_file_name)
@@ -37,7 +40,7 @@ class CoreAlgorithm:
     num_embeddings_to_classify = -1
 
     @classmethod
-    def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_cluster_dict=None, final_clusters_only=True):
+    def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_clusters_dict=None, final_clusters_only=True):
         """
         Build clusters from face embeddings stored in the given path using the specified classification threshold.
         (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed
@@ -46,7 +49,7 @@ class CoreAlgorithm:
         :param embeddings: Iterable containing the embeddings. It embeddings_ids is None, must consist of
         (id, embedding)-pairs
         :param embeddings_ids: Ordered iterable with the embedding ids. Must be at least as long as embeddings.
-        :param existing_cluster_dict:
+        :param existing_clusters_dict:
         :param final_clusters_only: If true, only the final iterable of clusters is returned. Otherwise, return that
         final iterable, as well as a list of modified/newly created and deleted clusters
         :return:
@@ -67,19 +70,21 @@ class CoreAlgorithm:
                                  f' needed)')
             embeddings_with_ids = zip(embeddings_ids, embeddings)
 
-        if existing_cluster_dict is None:
-            existing_cluster_dict = ClusterDict()
+        if existing_clusters_dict is None:
+            existing_clusters_dict = ClusterDict()
         else:
             # TODO: Improve efficiency? (better algorithm)
             # Don't iterate over embeddings in existing clusters
             def exists_in_any_cluster(emb_id, _):
-                return existing_cluster_dict.any_cluster_with_emb(emb_id)
+                return existing_clusters_dict.any_cluster_with_emb(emb_id)
 
             embeddings_with_ids = starfilterfalse(exists_in_any_cluster, embeddings_with_ids)
-        cluster_dict = ClusterDict(existing_cluster_dict)
+        cluster_dict = existing_clusters_dict
         modified_clusters_ids, removed_clusters_ids = set(), set()
 
-        next_cluster_id = DBManager.get_max_cluster_id() + 1
+        max_existing_id = existing_clusters_dict.get_max_id()
+        max_db_id = DBManager.get_max_cluster_id()
+        next_cluster_id = max(max_existing_id, max_db_id) + 1
 
         # counter_vals = (range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0
         #                 else count(2))

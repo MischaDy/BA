@@ -6,10 +6,6 @@ from Logic.ProperLogic.database_modules.database_logic import DBManager
 from Logic.ProperLogic.misc_helpers import get_user_decision, clean_string, wait_for_any_input, enumerate_strs
 
 
-def get_directory_decision():
-    pass
-
-
 def view_person(cluster_dict, **kwargs):
     """
     1. Fetch which labels exist (incl. Unknown Person)
@@ -19,7 +15,7 @@ def view_person(cluster_dict, **kwargs):
     5. Show image
     6. Go to 2.
 
-    :param clusters:
+    :param cluster_dict:
     :param kwargs:
     :return:
     """
@@ -36,7 +32,7 @@ def view_person(cluster_dict, **kwargs):
                                                     ' directory?')
     get_directory_decision = partial(get_user_decision, 'Would you like to select another directory containing images'
                                                         ' of the person?')
-    cluster_labels = clusters.get_cluster_labels(unique=True)  # TODO: faster to use DB??
+    cluster_labels = cluster_dict.get_cluster_labels(unique=True)  # TODO: faster to use DB??
     # TODO: Extract some loop constructs as functions?
     # TODO: Are these interactions alright?
     # TODO: Catch errors!

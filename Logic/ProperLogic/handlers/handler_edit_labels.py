@@ -1,6 +1,7 @@
 from functools import partial
 
-from Logic.ProperLogic.cluster import Cluster, ClusterDict
+from Logic.ProperLogic.cluster_modules.cluster import Cluster
+from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import DBManager, IncompleteDatabaseOperation
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
 from Logic.ProperLogic.handlers.helpers import user_choose_cluster

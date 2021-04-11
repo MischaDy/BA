@@ -11,7 +11,8 @@ import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.cluster import Cluster, ClusterDict
+from Logic.ProperLogic.cluster_modules.cluster import Cluster
+from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, \
     ColumnSchema
 from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error, get_every_nth_item
@@ -732,15 +733,15 @@ class DBManager:
         certain_clusters_parts = cls.connection_wrapper(get_certain_clusters_worker)
 
         max_cluster_id = cls.get_max_cluster_id()
-        certain_clusters = []
+        certain_clusters_dict = ClusterDict()
         for next_cluster_id, (embedding_id, embedding, label) in enumerate(certain_clusters_parts,
                                                                            start=max_cluster_id + 1):
             proc_embedding_id = int(embedding_id)
             proc_embedding = cls.bytes_to_tensor(embedding)
-            certain_clusters.append(
+            certain_clusters_dict.add_cluster(
                 Cluster(next_cluster_id, [proc_embedding], [proc_embedding_id], label)
             )
-        return ClusterDict(certain_clusters)
+        return certain_clusters_dict
 
     @staticmethod
     def make_values_template(length, char_to_join='?', sep=','):

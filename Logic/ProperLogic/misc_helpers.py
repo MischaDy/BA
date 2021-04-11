@@ -1,5 +1,6 @@
 import logging
 import operator
+from functools import reduce
 
 from itertools import zip_longest, filterfalse
 
@@ -52,6 +53,27 @@ def starfilterfalse(pred, iterable):  # noqa
         return pred(*args)
 
     return filterfalse(new_pred, iterable)
+
+
+class Reducer:
+    def __init__(self, func, default):
+        self.func = func
+        self.default = default
+        self.state = self.default
+
+    def __call__(self, *args):
+        self.state = reduce(self.func, args, self.state)
+
+    def get_state(self):
+        return self.state
+
+    def reset(self):
+        self.state = self.default
+
+
+class MaxReducer(Reducer):
+    def __init__(self, default=float('-inf')):
+        super().__init__(max, default)
 
 
 # ----- I/O -----

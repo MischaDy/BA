@@ -111,23 +111,32 @@ class Cluster:
         return reduce(torch.add, embeddings)
 
 
-class Clusters(list):
+class ClusterDict(dict):
     # TODO: Make sure constructor is only called when needed / doesn't produce more work than necessary!
 
+    def __init__(self, clusters=None):
+        super().__init__()
+        if clusters is None:
+            return
+
+        for cluster in clusters:
+            self[cluster.cluster_id] = cluster
+
+    def get_clusters(self):
+        return self.values()
+
     def get_cluster_by_id(self, cluster_id):
-        cluster_iterator = self.get_clusters_by_ids([cluster_id])
         try:
-            return next(cluster_iterator)
-        except StopIteration:
-            log_error(f"no cluster with an id in '{cluster_id}' found")
+            return self[cluster_id]
+        except KeyError:
+            log_error(f"no cluster with id '{cluster_id}' found")
             return None
 
     def get_clusters_by_ids(self, cluster_ids):
-        # TODO: Improve efficiency! (Make dict with id as key?)
-        return filter(lambda c: c.cluster_id in cluster_ids, self)
+        return map(self.get_cluster_by_id, cluster_ids)
 
     def get_cluster_ids(self):
-        return self.get_cluster_attrs('cluster_id')
+        return self.keys()
 
     def get_cluster_labels(self, with_ids=False, unique=True):
         """
@@ -142,30 +151,48 @@ class Clusters(list):
         cluster_labels = self.get_cluster_attrs(*attrs)
 
         if unique and not with_ids:
-            # TODO: More efficient solution?
             return list(set(cluster_labels))
         return list(cluster_labels)
 
     def get_cluster_attrs(self, *attrs):
-        # TODO: Check that this works too!
+        clusters = self.get_clusters()
         attrs_getter = operator.attrgetter(*attrs)
-        return map(attrs_getter, self)
+        return map(attrs_getter, clusters)
 
     def reset_ids(self, start_id=1):
+        clusters = self.get_clusters()
         old_ids = []
-        for new_cluster_id, cluster in enumerate(self, start=start_id):
+        for new_cluster_id, cluster in enumerate(clusters, start=start_id):
             old_ids.append(cluster.cluster_id)
             cluster.set_cluster_id(new_cluster_id)
 
-        max_id = start_id + len(self)
+        max_id = start_id + len(clusters)
         new_ids = list(range(start_id, max_id))
         return old_ids, new_ids
 
     def set_ids(self, old_ids, new_ids):
+        clusters = self.get_clusters()
         old_to_new_ids_dict = dict(zip(old_ids, new_ids))
-        for cluster in self:
+        for cluster in clusters:
             new_id = old_to_new_ids_dict[cluster.cluster_id]
             cluster.set_cluster_id(new_id)
 
     def any_cluster_with_emb(self, emb):
-        return any(filter(lambda cluster: cluster.contains_embedding(emb), self))
+        clusters = self.get_clusters()
+        return any(filter(lambda cluster: cluster.contains_embedding(emb), clusters))
+
+    def add_clusters(self, clusters):
+        for cluster in clusters:
+            self[cluster.cluster_id] = cluster
+
+    def add_cluster(self, cluster):
+        self.add_clusters([cluster])
+
+    def remove_clusters(self, clusters):
+        for cluster in clusters:
+            self.pop(cluster.cluster_id)
+
+    def remove_cluster(self, cluster):
+        self.remove_clusters([cluster])
+
+

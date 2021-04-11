@@ -265,9 +265,14 @@ def remove_items(iterable, items):
             log_error(f'Item {item} not found, could not be removed')
 
 
-def overwrite_list(iterable, new_values):
-    iterable.clear()
-    iterable.extend(new_values)
+def overwrite_list(list_, new_values):
+    list_.clear()
+    list_.extend(new_values)
+
+
+def overwrite_dict(dict_, other_dict):
+    dict_.clear()
+    dict_.update(other_dict)
 
 
 def first_true(iterable, default=False, pred=None):

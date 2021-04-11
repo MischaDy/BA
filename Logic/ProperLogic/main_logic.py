@@ -87,14 +87,14 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 def run_program(path_to_central_dir):
     # TODO: Make this failsafe!!!
     DBManager.create_central_tables(drop_existing_tables=False)
-    clusters = DBManager.load_clusters()
+    cluster_dict = DBManager.load_cluster_dict()
     # TODO: More elegant way around this?
     Commands.initialize()
 
     cmd_name = get_user_command()
     while cmd_name != str(Commands.exit):
         cmd = Command.get_command(cmd_name)
-        cmd.handler(clusters=clusters)
+        cmd.handler(cluster_dict=cluster_dict)
         cmd_name = get_user_command()
 
 

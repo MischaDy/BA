@@ -13,7 +13,7 @@ from Logic.ProperLogic.misc_helpers import overwrite_list, log_error
 from Logic.ProperLogic.models import Models
 
 
-def process_image_dir(clusters, **kwargs):
+def process_image_dir(cluster_dict, **kwargs):
     # TODO: Refactor + improve efficiency
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
 
@@ -33,22 +33,22 @@ def process_image_dir(clusters, **kwargs):
                 faces_rows)
     embeddings = list(faces_to_embeddings(faces))
 
-    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids, existing_clusters=clusters,
+    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids, existing_cluster_dict=cluster_dict,
                                                          final_clusters_only=False)
-    updated_clusters, modified_clusters, removed_clusters = clustering_result
+    updated_cluster_dict, modified_cluster_dict, removed_cluster_dict = clustering_result
 
     emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
     emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
 
     def process_image_dir_worker(con):
-        DBManager.remove_clusters(list(removed_clusters), con=con, close_connections=False)
-        DBManager.store_clusters(list(modified_clusters), emb_id_to_face_dict, emb_id_to_img_id_dict, con=con,
+        DBManager.remove_clusters(list(removed_cluster_dict), con=con, close_connections=False)
+        DBManager.store_clusters(list(modified_cluster_dict), emb_id_to_face_dict, emb_id_to_img_id_dict, con=con,
                                  close_connections=False)
 
     try:
         DBManager.connection_wrapper(process_image_dir_worker)
         # TODO: How to handle case where error in overwrite_list?
-        overwrite_list(clusters, updated_clusters)
+        overwrite_list(cluster_dict, updated_cluster_dict)
     except IncompleteDatabaseOperation:
         pass
 

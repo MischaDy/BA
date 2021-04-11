@@ -11,7 +11,7 @@ import torch
 from PIL import Image
 import io
 
-from Logic.ProperLogic.cluster import Cluster, Clusters
+from Logic.ProperLogic.cluster import Cluster, ClusterDict
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, \
     ColumnSchema
 from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error, get_every_nth_item
@@ -347,6 +347,11 @@ class DBManager:
                                close_connections=close_connections)
 
     @classmethod
+    def remove_cluster(cls, cluster_to_remove, con=None, close_connections=True):
+        clusters_to_remove = ClusterDict([cluster_to_remove])
+        return cls.remove_clusters(clusters_to_remove, con=con, close_connections=close_connections)
+
+    @classmethod
     def remove_clusters(cls, clusters_to_remove=None, remove_all=False, con=None, close_connections=True):
         """
         Removes the data in clusters from the central DB-tables ('cluster_attributes' and 'embeddings').
@@ -369,7 +374,7 @@ class DBManager:
             return
 
         if remove_all:
-            clusters_to_remove = DBManager.load_clusters()
+            clusters_to_remove = DBManager.load_cluster_dict()
 
         temp_table = Tables.temp_cluster_ids_table
         embs_table = Tables.embeddings_table
@@ -378,7 +383,7 @@ class DBManager:
         embs_cond = f'{embs_table}.{Columns.cluster_id} IN {temp_table}'
         attrs_cond = f'{attrs_table}.{Columns.cluster_id} IN {temp_table}'
 
-        cluster_ids_to_remove = map(lambda c: c.cluster_id, clusters_to_remove)
+        cluster_ids_to_remove = clusters_to_remove.get_cluster_ids()
         # TODO: Rename
         rows_dicts = [{Columns.cluster_id.col_name: cluster_id}
                       for cluster_id in cluster_ids_to_remove]
@@ -468,7 +473,7 @@ class DBManager:
         return map(output_func, processed_rows)
 
     @classmethod
-    def load_clusters(cls):
+    def load_cluster_dict(cls):
         # TODO: Refactor + improve efficiency
         cluster_attributes_parts = DBManager.get_cluster_attributes_parts()
         embeddings_parts = DBManager.get_embeddings_parts()
@@ -478,7 +483,7 @@ class DBManager:
         #     for kwargs in clusters_parts
         # )
 
-        clusters_dict = dict()
+        clusters_dict = ClusterDict()
         for cluster_id, label, center in cluster_attributes_parts:
             clusters_dict[cluster_id] = Cluster(cluster_id, label=label, center_point=center)
 
@@ -486,8 +491,7 @@ class DBManager:
             cluster = clusters_dict[cluster_id]
             cluster.add_embedding(embedding, embedding_id)
 
-        clusters = Clusters(clusters_dict.values())
-        return clusters
+        return clusters_dict
 
     @classmethod
     def get_embeddings_parts(cls, cond=''):
@@ -730,7 +734,7 @@ class DBManager:
             certain_clusters.append(
                 Cluster(next_cluster_id, [proc_embedding], [proc_embedding_id], label)
             )
-        return Clusters(certain_clusters)
+        return ClusterDict(certain_clusters)
 
     @staticmethod
     def make_values_template(length, char_to_join='?', sep=','):

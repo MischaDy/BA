@@ -2,7 +2,7 @@ import os
 from functools import partial
 from typing import Union, Tuple
 
-from cluster import Clusters, Cluster
+from cluster import ClusterDict, Cluster
 from Logic.ProperLogic.database_modules.database_logic import DBManager
 from misc_helpers import remove_items, starfilterfalse
 
@@ -37,7 +37,7 @@ class CoreAlgorithm:
     num_embeddings_to_classify = -1
 
     @classmethod
-    def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_clusters=None, final_clusters_only=True):
+    def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_cluster_dict=None, final_clusters_only=True):
         """
         Build clusters from face embeddings stored in the given path using the specified classification threshold.
         (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed
@@ -46,7 +46,7 @@ class CoreAlgorithm:
         :param embeddings: Iterable containing the embeddings. It embeddings_ids is None, must consist of
         (id, embedding)-pairs
         :param embeddings_ids: Ordered iterable with the embedding ids. Must be at least as long as embeddings.
-        :param existing_clusters:
+        :param existing_cluster_dict:
         :param final_clusters_only: If true, only the final iterable of clusters is returned. Otherwise, return that
         final iterable, as well as a list of modified/newly created and deleted clusters
         :return:
@@ -67,16 +67,16 @@ class CoreAlgorithm:
                                  f' needed)')
             embeddings_with_ids = zip(embeddings_ids, embeddings)
 
-        if existing_clusters is None:
-            existing_clusters = Clusters()
+        if existing_cluster_dict is None:
+            existing_cluster_dict = ClusterDict()
         else:
             # TODO: Improve efficiency? (better algorithm)
             # Don't iterate over embeddings in existing clusters
             def exists_in_any_cluster(emb_id, _):
-                return existing_clusters.any_cluster_with_emb(emb_id)
+                return existing_cluster_dict.any_cluster_with_emb(emb_id)
 
             embeddings_with_ids = starfilterfalse(exists_in_any_cluster, embeddings_with_ids)
-        clusters = Clusters(existing_clusters)
+        cluster_dict = ClusterDict(existing_cluster_dict)
         modified_clusters_ids, removed_clusters_ids = set(), set()
 
         next_cluster_id = DBManager.get_max_cluster_id() + 1
@@ -86,7 +86,7 @@ class CoreAlgorithm:
         for embedding_id, new_embedding in embeddings_with_ids:
 
             # sort clusters by distance from their center to embedding; only consider closest clusters
-            clusters_by_center_dist = sorted(clusters,
+            clusters_by_center_dist = sorted(cluster_dict.get_clusters(),
                                              key=lambda cluster: cluster.compute_dist_to_center(new_embedding))
             closest_clusters = clusters_by_center_dist[:cls.max_num_cluster_comps]
 
@@ -100,22 +100,22 @@ class CoreAlgorithm:
                 is_cluster_too_big = cls.is_cluster_too_big(closest_cluster)
                 if is_cluster_too_big or cls.exists_emb_too_far_from_center(closest_cluster):
                     new_clusters = cls.split_cluster(closest_cluster)
-                    clusters.remove(closest_cluster)
+                    cluster_dict.remove_cluster(closest_cluster)
                     removed_clusters_ids.add(closest_cluster.cluster_id)
-                    clusters.extend(new_clusters)
+                    cluster_dict.add_clusters(new_clusters)
                     for new_cluster in new_clusters:
                         modified_clusters_ids.add(new_cluster.cluster_id)
             else:
                 new_cluster = Cluster(next_cluster_id, [new_embedding], [embedding_id])
                 next_cluster_id += 1
-                clusters.append(new_cluster)
+                cluster_dict.add_cluster(new_cluster)
                 modified_clusters_ids.add(new_cluster.cluster_id)
 
         if final_clusters_only:
-            return clusters
-        modified_clusters = clusters.get_clusters_by_ids(modified_clusters_ids)
-        removed_clusters = clusters.get_clusters_by_ids(removed_clusters_ids)
-        return clusters, Clusters(modified_clusters), Clusters(removed_clusters)
+            return cluster_dict
+        modified_clusters = cluster_dict.get_clusters_by_ids(modified_clusters_ids)
+        removed_clusters = cluster_dict.get_clusters_by_ids(removed_clusters_ids)
+        return cluster_dict, ClusterDict(modified_clusters), ClusterDict(removed_clusters)
 
     @classmethod
     def is_cluster_too_big(cls, cluster):

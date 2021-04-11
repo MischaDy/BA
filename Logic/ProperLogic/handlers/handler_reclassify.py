@@ -4,7 +4,7 @@ from Logic.ProperLogic.handlers.handler_reset_cluster_ids import reset_cluster_i
 from Logic.ProperLogic.misc_helpers import overwrite_list, log_error
 
 
-def reclassify(clusters, **kwargs):
+def reclassify(cluster_dict, **kwargs):
     # TODO: Do embeddings_with_ids within certain clusters need to be removed? Done automatically???
 
     embeddings_with_ids = list(DBManager.get_all_embeddings(with_ids=True))
@@ -13,7 +13,7 @@ def reclassify(clusters, **kwargs):
         return
     certain_clusters = DBManager.get_certain_clusters()
     reclassified_clusters = CoreAlgorithm.cluster_embeddings(embeddings=embeddings_with_ids,
-                                                             existing_clusters=certain_clusters,
+                                                             existing_cluster_dict=certain_clusters,
                                                              final_clusters_only=True)
 
     def overwrite_clusters(con):

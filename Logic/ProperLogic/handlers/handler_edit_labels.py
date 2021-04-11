@@ -1,6 +1,6 @@
 from functools import partial
 
-from Logic.ProperLogic.cluster import Cluster, Clusters
+from Logic.ProperLogic.cluster import Cluster, ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import DBManager, IncompleteDatabaseOperation
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
 from Logic.ProperLogic.handlers.helpers import user_choose_cluster
@@ -10,7 +10,7 @@ from Logic.ProperLogic.misc_helpers import log_error, get_user_decision, get_use
 # TODO: Square brackets around cluster numbers!
 # TODO: Square brackets around face numbers!
 
-def edit_labels(clusters, **kwargs):
+def edit_labels(cluster_dict, **kwargs):
     # TODO: Refactor
     # TODO: Include option to delete people (and remember that in case same dir is read again? --> Probs optional)
 
@@ -126,9 +126,9 @@ def set_picture_label(embedding_id, new_label, cluster, clusters):
     clusters.append(new_cluster)
     if cluster.get_size() == 0:
         clusters.remove(cluster)
-        modified_clusters = Clusters([new_cluster])
+        modified_clusters = ClusterDict([new_cluster])
     else:
-        modified_clusters = Clusters([new_cluster, cluster])
+        modified_clusters = ClusterDict([new_cluster, cluster])
 
     def set_pic_label_worker(con):
         if cluster.get_size() == 0:

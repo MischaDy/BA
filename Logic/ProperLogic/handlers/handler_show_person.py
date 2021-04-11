@@ -10,7 +10,7 @@ def get_directory_decision():
     pass
 
 
-def view_person(clusters, **kwargs):
+def view_person(cluster_dict, **kwargs):
     """
     1. Fetch which labels exist (incl. Unknown Person)
     2. Prompt user, which person/label they would like to view

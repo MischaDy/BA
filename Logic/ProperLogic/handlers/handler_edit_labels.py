@@ -170,6 +170,9 @@ def make_emb_id_to_img_id_dict_from_row_dicts(row_dicts):
 
 def make_dict_from_row_dicts(row_dicts, key_col_name, value_col_name):
     # TODO: Make sure to return None if row dicts are empty!
+    #       --> Done?
+    if not row_dicts:
+        return
     new_dict = {
         row_dict[key_col_name]: row_dict[value_col_name]
         for row_dict in row_dicts
@@ -180,7 +183,6 @@ def make_dict_from_row_dicts(row_dicts, key_col_name, value_col_name):
 
 def print_face_ids(faces_dict, label):
     # TODO: print limited number of faces at a time (Enter=continue)
-    # TODO: Remove list casting
     print()
     wait_for_any_input(f"Please enter a face id to view the face, or press Enter to cancel viewing. The current label"
                        f" of each face is '{label}'."

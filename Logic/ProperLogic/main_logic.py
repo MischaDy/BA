@@ -26,6 +26,8 @@ from misc_helpers import clean_string, wait_for_any_input, log_error
 # TODO: Handle case where directory path points to non-existent directory!!
 
 # ------- HELPFUL -------
+# TODO: Include option to delete people in edit labels handler (and remember that in case same dir is read again?
+#                                                               --> Probs optional)
 # TODO: Implement deletion cascade (also in clear data handler)!
 #       --> Use cross-db FKs.
 #       --> Google if sb has done that already!

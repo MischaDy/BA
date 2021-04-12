@@ -409,7 +409,7 @@ class DBManager:
         return deleted_embeddings_row_dicts
 
     @classmethod
-    def delete_from_table(cls, table, with_clause_part='', cond='', con=None, path_to_local_db=None,
+    def delete_from_table(cls, table, with_clause_part='', cond='', path_to_local_db=None, con=None,
                           close_connections=True):
         """
 

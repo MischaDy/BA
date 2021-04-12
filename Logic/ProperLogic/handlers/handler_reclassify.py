@@ -1,12 +1,10 @@
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
-from Logic.ProperLogic.database_modules.database_logic import DBManager
+from Logic.ProperLogic.database_modules.database_logic import DBManager, IncompleteDatabaseOperation
 from Logic.ProperLogic.handlers.handler_reset_cluster_ids import reset_cluster_ids
 from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict
 
 
 def reclassify(cluster_dict, **kwargs):
-    # TODO: Do embeddings_with_ids within certain clusters need to be removed? Done automatically???
-
     embeddings_with_ids = list(DBManager.get_all_embeddings(with_ids=True))
     if not embeddings_with_ids:
         log_error('no embeddings found, nothing to edit')

@@ -51,7 +51,6 @@ class CoreAlgorithm:
         final iterable, as well as a list of modified/newly created and deleted clusters
         :return:
         """
-        # TODO: Improve efficiency?
         # TODO: Allow embeddings_ids to be none? Get next id via DB query?
         # TODO: Allow embeddings_ids to be shorter than embeddings and 'fill up' remaining ids?
         if not embeddings:
@@ -70,7 +69,6 @@ class CoreAlgorithm:
         if existing_clusters_dict is None:
             existing_clusters_dict = ClusterDict()
         else:
-            # TODO: Improve efficiency? (better algorithm)
             # Don't iterate over embeddings in existing clusters
             def exists_in_any_cluster(emb_id, _):
                 return existing_clusters_dict.any_cluster_with_emb(emb_id)

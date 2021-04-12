@@ -1,15 +1,15 @@
+import os
 from functools import partial
 
-from Logic.ProperLogic.database_modules.database_logic import DBManager
+from Logic.ProperLogic.database_modules.database_logic import DBManager, IncompleteDatabaseOperation
 from Logic.ProperLogic.database_modules.database_table_defs import Tables
-from Logic.ProperLogic.misc_helpers import get_user_decision, overwrite_dict
+from Logic.ProperLogic.misc_helpers import get_user_decision, overwrite_dict, log_error
 
 
 # TODO: Add handler which not only allows to clear, but to completely drop the database files.
 #       Or actually convert the clear data handler to that?
 
 def clear_data(cluster_dict, **kwargs):
-    # TODO: Allow user to choose local database to clear
     # TODO: Include deletion cascade!
     tables_kinds = {'l': '[l]ocal tables',
                     'g': '[g]lobal tables',

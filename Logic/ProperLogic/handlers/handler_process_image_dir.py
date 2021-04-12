@@ -14,11 +14,21 @@ from Logic.ProperLogic.handlers.helpers import TO_TENSOR
 
 
 def process_image_dir(cluster_dict, **kwargs):
+    """
+    Extract faces from user-chosen images and cluster them
+
+    :param cluster_dict:
+    :param kwargs:
+    :return:
+    """
     # TODO: Refactor + improve efficiency
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
 
-    # Extract faces from user-chosen images and cluster them
-    faces_rows = list(user_choose_images())
+    try:
+        faces_rows = list(user_choose_images())
+    except IncompleteDatabaseOperation:
+        return
+
     if not faces_rows:
         return
 
@@ -31,6 +41,7 @@ def process_image_dir(cluster_dict, **kwargs):
                     faces_rows)
     faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
                 faces_rows)
+
     embeddings = list(faces_to_embeddings(faces))
 
     clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids, existing_clusters_dict=cluster_dict,
@@ -47,20 +58,28 @@ def process_image_dir(cluster_dict, **kwargs):
 
     try:
         DBManager.connection_wrapper(process_image_dir_worker)
-        # TODO: How to handle case where error in overwrite_dict?
-        overwrite_dict(cluster_dict, updated_clusters_dict)
     except IncompleteDatabaseOperation:
-        pass
+        return
+
+    overwrite_dict(cluster_dict, updated_clusters_dict)
 
 
-def user_choose_images():
-    # TODO: Use con params!!!
-
+def user_choose_images(global_con=None, local_con=None, close_connections=True):
     # TODO: Refactor! (too many different tasks, function name non-descriptive)
     # TODO: make user user choose path
     images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
     path_to_local_db = DBManager.get_db_path(images_path, local=True)
-    DBManager.create_local_tables(drop_existing_tables=False, path_to_local_db=path_to_local_db)
+
+    def user_choose_images_worker(global_con, local_con):
+        DBManager.create_local_tables(drop_existing_tables=False, path_to_local_db=path_to_local_db,
+                                      con=local_con, close_connections=False)
+        faces_rows = extract_faces(images_path, global_con=global_con, local_con=local_con, close_connections=False)
+        return faces_rows
+
+    faces_rows = DBManager.connection_wrapper(user_choose_images_worker, path_to_local_db=path_to_local_db,
+                                              global_con=global_con, local_con=local_con,
+                                              close_connections=close_connections)
+
     # TODO: Implement check_if_known question(?)
     # check_if_known_decision = get_user_decision(
     #    "Should already processed images be processed again? This can be useful if for example some files have changed"
@@ -68,7 +87,7 @@ def user_choose_images():
     #    " to make them available again."
     # )
     # check_if_known = (check_if_known_decision == "n")
-    faces_rows = extract_faces(images_path)
+
     return faces_rows
 
 
@@ -89,14 +108,10 @@ def _to_tensor(img):
     return TO_TENSOR(img).unsqueeze(0)
 
 
-def extract_faces(path, check_if_known=True):
-    # TODO: Add con and close_connections params!!
-
+def extract_faces(path, check_if_known=True, global_con=None, local_con=None, close_connections=True):
     # TODO: Refactor (extract functions)? + rename
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
     # TODO: Store + update max_img_id and max_embedding_id somewhere rather than (always) get them via DB query?
-    # TODO: Outsource DB interactions to input-output logic?
-    # TODO: Check if max_embedding_id maths checks out!
 
     path_to_local_db = DBManager.get_db_path(path, local=True)
     imgs_names_and_date = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
@@ -145,11 +160,13 @@ def extract_faces(path, check_if_known=True):
 
         return faces_rows
 
-    global_con = DBManager.open_central_connection()
-    local_con = DBManager.open_local_connection(path_to_local_db)
-    # TODO: How to handle possible exception here?!
+    if global_con is None:
+        global_con = DBManager.open_central_connection()
+    if local_con is None:
+        local_con = DBManager.open_local_connection(path_to_local_db)
+
     faces_rows = DBManager.connection_wrapper(extract_faces_worker, global_con=global_con, local_con=local_con,
-                                              close_connections=True)
+                                              close_connections=close_connections)
     return faces_rows
 
 
@@ -166,7 +183,6 @@ def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=Fal
     filtering
     :return: Yield(!) tuples of image_names and PIL images contained in this folder
     """
-    # TODO: Finish implementing (what's missing?)
     # TODO: More pythonic way to select function based on condition??
     indices = []
     if output_file_paths:
@@ -193,6 +209,7 @@ def cut_out_faces(mtcnn, img):
     since this particular functionality is only provided for saving, not for returning the face pictures.
     """
     # TODO: Use a file buffer or something like that to save from the original function instead of doing this??
+    #       --> Not possible, it expects file path
     boxes, _ = mtcnn.detect(img)
     image_size, mtcnn_margin = mtcnn.image_size, mtcnn.margin
     faces = []

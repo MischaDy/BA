@@ -1,7 +1,7 @@
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import DBManager
 from Logic.ProperLogic.handlers.handler_reset_cluster_ids import reset_cluster_ids
-from Logic.ProperLogic.misc_helpers import overwrite_list, log_error, overwrite_dict
+from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict
 
 
 def reclassify(cluster_dict, **kwargs):

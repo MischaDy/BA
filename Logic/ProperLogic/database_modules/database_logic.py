@@ -118,7 +118,7 @@ class DBManager:
             commit_connections = False
             for con in connections:
                 con.rollback()
-            log_error(f'{e.__class__}, {e.args}')
+            log_error(e)
             tb = sys.exc_info()[2]
             raise IncompleteDatabaseOperation(e).with_traceback(tb)
         finally:

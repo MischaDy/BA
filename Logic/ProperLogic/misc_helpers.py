@@ -2,7 +2,7 @@ import logging
 import operator
 from functools import reduce
 
-from itertools import zip_longest, filterfalse, tee
+from itertools import filterfalse, tee
 
 
 # ----- OOP -----
@@ -95,9 +95,12 @@ def partition(pred, iterable):
 
 # ----- I/O -----
 
-def log_error(msg):
-    # TODO: Raise errors instead!
-    logging.error(f'Error: {msg}')
+def log_error(error):
+    # TODO: Raise errors instead?
+    if is_instance_by_type_name(error, BaseException):
+        logging.error(f'{error.__class__}, {error.args}')
+    else:
+        logging.error(f'Error: {error}')
 
 
 def wait_for_any_input(prompt):
@@ -124,7 +127,6 @@ def get_user_decision(prompt, choices_strs=None, valid_choices=None, no_choices_
     :return:
     """
     # TODO: Create Enum of different user decisions and use that for evaluating choice?
-    # TODO: Allow to abort (param what the abort input should look like)
     if valid_choices is None:
         valid_choices = ['y', 'n']
 
@@ -135,14 +137,14 @@ def get_user_decision(prompt, choices_strs=None, valid_choices=None, no_choices_
 
     choices_str = sep.join(choices_strs)
     full_prompt = prefix + f'{prompt} ({choices_str})' + postfix
-    user_decision = get_user_decision_worker(full_prompt, valid_choices=valid_choices, allow_empty=allow_empty,
-                                             empty_as_none=empty_as_none, strip_input_str=strip_input_str,
-                                             to_lower=to_lower, to_upper=to_upper)
+    user_decision = _get_user_decision_worker(full_prompt, valid_choices=valid_choices, allow_empty=allow_empty,
+                                              empty_as_none=empty_as_none, strip_input_str=strip_input_str,
+                                              to_lower=to_lower, to_upper=to_upper)
     return user_decision
 
 
-def get_user_decision_worker(prompt, valid_choices=None, allow_empty=True, empty_as_none=True,
-                             print_valid_inputs=False, strip_input_str=True, to_lower=False, to_upper=False):
+def _get_user_decision_worker(prompt, valid_choices=None, allow_empty=True, empty_as_none=True,
+                              print_valid_inputs=False, strip_input_str=True, to_lower=False, to_upper=False):
     def get_processed_input():
         proc_input = get_user_input_of_type(prompt, allow_empty=allow_empty, empty_as_none=empty_as_none,
                                             strip_input_str=strip_input_str, to_lower=to_lower, to_upper=to_upper)
@@ -180,6 +182,28 @@ def get_user_input_of_type(prompt=None, obj_name='object', class_=str, exception
     :param empty_as_none: If empty is explicitly allowed and
     :return:
     """
+    def __make_prompt(obj_name, must_be):
+        prompt = "\n" + f"Please enter the {obj_name} ({must_be})."
+        return prompt
+
+    def __make_error_msg(obj_name, must_be):
+        error_msg = f"{obj_name} {must_be}." + "\nPlease try again."
+        return error_msg
+
+    def __make_must_be_str(class_, exceptions):
+        exceptions_str = "'" + "', '".join(exceptions) + "'"
+        cleaned_exceptions_str = exceptions_str.replace("''", "<empty string>")
+
+        must_be = "must be "
+        if class_ != str:
+            must_be += f"convertible to a(n) {class_.__name__}"
+
+        if len(exceptions) == 1:
+            must_be += f" or have the value {cleaned_exceptions_str}"
+        elif len(exceptions) > 1:
+            must_be += f" or one of: {cleaned_exceptions_str}"
+        return must_be
+
     exceptions = [] if exceptions is None else list(exceptions)
     if allow_empty:
         exceptions.append('')
@@ -204,31 +228,6 @@ def get_user_input_of_type(prompt=None, obj_name='object', class_=str, exception
     if class_ == str:
         return clean_string(user_input, strip=strip_input_str, to_lower=to_lower, to_upper=to_upper)
     return user_input
-
-
-def __make_prompt(obj_name, must_be):
-    prompt = "\n" + f"Please enter the {obj_name} ({must_be})."
-    return prompt
-
-
-def __make_error_msg(obj_name, must_be):
-    error_msg = f"{obj_name} {must_be}." + "\nPlease try again."
-    return error_msg
-
-
-def __make_must_be_str(class_, exceptions):
-    exceptions_str = "'" + "', '".join(exceptions) + "'"
-    cleaned_exceptions_str = exceptions_str.replace("''", "<empty string>")
-
-    must_be = "must be "
-    if class_ != str:
-        must_be += f"convertible to a(n) {class_.__name__}"
-
-    if len(exceptions) == 1:
-        must_be += f" or have the value {cleaned_exceptions_str}"
-    elif len(exceptions) > 1:
-        must_be += f" or one of: {cleaned_exceptions_str}"
-    return must_be
 
 
 # ----- MISC -----
@@ -263,37 +262,37 @@ def get_every_nth_item(iterables, n=0):
     return map(get_nth_item, iterables)
 
 
-def split_items(iterables, use_longest=False, fillvalue=None):
-    """
-    shortest iterable determines stuff!
-
-    ...
-    Return nth element (zero-indexed!) in each iterable stored in the iterable.
-
-    Example: get_every_nth_item(zip(range(3, 7), 'abcdefgh')) --> [[3, 4, 5, 6], ['a', 'b', 'c', 'd']]
-
-    :param fillvalue:
-    :param use_longest:
-    :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
-    :return: nth element in each iterable stored in 'iterables'
-    """
-    # TODO: Improve efficiency, fix docstring, refactor(?)
-    # return list(starmap(get_every_nth_item, zip(iterables, range())))
-    if len(iterables) == 0:
-        return []
-    len_aggregator = max if use_longest else min
-    num_splits = len_aggregator(map(len, iterables))
-    splits = [[] for _ in range(num_splits)]
-
-    if use_longest:
-        for iterable in iterables:
-            for split, item in zip_longest(splits, iterable, fillvalue=fillvalue):
-                split.append(item)
-    else:
-        for iterable in iterables:
-            for split, item in zip(splits, iterable):
-                split.append(item)
-    return splits
+# def split_items(iterables, use_longest=False, fillvalue=None):
+#     """
+#     shortest iterable determines stuff!
+#
+#     ...
+#     Return nth element (zero-indexed!) in each iterable stored in the iterable.
+#
+#     Example: get_every_nth_item(zip(range(3, 7), 'abcdefgh')) --> [[3, 4, 5, 6], ['a', 'b', 'c', 'd']]
+#
+#     :param fillvalue:
+#     :param use_longest:
+#     :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
+#     :return: nth element in each iterable stored in 'iterables'
+#     """
+#     # TODO: Improve efficiency, fix docstring, refactor(?)
+#     # return list(starmap(get_every_nth_item, zip(iterables, range())))
+#     if len(iterables) == 0:
+#         return []
+#     len_aggregator = max if use_longest else min
+#     num_splits = len_aggregator(map(len, iterables))
+#     splits = [[] for _ in range(num_splits)]
+#
+#     if use_longest:
+#         for iterable in iterables:
+#             for split, item in zip_longest(splits, iterable, fillvalue=fillvalue):
+#                 split.append(item)
+#     else:
+#         for iterable in iterables:
+#             for split, item in zip(splits, iterable):
+#                 split.append(item)
+#     return splits
 
 
 def remove_items(iterable, items):
@@ -304,9 +303,9 @@ def remove_items(iterable, items):
             log_error(f'Item {item} not found, could not be removed')
 
 
-def overwrite_list(list_, new_values):
-    list_.clear()
-    list_.extend(new_values)
+# def overwrite_list(list_, new_values):
+#     list_.clear()
+#     list_.extend(new_values)
 
 
 def overwrite_dict(dict_, other_dict):
@@ -329,26 +328,26 @@ def first_true(iterable, default=False, pred=None):
     return next(filter(pred, iterable), default)
 
 
-def open_nested_contexts(func, args=None, kwargs=None, context_managers=None):
-    if args is None:
-        args = []
-    if kwargs is None:
-        kwargs = dict()
-    if context_managers is None:
-        context_managers = []
-    return _open_nested_contexts_worker(func, args, kwargs, iter(context_managers))
-
-
-def _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator):
-    try:
-        context_manager = next(context_managers_iterator)
-    except StopIteration:
-        result = func(*args, **kwargs)
-        return result
-
-    with context_manager:
-        result = _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator)
-    return result
+# def open_nested_contexts(func, args=None, kwargs=None, context_managers=None):
+#     if args is None:
+#         args = []
+#     if kwargs is None:
+#         kwargs = dict()
+#     if context_managers is None:
+#         context_managers = []
+#     return _open_nested_contexts_worker(func, args, kwargs, iter(context_managers))
+#
+#
+# def _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator):
+#     try:
+#         context_manager = next(context_managers_iterator)
+#     except StopIteration:
+#         result = func(*args, **kwargs)
+#         return result
+#
+#     with context_manager:
+#         result = _open_nested_contexts_worker(func, args, kwargs, context_managers_iterator)
+#     return result
 
 
 def enumerate_strs(iterable, start=0):

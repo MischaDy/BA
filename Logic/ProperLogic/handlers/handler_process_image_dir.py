@@ -8,9 +8,9 @@ from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
-from Logic.ProperLogic.input_output_logic import TO_TENSOR
-from Logic.ProperLogic.misc_helpers import overwrite_list, log_error, overwrite_dict
+from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict
 from Logic.ProperLogic.models import Models
+from Logic.ProperLogic.handlers.helpers import TO_TENSOR
 
 
 def process_image_dir(cluster_dict, **kwargs):

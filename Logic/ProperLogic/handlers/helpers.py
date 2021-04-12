@@ -1,9 +1,11 @@
 from functools import partial
 
+import torchvision
+
 from Logic.ProperLogic.misc_helpers import get_user_input_of_type, log_error, wait_for_any_input
 
 
-# ----- I/O HELPERS -----
+# ----- I/O -----
 
 def user_choose_cluster(cluster_dict):
     # TODO: Refactor
@@ -32,3 +34,9 @@ def print_cluster_ids(cluster_dict):
     wait_for_any_input('\nPlease enter the id of the cluster you would like to view, or press Enter to cancel.'
                        '\n(Press Enter to continue.)')
     print('\n'.join(clusters_strs))
+
+
+# ----- DATA CONVERSION -----
+
+TO_PIL_IMAGE = torchvision.transforms.ToPILImage()
+TO_TENSOR = torchvision.transforms.ToTensor()

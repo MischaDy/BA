@@ -121,13 +121,19 @@ class DBManager:
             tb = sys.exc_info()[2]
             raise IncompleteDatabaseOperation(e).with_traceback(tb)
         finally:
-            # TODO: Check if connection is still open before committing + closing?
             if close_connections:
-                for con in connections:
-                    if commit_connections:
-                        con.commit()
-                    con.close()
+                cls.close_connections(connections, commit_connections)
         return result
+
+    @staticmethod
+    def close_connections(connections, commit_connections):
+        for con in connections:
+            try:
+                if commit_connections:
+                    con.commit()
+                con.close()
+            except sqlite3.DatabaseError:
+                pass
 
     @classmethod
     def create_temp_table(cls, con, temp_table):
@@ -727,7 +733,6 @@ class DBManager:
 
     @classmethod
     def get_all_embeddings(cls, with_ids=False, as_dict=False):
-        # TODO: Use con params?!
         # TODO: Refactor?
         col_names = [Columns.embedding_id.col_name] if with_ids else []
         col_names.append(Columns.embedding.col_name)
@@ -912,7 +917,6 @@ class DBManager:
         """
         # TODO: Correct docstring
         # TODO: Refactor!
-        # TODO: More efficient distinct image ids?
 
         # Using strange separator " || ", because windows doesn't allow pipes in file names, according to this:
         # https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions

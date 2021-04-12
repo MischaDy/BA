@@ -441,6 +441,35 @@ class DBManager:
         return deleted_row_dicts
 
     @classmethod
+    def clear_tables(cls, tables, path_to_local_db=None, con=None, close_connections=True):
+        """
+
+        :param tables:
+        :param close_connections:
+        :param con:
+        :param path_to_local_db:
+        :return:
+        """
+        def clear_tables_worker(con):
+            for table in tables:
+                cls.delete_from_table(table, path_to_local_db=path_to_local_db, con=con, close_connections=False)
+
+        cls.connection_wrapper(clear_tables_worker, path_to_local_db, con=con,
+                               close_connections=close_connections)
+
+    @classmethod
+    def clear_local_tables(cls, path_to_local_db, con=None, close_connections=True):
+        """
+
+        :param close_connections:
+        :param con:
+        :param path_to_local_db:
+        :return:
+        """
+        cls.clear_tables(Tables.local_tables, path_to_local_db=path_to_local_db, con=con,
+                         close_connections=close_connections)
+
+    @classmethod
     def fetch_from_table(cls, table, path_to_local_db=None, col_names=None, cond='', cond_params=None, as_dicts=False,
                          con=None, close_connections=True):
         """
@@ -1039,6 +1068,10 @@ class DBManager:
             con.execute(update_sql)
 
         cls.connection_wrapper(custom_update_table_worker, con=con, close_connections=close_connections)
+
+    @classmethod
+    def is_local_db_in_dir(cls, path):
+        return cls.local_db_file_name not in os.listdir(path)
 
 
 class IncompleteDatabaseOperation(RuntimeError):

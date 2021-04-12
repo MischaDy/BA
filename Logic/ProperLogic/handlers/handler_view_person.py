@@ -2,7 +2,7 @@ from functools import partial
 
 from PIL import Image
 
-from Logic.ProperLogic.database_modules.database_logic import DBManager
+from Logic.ProperLogic.database_modules.database_logic import DBManager, IncompleteDatabaseOperation
 from Logic.ProperLogic.misc_helpers import get_user_decision, clean_string, wait_for_any_input, enumerate_strs
 
 
@@ -54,7 +54,11 @@ def view_person(cluster_dict, **kwargs):
                 continue
 
             image_ids = person_dir_paths_to_img_ids[chosen_directory_path]
-            file_name_to_path_dict = DBManager.get_image_name_to_path_dict(chosen_directory_path, image_ids)
+            try:
+                file_name_to_path_dict = DBManager.get_image_name_to_path_dict(chosen_directory_path, image_ids)
+            except IncompleteDatabaseOperation:
+                continue_directory = get_directory_decision()
+                continue
 
             continue_image = ''
             while continue_image != 'n':
@@ -68,6 +72,112 @@ def view_person(cluster_dict, **kwargs):
                 continue_image = get_image_decision()
             continue_directory = get_directory_decision()
         continue_label = get_label_decision()
+
+
+# def view_person(cluster_dict, **kwargs):
+#     """
+#     1. Fetch which labels exist (incl. Unknown Person)
+#     2. Prompt user, which person/label they would like to view
+#     3. Fetch all image names/paths for that person
+#     4. Prompt user, which image they would like to view
+#     5. Show image
+#     6. Go to 2.
+#
+#     :param cluster_dict:
+#     :param kwargs:
+#     :return:
+#     """
+#     # TODO: Make user choose file *name*, not path (and just inform them of the path they're on beforehand)
+#     # TODO: When only one choice (to pick path or image), make choice for user and inform them about it!
+#     # TODO: Give option of renaming a file/directory?
+#     #       --> Best practices? How to do so *safely*?!)
+#     # TODO: How to include thumbnails and face ids in all of this?
+#     #       --> Give option to switch to/from edit_handler?
+#
+#     cluster_labels = cluster_dict.get_cluster_labels(unique=True)
+#
+#     prompt1 = 'Would you like to select another person?'
+#     choice_wrapper1 = ChoiceWrapperChain(cluster_labels, prompt1)
+#
+#     def f1(cluster_labels, prompt, *choice_func_args):
+#         prompt = 'Would you like to select another person?'
+#
+#         get_choice_decision = partial(get_user_decision, prompt)
+#         choice_func = partial(user_choose_label, cluster_labels)
+#
+#         continue_choice = ''
+#         while continue_choice != 'n':
+#             choice = choice_func()
+#             if choice is None:
+#                 continue_choice = get_choice_decision()
+#                 continue
+#
+#             person_dir_paths_to_img_ids = DBManager.get_dir_paths_to_img_ids(choice)
+#             person_dir_paths = person_dir_paths_to_img_ids.keys()
+#
+#             f2(person_dir_paths, person_dir_paths_to_img_ids)
+#
+#             continue_choice = get_choice_decision()
+#
+#     def f2(person_dir_paths, person_dir_paths_to_img_ids):
+#         get_directory_decision = partial(get_user_decision,
+#                                         'Would you like to select another directory containing images of the person?')
+#         continue_directory = ''
+#         while continue_directory != 'n':
+#             chosen_directory_path = user_choose_directory_path(person_dir_paths)
+#             if chosen_directory_path is None:
+#                 continue_directory = get_directory_decision()
+#                 continue
+#
+#             image_ids = person_dir_paths_to_img_ids[chosen_directory_path]
+#             try:
+#                 file_name_to_path_dict = DBManager.get_image_name_to_path_dict(chosen_directory_path, image_ids)
+#             except IncompleteDatabaseOperation:
+#                 continue_directory = get_directory_decision()
+#                 continue
+#             f3(chosen_directory_path, file_name_to_path_dict)
+#             continue_directory = get_directory_decision()
+#
+#     def f3(chosen_directory_path, file_name_to_path_dict):
+#         get_image_decision = partial(get_user_decision,
+#                                      'Would you like to view another image of the person from this directory?')
+#         continue_image = ''
+#         while continue_image != 'n':
+#             print(f"The currently chosen path is: '{chosen_directory_path}'.")
+#             chosen_image_path = user_choose_image_path(file_name_to_path_dict)
+#             if chosen_image_path is None:
+#                 continue_image = get_image_decision()
+#                 continue
+#             chosen_image = Image.open(chosen_image_path)
+#             chosen_image.show()
+#             continue_image = get_image_decision()
+#
+#     f1(cluster_labels)
+#
+#
+# class ChoiceWrapperChain:
+#     def __init__(self, wrapped_func, wrapped_func_args=None, wrapped_func_kwargs=None, next_wrapper=None):
+#         if wrapped_func_args is None:
+#             wrapped_func_args = []
+#         if wrapped_func_kwargs is None:
+#             wrapped_func_kwargs = dict()
+#         self.wrapped_func = wrapped_func
+#         self.wrapped_func_args = wrapped_func_args
+#         self.wrapped_func_kwargs = wrapped_func_kwargs
+#         self.next_wrapper = next_wrapper
+#
+#     def set_next_wrapper(self, next_wrapper):
+#         self.next_wrapper = next_wrapper
+#
+#     def set_wrapped_func_args(self, wrapped_func_args):
+#         self.wrapped_func_args = wrapped_func_args
+#
+#     def __call__(self):
+#         args, kwargs = self.wrapped_func_args, self.wrapped_func_kwargs
+#         next_wrapper = self.next_wrapper
+#         if next_wrapper is not None:
+#             return self.wrapped_func(next_wrapper, *args, **kwargs)
+#         return self.wrapped_func(*args, **kwargs)
 
 
 def user_choose_label(labels):
@@ -97,8 +207,6 @@ def user_choose_func(valid_inputs, obj_name, choice_with_nums=False, print_obj_n
     :param print_sorted_inputs:
     :return:
     """
-    # TODO: when to sort, when to handle nums to dict etc?!
-
     # TODO: Print error msg when sth doesn't work!
     # TODO: Refactor!!
 
@@ -113,9 +221,9 @@ def user_choose_func(valid_inputs, obj_name, choice_with_nums=False, print_obj_n
         wait_for_any_input("\n"
                            f"Please enter {obj_name}, or press Enter to cancel. (Press Enter to continue)")
         if print_obj_name:
-            print_valid_inputs(valid_inputs, obj_name, print_sorted=print_sorted_inputs)
+            print_valid_inputs(valid_inputs, obj_name)
         else:
-            print_valid_inputs(valid_inputs, print_sorted=print_sorted_inputs)
+            print_valid_inputs(valid_inputs)
 
         chosen_input = clean_string(input())
         if not chosen_input:
@@ -128,7 +236,7 @@ def user_choose_func(valid_inputs, obj_name, choice_with_nums=False, print_obj_n
     return chosen_input
 
 
-def print_valid_inputs(valid_inputs, obj_name=None, choice_with_nums=False, print_sorted=True):
+def print_valid_inputs(valid_inputs, obj_name=None):
     # TODO: Refactor
     # TODO: Custom sorting with Unknown Person being first/last?
     obj_name_str = ' ' if obj_name is None else f' {obj_name} '

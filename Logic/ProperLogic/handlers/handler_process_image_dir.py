@@ -24,44 +24,39 @@ def process_image_dir(cluster_dict, **kwargs):
     # TODO: Refactor + improve efficiency
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
 
-    try:
-        faces_rows = list(user_choose_images())
-    except IncompleteDatabaseOperation:
-        return
-
-    if not faces_rows:
-        return
-
-    # TODO: Extract this dictionary-querying as function?
-    embeddings_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
-                              faces_rows))
-    thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
-                     faces_rows)
-    image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
-                    faces_rows)
-    faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
-                faces_rows)
-
-    embeddings = list(faces_to_embeddings(faces))
-
-    clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids, existing_clusters_dict=cluster_dict,
-                                                         final_clusters_only=False)
-    updated_clusters_dict, modified_clusters_dict, removed_clusters_dict = clustering_result
-
-    emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
-    emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
-
     def process_image_dir_worker(con):
+        faces_rows = list(user_choose_images())
+        if not faces_rows:
+            return
+
+        # TODO: Extract this dictionary-querying as function?
+        embeddings_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
+                                  faces_rows))
+        thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
+                         faces_rows)
+        image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
+                        faces_rows)
+        faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
+                    faces_rows)
+
+        embeddings = list(faces_to_embeddings(faces))
+
+        emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
+        emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
+
+        clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids,
+                                                             existing_clusters_dict=cluster_dict,
+                                                             final_clusters_only=False)
+        updated_clusters_dict, modified_clusters_dict, removed_clusters_dict = clustering_result
         DBManager.remove_clusters(removed_clusters_dict, con=con, close_connections=False)
         DBManager.store_clusters(modified_clusters_dict, emb_id_to_face_dict, emb_id_to_img_id_dict, con=con,
                                  close_connections=False)
+        overwrite_dict(cluster_dict, updated_clusters_dict)
 
     try:
         DBManager.connection_wrapper(process_image_dir_worker)
     except IncompleteDatabaseOperation:
-        return
-
-    overwrite_dict(cluster_dict, updated_clusters_dict)
+        pass
 
 
 def user_choose_images(global_con=None, local_con=None, close_connections=True):
@@ -114,17 +109,17 @@ def extract_faces(path, check_if_known=True, global_con=None, local_con=None, cl
     # TODO: Store + update max_img_id and max_embedding_id somewhere rather than (always) get them via DB query?
 
     path_to_local_db = DBManager.get_db_path(path, local=True)
-    imgs_names_and_date = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
-
-    # Note: 'MAX' returns None / (None, ) as a default value
-    max_img_id = DBManager.get_max_image_id(path_to_local_db=path_to_local_db)
-    initial_max_embedding_id = DBManager.get_max_embedding_id()
-
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
 
     def extract_faces_worker(global_con, local_con):
         # TODO: Outsource as function to DBManager?
         # TODO: Check whether known locally and centrally separately?
+
+        imgs_names_and_date = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
+
+        # Note: 'MAX' returns None / (None, ) as a default value
+        max_img_id = DBManager.get_max_image_id(path_to_local_db=path_to_local_db)
+        initial_max_embedding_id = DBManager.get_max_embedding_id()
 
         path_id = DBManager.get_path_id(path)
         if path_id is None:

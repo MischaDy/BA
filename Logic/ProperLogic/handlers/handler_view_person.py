@@ -43,7 +43,12 @@ def view_person(cluster_dict, **kwargs):
         if chosen_label is None:
             continue_label = get_label_decision()
             continue
-        person_dir_paths_to_img_ids = DBManager.get_dir_paths_to_img_ids(chosen_label)
+        try:
+            person_dir_paths_to_img_ids = DBManager.get_dir_paths_to_img_ids(chosen_label)
+        except IncompleteDatabaseOperation:
+            continue_label = get_label_decision()
+            continue
+
         person_dir_paths = person_dir_paths_to_img_ids.keys()
 
         continue_directory = ''

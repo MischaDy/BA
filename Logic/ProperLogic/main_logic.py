@@ -4,7 +4,7 @@ Program containing the main application logic.
 
 from Logic.ProperLogic.commands import Command, Commands
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns
-from Logic.ProperLogic.database_modules.database_logic import DBManager
+from Logic.ProperLogic.database_modules.database_logic import DBManager, IncompleteDatabaseOperation
 from misc_helpers import clean_string, wait_for_any_input, log_error
 
 # -------------- TODOs --------------
@@ -87,8 +87,12 @@ IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naiv
 
 
 def run_program():
-    DBManager.create_central_tables(drop_existing_tables=False)
-    cluster_dict = DBManager.load_cluster_dict()
+    try:
+        DBManager.create_central_tables(drop_existing_tables=False)
+        cluster_dict = DBManager.load_cluster_dict()
+    except IncompleteDatabaseOperation:
+        return
+
     Commands.initialize()
 
     cmd_name = get_user_command()

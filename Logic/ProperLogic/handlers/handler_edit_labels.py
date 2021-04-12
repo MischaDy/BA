@@ -34,7 +34,10 @@ def edit_labels(cluster_dict, **kwargs):
             continue
         continue_choosing_face = ''
         while continue_choosing_face != 'n':
-            embedding_id = user_choose_embedding_id(cluster)
+            try:
+                embedding_id = user_choose_embedding_id(cluster)
+            except IncompleteDatabaseOperation:
+                continue
             if embedding_id is None:
                 # User *doesn't* want to relabel another face in this cluster!
                 break
@@ -107,13 +110,11 @@ def user_choose_face_label(old_label):
 
 def set_cluster_label(cluster, new_label):
     # TODO: Use certain_labels here too? (Probably not)
-    cluster.set_label(new_label)
-
     # TODO: Outsource as function to DBManager?
     def set_cluster_label_worker(con):
         DBManager.store_clusters([cluster], con=con, close_connections=False)
+        cluster.set_label(new_label)
 
-    # TODO: How to handle possible exception here?
     DBManager.connection_wrapper(set_cluster_label_worker)
 
 
@@ -143,9 +144,8 @@ def set_picture_label(embedding_id, new_label, cluster, cluster_dict):
                                  emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con, close_connections=False)
         DBManager.store_certain_labels(cluster=new_cluster, con=con, close_connections=False)
 
-    con = DBManager.open_central_connection()
     try:
-        DBManager.connection_wrapper(set_pic_label_worker, con=con)
+        DBManager.connection_wrapper(set_pic_label_worker)
     except IncompleteDatabaseOperation:
         cluster.add_embedding(embedding, embedding_id)
         if cluster.get_size() == 0:

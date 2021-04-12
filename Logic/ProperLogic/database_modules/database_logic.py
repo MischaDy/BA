@@ -90,7 +90,6 @@ class DBManager:
         """
         # TODO: Does everything work even without explicit local/global call?
         # TODO: Allow to not pass global/local con, but still open it here (and thus close it)?
-        # TODO: Make sure callers undo their tasks if exception is raised!
         # TODO: Generalize to allow for one global and any number of local connections?
         # TODO: How to make this a decorator?
 
@@ -144,19 +143,16 @@ class DBManager:
                 cls.drop_tables(drop_local=True, path_to_local_db=path_to_local_db, con=con, close_connections=False)
             cls._create_tables(Tables.local_tables, fk_on=True, con=con, close_connections=False)
 
-        # TODO: How to handle possible exception here?
         cls.connection_wrapper(create_local_tables_worker, path_to_local_db=path_to_local_db, con=con,
                                close_connections=close_connections)
 
     @classmethod
     def create_central_tables(cls, drop_existing_tables=False, con=None, close_connections=True):
-
         def create_central_tables_worker(con):
             if drop_existing_tables:
                 cls.drop_tables(drop_local=False, con=con, close_connections=False)
             cls._create_tables(Tables.central_tables, fk_on=True, con=con, close_connections=False)
 
-        # TODO: How to handle possible exception here?
         cls.connection_wrapper(create_central_tables_worker, con=con,
                                close_connections=close_connections)
 
@@ -183,7 +179,6 @@ class DBManager:
             for table in tables:
                 con.execute(f'DROP TABLE IF EXISTS {table};')
 
-        # TODO: How to handle possible exception here?
         cls.connection_wrapper(drop_tables_worker, path_to_local_db=path_to_local_db, con=con,
                                close_connections=close_connections)
 
@@ -207,7 +202,6 @@ class DBManager:
         def store_in_table_worker(con):
             con.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
 
-        # TODO: How to handle possible exception here?
         cls.connection_wrapper(store_in_table_worker, path_to_local_db, con=con,
                                close_connections=close_connections)
 
@@ -258,7 +252,6 @@ class DBManager:
             cls.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict,
                                con=con, close_connections=False)
 
-        # TODO: How to handle possible exception here?
         cls.connection_wrapper(store_clusters_worker, con=con, close_connections=close_connections)
 
     @classmethod
@@ -288,7 +281,6 @@ class DBManager:
         def store_certain_tables_worker(con):
             cls.store_in_table(table, row_dicts, on_conflict=labels_on_conflict, con=con, close_connections=False)
 
-        # TODO: How to handle possible exception here?
         cls.connection_wrapper(store_certain_tables_worker, con=con, close_connections=close_connections)
 
     @classmethod
@@ -378,11 +370,6 @@ class DBManager:
             log_error(f"cannot provide both 'clusters_to_remove' and 'remove_all' (safety feature)")
             return
 
-        if remove_all:
-            clusters_to_remove = DBManager.load_cluster_dict()
-        elif not is_instance_by_type_name(clusters_to_remove, ClusterDict):
-            clusters_to_remove = ClusterDict(clusters_to_remove)
-
         temp_table = Tables.temp_cluster_ids_table
         embs_table = Tables.embeddings_table
         attrs_table = Tables.cluster_attributes_table
@@ -390,12 +377,19 @@ class DBManager:
         embs_cond = f'{embs_table}.{Columns.cluster_id} IN {temp_table}'
         attrs_cond = f'{attrs_table}.{Columns.cluster_id} IN {temp_table}'
 
-        cluster_ids_to_remove = clusters_to_remove.get_cluster_ids()
-        # TODO: Rename
-        rows_dicts = [{Columns.cluster_id.col_name: cluster_id}
-                      for cluster_id in cluster_ids_to_remove]
-
         def remove_clusters_worker(con):
+            proc_clusters_to_remove = clusters_to_remove
+
+            if remove_all:
+                proc_clusters_to_remove = DBManager.load_cluster_dict()
+            elif not is_instance_by_type_name(proc_clusters_to_remove, ClusterDict):
+                proc_clusters_to_remove = ClusterDict(proc_clusters_to_remove)
+
+            cluster_ids_to_remove = proc_clusters_to_remove.get_cluster_ids()
+            # TODO: Rename
+            rows_dicts = [{Columns.cluster_id.col_name: cluster_id}
+                          for cluster_id in cluster_ids_to_remove]
+
             cls.create_temp_table(con, temp_table)
             cls.store_in_table(temp_table, rows_dicts, con=con, close_connections=False)
             deleted_embeddings_row_dicts = cls.delete_from_table(embs_table, cond=embs_cond, con=con,
@@ -403,7 +397,6 @@ class DBManager:
             cls.delete_from_table(attrs_table, cond=attrs_cond, con=con, close_connections=False)
             return deleted_embeddings_row_dicts
 
-        # TODO: How to handle possible exception here?
         deleted_embeddings_row_dicts = cls.connection_wrapper(remove_clusters_worker, con=con,
                                                               close_connections=close_connections)
         return deleted_embeddings_row_dicts
@@ -435,7 +428,6 @@ class DBManager:
             con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
             return deleted_row_dicts
 
-        # TODO: How to handle possible exception here?
         deleted_row_dicts = cls.connection_wrapper(delete_from_table_worker, path_to_local_db, con=con,
                                                    close_connections=close_connections)
         return deleted_row_dicts
@@ -470,6 +462,17 @@ class DBManager:
                          close_connections=close_connections)
 
     @classmethod
+    def clear_central_tables(cls, con=None, close_connections=True):
+        """
+
+        :param close_connections:
+        :param con:
+        :param path_to_local_db:
+        :return:
+        """
+        cls.clear_tables(Tables.central_tables, con=con, close_connections=close_connections)
+
+    @classmethod
     def fetch_from_table(cls, table, path_to_local_db=None, col_names=None, cond='', cond_params=None, as_dicts=False,
                          con=None, close_connections=True):
         """
@@ -498,7 +501,6 @@ class DBManager:
                 return con.execute(fetch_sql).fetchall()
             return con.execute(fetch_sql, cond_params).fetchall()
 
-        # TODO: How to handle possible exception here?
         rows = cls.connection_wrapper(fetch_from_table_worker, path_to_local_db, con=con,
                                       close_connections=close_connections)
 
@@ -531,7 +533,6 @@ class DBManager:
 
     @classmethod
     def get_embeddings_parts(cls, cond=''):
-        # TODO: Add con params?
         where_clause = cls._build_where_clause(cond)
 
         def get_embeddings_parts_worker(con):
@@ -542,7 +543,6 @@ class DBManager:
             ).fetchall()
             return embeddings_parts
 
-        # TODO: How to handle possible exception here?
         embeddings_parts = cls.connection_wrapper(get_embeddings_parts_worker)
 
         proc_embeddings_parts = [
@@ -553,7 +553,6 @@ class DBManager:
 
     @classmethod
     def get_cluster_attributes_parts(cls, cond=''):
-        # TODO: Add con params?
         # TODO: Refactor + improve efficiency (don't let attributes of same cluster be processed multiple times)
         where_clause = cls._build_where_clause(cond)
 
@@ -565,7 +564,6 @@ class DBManager:
             ).fetchall()
             return cluster_attributes_parts
 
-        # TODO: How to handle possible exception here?
         cluster_attributes_parts = cls.connection_wrapper(get_cluster_attributes_parts_worker)
 
         proc_cluster_attributes_parts = [
@@ -600,15 +598,13 @@ class DBManager:
 
     @classmethod
     def aggregate_col(cls, table, col, func, path_to_local_db=None, con=None, close_connections=True):
-
-        def aggregate_worker(con):
+        def aggregate_col_worker(con):
             agg_value = con.execute(
                 f"SELECT {func}({col}) FROM {table};"
             ).fetchone()
             return agg_value
 
-        # TODO: How to handle possible exception here?
-        agg_value = cls.connection_wrapper(aggregate_worker, path_to_local_db, con=con,
+        agg_value = cls.connection_wrapper(aggregate_col_worker, path_to_local_db, con=con,
                                            close_connections=close_connections)
         return agg_value
 
@@ -714,7 +710,6 @@ class DBManager:
 
     @classmethod
     def get_path_id(cls, path):
-        # TODO: con params needed?
         cond = f"{Columns.path} = ?"
         cond_params = [path]
         path_id_rows = list(cls.fetch_from_table(
@@ -916,7 +911,6 @@ class DBManager:
         :return:
         """
         # TODO: Correct docstring
-        # TODO: Add con params?
         # TODO: Refactor!
         # TODO: More efficient distinct image ids?
 
@@ -961,16 +955,17 @@ class DBManager:
         return dir_paths_to_img_ids_dict
 
     @classmethod
-    def get_image_name_to_path_dict(cls, dir_path, image_ids):
+    def get_image_name_to_path_dict(cls, dir_path, image_ids, con=None, close_connections=True):
         """
         1. create an image path for each image
         2. return these image paths
 
+        :param close_connections:
+        :param con:
         :param dir_path:
         :param image_ids:
         :return:
         """
-        # TODO: Add con params?
         # TODO: Refactor!
         path_to_local_db = cls.get_db_path(dir_path, local=True)
         temp_table = Tables.temp_image_ids_table
@@ -991,7 +986,8 @@ class DBManager:
             cls.store_in_table(temp_table, image_id_row_dicts, con=con, close_connections=False)
             return con.execute(get_image_names_sql).fetchall()
 
-        image_names_tuples = cls.connection_wrapper(get_image_names, path_to_local_db=path_to_local_db)
+        image_names_tuples = cls.connection_wrapper(get_image_names, path_to_local_db=path_to_local_db, con=con,
+                                                    close_connections=close_connections)
         image_names = get_every_nth_item(image_names_tuples, n=0)
         image_name_to_path_dict = {
             image_name: os.path.join(dir_path, image_name)

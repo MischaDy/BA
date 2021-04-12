@@ -2,7 +2,6 @@ import os
 from functools import partial
 
 from Logic.ProperLogic.database_modules.database_logic import DBManager, IncompleteDatabaseOperation
-from Logic.ProperLogic.database_modules.database_table_defs import Tables
 from Logic.ProperLogic.misc_helpers import get_user_decision, overwrite_dict, log_error
 
 
@@ -47,36 +46,33 @@ def clear_data(cluster_dict, **kwargs):
             should_clear_tables = should_clear_tables_func()
             continue
 
-        if table_kind_to_clear in ('l', 'b'):
-            clear_local_tables()
-        if table_kind_to_clear in ('g', 'b'):
-            clear_central_tables()
-            overwrite_dict(cluster_dict, dict())
+        def clear_data_worker(con):
+            if table_kind_to_clear in ('l', 'b'):
+                # TODO: How to use local connections here? Rollback on multiple?
+                clear_local_tables()
+            if table_kind_to_clear in ('g', 'b'):
+                clear_central_tables(con=con, close_connections=False)
+                overwrite_dict(cluster_dict, dict())
+
+        try:
+            DBManager.connection_wrapper(clear_data_worker)
+        except IncompleteDatabaseOperation:
+            continue
+
         should_clear_tables = 'n'
 
 
-def clear_local_tables():
-    get_path_decision = partial(get_user_decision,
-                                'Would you like to choose another path containing a local table to clear?')
+def clear_local_tables(con=None, close_connections=True):
+    path_to_local_db_dir_path = user_choose_local_db_dir_path()
+    if path_to_local_db_dir_path is None:
+        return
 
-    continue_choosing_path = ''
-    while continue_choosing_path != 'n':
-        path_to_local_db_dir_path = user_choose_local_db_dir_path()
-        if path_to_local_db_dir_path is None:
-            continue_choosing_path = get_path_decision()
-            continue
-
-        path_to_local_db = DBManager.get_db_path(path_to_local_db_dir_path, local=True)
-        try:
-            DBManager.clear_local_tables(path_to_local_db)
-        except IncompleteDatabaseOperation:
-            pass
-        continue_choosing_path = get_path_decision()
+    path_to_local_db = DBManager.get_db_path(path_to_local_db_dir_path, local=True)
+    DBManager.clear_local_tables(path_to_local_db, con=con, close_connections=close_connections)
 
 
-def clear_central_tables():
-    for table in Tables.central_tables:
-        DBManager.delete_from_table(table)
+def clear_central_tables(con=None, close_connections=True):
+    DBManager.clear_central_tables(con=con, close_connections=close_connections)
 
 
 def user_choose_local_db_dir_path():

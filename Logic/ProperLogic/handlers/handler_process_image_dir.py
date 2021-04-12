@@ -72,7 +72,7 @@ def user_choose_images():
     return faces_rows
 
 
-def user_choose_path():
+def user_choose_images_path():
     path = input('Please enter a path with images of people you would like to add.\n')
     while not os.path.exists(path):
         log_error(f"unable to find path '{path}'")

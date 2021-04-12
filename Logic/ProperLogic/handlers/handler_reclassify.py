@@ -18,8 +18,10 @@ def reclassify(cluster_dict, **kwargs):
         DBManager.remove_clusters(remove_all=True, con=con, close_connections=False)
         reset_cluster_ids(new_cluster_dict)
         DBManager.store_clusters(new_cluster_dict, con=con, close_connections=False)
-        overwrite_dict(cluster_dict, new_cluster_dict)
 
-    # TODO: How to handle possible exception here?
-    #       --> Can prevent reset_cluster_ids call if removing clusters first? Does that work?!
-    DBManager.connection_wrapper(overwrite_clusters)
+    try:
+        DBManager.connection_wrapper(overwrite_clusters)
+    except IncompleteDatabaseOperation:
+        return
+
+    overwrite_dict(cluster_dict, new_cluster_dict)

@@ -56,14 +56,41 @@ def clear_data(cluster_dict, **kwargs):
 
 
 def clear_local_tables():
-    # TODO: Make user choose paths (multiple!) to clear!
-    images_path = (r'C:\Users\Mischa\Desktop\Uni\20-21 WS'
-                   r'\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs')
-    path_to_local_db = DBManager.get_db_path(images_path, local=True)
-    for table in Tables.local_tables:
-        DBManager.delete_from_table(table, path_to_local_db=path_to_local_db)
+    get_path_decision = partial(get_user_decision,
+                                'Would you like to choose another path containing a local table to clear?')
+
+    continue_choosing_path = ''
+    while continue_choosing_path != 'n':
+        path_to_local_db_dir_path = user_choose_local_db_dir_path()
+        if path_to_local_db_dir_path is None:
+            continue_choosing_path = get_path_decision()
+            continue
+
+        path_to_local_db = DBManager.get_db_path(path_to_local_db_dir_path, local=True)
+        try:
+            DBManager.clear_local_tables(path_to_local_db)
+        except IncompleteDatabaseOperation:
+            pass
+        continue_choosing_path = get_path_decision()
 
 
 def clear_central_tables():
     for table in Tables.central_tables:
         DBManager.delete_from_table(table)
+
+
+def user_choose_local_db_dir_path():
+    # local_db_dir_path = input('Please enter a path containing a local table you would like to clear.\n')
+    # TODO: Make user choose paths!
+    local_db_dir_path = (r'C:\Users\Mischa\Desktop\Uni\20-21 WS'
+                         r'\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs')
+    while True:
+        if not os.path.exists(local_db_dir_path):
+            log_error(f"unable to find path '{local_db_dir_path}'")
+        elif not DBManager.is_local_db_in_dir(local_db_dir_path):
+            log_error(f"unable to find local database file '{...}' in path '{local_db_dir_path}'")
+        else:
+            break
+        print("\nPlease try again.")
+        local_db_dir_path = input('Please enter a path with images of people you would like to add.\n')
+    return local_db_dir_path

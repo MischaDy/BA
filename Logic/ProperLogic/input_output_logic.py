@@ -29,28 +29,28 @@ TO_TENSOR = torchvision.transforms.ToTensor()
 # TODO: (Learn how to time stuff well! Wrapper?)
 
 
-def main(imgs_dir_path, embeddings_dir_path):
-    mtcnn = MTCNN(image_size=160, margin=0)
-    resnet = InceptionResnetV1(pretrained='vggface2').eval()
-
-    _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet)
-    _test_loading_embeddings(embeddings_dir_path)
-
-
-def _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet):
-    imgs_loader = load_imgs_from_path(imgs_dir_path)
-    save_embeddings_to_path(imgs_loader, resnet, embeddings_dir_path)  # TODO: (?) put mtcnn in
-
-
-def _test_loading_embeddings(embeddings_dir_path):
-    embeddings_loader = ...  # _load_embeddings_from_path(embeddings_dir_path, yield_paths=True)
-    dists = []
-    prev_tensor = torch.zeros([1, 512])
-    for tensor_path, tensor in embeddings_loader:
-        dists.append(float(torch.dist(prev_tensor, tensor)))
-        prev_tensor = tensor
-
-    print(average(dists))
+# def main(imgs_dir_path, embeddings_dir_path):
+#     mtcnn = MTCNN(image_size=160, margin=0)
+#     resnet = InceptionResnetV1(pretrained='vggface2').eval()
+#
+#     _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet)
+#     _test_loading_embeddings(embeddings_dir_path)
+#
+#
+# def _test_saving_embeddings(imgs_dir_path, embeddings_dir_path, resnet):
+#     imgs_loader = load_imgs_from_path(imgs_dir_path)
+#     save_embeddings_to_path(imgs_loader, resnet, embeddings_dir_path)  # TODO: (?) put mtcnn in
+#
+#
+# def _test_loading_embeddings(embeddings_dir_path):
+#     embeddings_loader = ...  # _load_embeddings_from_path(embeddings_dir_path, yield_paths=True)
+#     dists = []
+#     prev_tensor = torch.zeros([1, 512])
+#     for tensor_path, tensor in embeddings_loader:
+#         dists.append(float(torch.dist(prev_tensor, tensor)))
+#         prev_tensor = tensor
+#
+#     print(average(dists))
 
 
 def get_and_count_img_names(dir_path, img_extensions=None):
@@ -126,4 +126,5 @@ def save_embeddings_to_path(imgs_loader, face_embedder, save_path, face_extracto
 
 
 if __name__ == '__main__':
-    main(IMAGE_PATH, EMBEDDINGS_PATH)
+    # main(IMAGE_PATH, EMBEDDINGS_PATH)
+    pass

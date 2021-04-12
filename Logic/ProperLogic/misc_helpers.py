@@ -2,7 +2,7 @@ import logging
 import operator
 from functools import reduce
 
-from itertools import zip_longest, filterfalse
+from itertools import zip_longest, filterfalse, tee
 
 
 # ----- OOP -----
@@ -74,6 +74,23 @@ class Reducer:
 class MaxReducer(Reducer):
     def __init__(self, default=float('-inf')):
         super().__init__(max, default)
+
+
+# ----- ITERATIONS -----
+
+
+def partition(pred, iterable):
+    """
+    Use a predicate to partition entries into false entries and true entries.
+    Example: partition(is_odd, range(10)) --> 0 2 4 6 8   and  1 3 5 7 9
+
+    Adapted from itertools recipes: https://docs.python.org/3/library/itertools.html#itertools-recipes
+    """
+    if isinstance(iterable, list):
+        iterator1, iterator2 = iterable, iterable
+    else:
+        iterator1, iterator2 = tee(iterable)
+    return filterfalse(pred, iterator1), filter(pred, iterator2)
 
 
 # ----- I/O -----

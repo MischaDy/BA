@@ -5,7 +5,7 @@ from typing import Union, Tuple
 from Logic.ProperLogic.cluster_modules.cluster import Cluster
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import DBManager
-from misc_helpers import remove_items, starfilterfalse
+from misc_helpers import remove_items, starfilterfalse, partition
 
 from itertools import combinations
 
@@ -35,9 +35,6 @@ class CoreAlgorithm:
     max_cluster_size = 100
     max_num_total_comps = 1000
     max_num_cluster_comps = max_num_total_comps // max_cluster_size  # maximum number of clusters to compute distance to
-
-    # TODO: remove
-    num_embeddings_to_classify = -1
 
     @classmethod
     def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_clusters_dict=None, final_clusters_only=True):
@@ -88,12 +85,10 @@ class CoreAlgorithm:
 
         # counter_vals = (range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0
         #                 else count(2))
-        for embedding_id, new_embedding in embeddings_with_ids:
 
-            # sort clusters by distance from their center to embedding; only consider closest clusters
-            clusters_by_center_dist = sorted(cluster_dict.get_clusters(),
-                                             key=lambda cluster: cluster.compute_dist_to_center(new_embedding))
-            closest_clusters = clusters_by_center_dist[:cls.max_num_cluster_comps]
+        get_closest_clusters = cls._choose_closest_clusters_func(len(cluster_dict))
+        for embedding_id, new_embedding in embeddings_with_ids:
+            closest_clusters = get_closest_clusters(cluster_dict, new_embedding)
 
             # find cluster containing the closest embedding to new_embedding
             shortest_emb_dist, closest_cluster = cls.find_closest_cluster_to_embedding(closest_clusters, new_embedding)
@@ -123,6 +118,27 @@ class CoreAlgorithm:
         return cluster_dict, ClusterDict(modified_clusters), ClusterDict(removed_clusters)
 
     @classmethod
+    def _choose_closest_clusters_func(cls, num_clusters):
+        """
+        n = total number of clusters
+        c = number of closest clusters to use
+             n log(n) < c * n
+        <==>        n < 2^c
+
+        :param num_clusters:
+        :return:
+        """
+        # TODO: Implement
+        # if num_clusters < 2 ** cls.max_num_cluster_comps:
+        def get_closest_clusters(cluster_dict, new_embedding):
+            # sort clusters by distance from their center to embedding; only consider closest clusters
+            clusters_by_center_dist = sorted(cluster_dict.get_clusters(),
+                                             key=lambda cluster: cluster.compute_dist_to_center(new_embedding))
+            closest_clusters = clusters_by_center_dist[:cls.max_num_cluster_comps]
+            return closest_clusters
+        return get_closest_clusters
+
+    @classmethod
     def is_cluster_too_big(cls, cluster):
         return cls.max_cluster_size is not None and cluster.get_size() >= cls.max_cluster_size
 
@@ -136,8 +152,9 @@ class CoreAlgorithm:
         return any(map(is_too_far_from_center, cluster.get_embeddings()))
 
     @classmethod
-    def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True) -> Union[Cluster,
-                                                                                               Tuple[float, Cluster]]:
+    def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True) -> Union[Union[Cluster, None],
+                                                                                               Tuple[float,
+                                                                                                     Union[Cluster, None]]]:
         """
         Determine closest cluster to current embedding, i.e. the one which stores the closest embedding to
         the current embedding.
@@ -147,7 +164,6 @@ class CoreAlgorithm:
         :param return_dist: If True, distance to closest cluster embedding is also returned.
         :return: The cluster storing the embedding which is closest to given embedding
         """
-        # TODO: Improve efficiency!
         shortest_emb_dist = float('inf')
         closest_cluster = None
         for cluster in clusters:
@@ -174,7 +190,6 @@ class CoreAlgorithm:
         :param cluster_to_split: Cluster to be split
         :return: Two new clusters containing embeddings of old one
         """
-        # TODO: Improve efficiency!
         embeddings = list(cluster_to_split.get_embeddings())
         cluster_start_emb1, cluster_start_emb2 = cls.find_most_distant_embeddings(embeddings)
         remove_items(embeddings, [cluster_start_emb1, cluster_start_emb2])
@@ -184,13 +199,15 @@ class CoreAlgorithm:
         new_cluster1_id, new_cluster2_id = max_cluster_id + 1, max_cluster_id + 2
         new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, cluster_start_emb1, label=label),
                                       Cluster(new_cluster2_id, cluster_start_emb2, label=label))
-        for embedding in embeddings:
-            dist_to_cluster1 = new_cluster1.compute_dist_to_center(embedding)
-            dist_to_cluster2 = new_cluster2.compute_dist_to_center(embedding)
-            if dist_to_cluster1 < dist_to_cluster2:
-                new_cluster1.add_embedding(embedding)
-            else:
-                new_cluster2.add_embedding(embedding)
+
+        def is_closer_to_cluster1(emb):
+            dist_to_cluster1 = new_cluster1.compute_dist_to_center(emb)
+            dist_to_cluster2 = new_cluster2.compute_dist_to_center(emb)
+            return dist_to_cluster1 < dist_to_cluster2
+
+        cluster2_embs, cluster1_embs = partition(is_closer_to_cluster1, embeddings)
+        new_cluster1.add_embeddings(cluster1_embs)
+        new_cluster2.add_embeddings(cluster2_embs)
         return new_cluster1, new_cluster2
 
     @staticmethod
@@ -200,7 +217,7 @@ class CoreAlgorithm:
         :param embeddings:
         :return:
         """
-        # TODO: Improve efficiency?
+        # TODO: Improve efficiency --> No, ok for now
         if not len(embeddings) > 1:
             raise ValueError("'embeddings' must contain at least 2 embeddings")
         # max_dist = -1

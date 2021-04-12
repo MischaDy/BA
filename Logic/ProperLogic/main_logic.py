@@ -5,8 +5,7 @@ Program containing the main application logic.
 from Logic.ProperLogic.commands import Command, Commands
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns
 from Logic.ProperLogic.database_modules.database_logic import DBManager
-from misc_helpers import clean_string, wait_for_any_input
-
+from misc_helpers import clean_string, wait_for_any_input, log_error
 
 # -------------- TODOs --------------
 
@@ -19,7 +18,6 @@ from misc_helpers import clean_string, wait_for_any_input
 # TODO: How to create CLI?
 # TODO: Improve core algorithm (params + metric(?))!
 # TODO: Test edge cases (e.g. calling handlers when nothing has been processed yet)!
-# TODO: Add function to reset cluster ids to smallest possible! (sequential too?)
 # TODO: Test quality with private pictures + bigger mixed dataset!
 # TODO: How to handle empty user inputs?
 # TODO: Make sure, no TODOs were overlooked!!
@@ -65,8 +63,7 @@ from misc_helpers import clean_string, wait_for_any_input
 # TODO: Give useful responses (and loading bar or sth like that?) after option is selected
 #       and when time-consuming process is running
 # TODO:  Check out Software Design Patterns for better params passing to handlers?
-# TODO: Make handlers class in commands file
-# TODO: Split commands file
+# TODO: Make handlers class
 # TODO: Foreign keys despite separate db files? --> Implement manually? Needed?
 # TODO: Consistent interface! When to pass objects (tables, columns), when to pass only their names?
 # TODO: Allow instances, which have a 'current connection' as only instance attribute?
@@ -84,18 +81,23 @@ CLUSTERS_PATH = 'stored_clusters'
 IMG_PATH = 'Logic/my_test/facenet_Test/subset_cplfw_test/preprocessed_faces_naive'
 
 
-def run_program(path_to_central_dir):
-    # TODO: Make this failsafe!!!
+def run_program():
     DBManager.create_central_tables(drop_existing_tables=False)
-    clusters = DBManager.load_clusters()
-    # TODO: More elegant way around this?
+    cluster_dict = DBManager.load_cluster_dict()
     Commands.initialize()
 
     cmd_name = get_user_command()
     while cmd_name != str(Commands.exit):
         cmd = Command.get_command(cmd_name)
-        cmd.handler(clusters=clusters)
+        call_handler(cmd.handler, cluster_dict=cluster_dict)
         cmd_name = get_user_command()
+
+
+def call_handler(handler, *args, **kwargs):
+    try:
+        return handler(*args, **kwargs)
+    except Exception as e:
+        log_error(e)
 
 
 def _show_thumbnail():
@@ -128,4 +130,4 @@ def print_command_options():
 
 
 if __name__ == '__main__':
-    run_program(CLUSTERS_PATH)
+    run_program()

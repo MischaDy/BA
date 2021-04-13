@@ -62,7 +62,18 @@ class Reducer:
         self.state = self.default
 
     def __call__(self, *args):
+        try:
+            # args consists of individual items
+            self.process(*args)
+        except TypeError:
+            # args probably consists of iterable
+            self.process_iterable(args[0])
+
+    def process(self, *args):
         self.state = reduce(self.func, args, self.state)
+
+    def process_iterable(self, iterable):
+        self.state = reduce(self.func, iterable, self.state)
 
     def get_state(self):
         return self.state
@@ -97,7 +108,7 @@ def partition(pred, iterable):
 
 def log_error(error):
     # TODO: Raise errors instead?
-    if is_instance_by_type_name(error, BaseException):
+    if isinstance(error, BaseException):
         logging.error(f'{error.__class__}, {error.args}')
     else:
         logging.error(f'Error: {error}')

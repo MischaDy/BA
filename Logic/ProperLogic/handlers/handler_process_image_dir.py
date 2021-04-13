@@ -5,6 +5,7 @@ from functools import partial
 from PIL import Image
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
+from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
@@ -24,8 +25,12 @@ def process_image_dir(cluster_dict, **kwargs):
     # TODO: Refactor + improve efficiency
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
 
-    def process_image_dir_worker(con):
-        faces_rows = list(user_choose_images())
+    images_path = user_choose_images_path()
+    path_to_local_db = DBManager.get_db_path(images_path, local=True)
+
+    def process_image_dir_worker(central_con, local_con):
+        faces_rows = list(user_choose_images(images_path, path_to_local_db=path_to_local_db, central_con=central_con,
+                                             local_con=local_con, close_connections=False))
         if not faces_rows:
             return
 
@@ -44,36 +49,38 @@ def process_image_dir(cluster_dict, **kwargs):
         emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
         emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
 
+        result_clusters_dict = ClusterDict()
         clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids,
-                                                             existing_clusters_dict=cluster_dict,
+                                                             existing_clusters_dict=result_clusters_dict,
                                                              final_clusters_only=False)
-        updated_clusters_dict, modified_clusters_dict, removed_clusters_dict = clustering_result
-        DBManager.remove_clusters(removed_clusters_dict, con=con, close_connections=False)
-        DBManager.store_clusters(modified_clusters_dict, emb_id_to_face_dict, emb_id_to_img_id_dict, con=con,
+        # passing result cluster dict already overwrites it
+        _, modified_clusters_dict, removed_clusters_dict = clustering_result
+        DBManager.remove_clusters(removed_clusters_dict, con=central_con, close_connections=False)
+        DBManager.store_clusters(modified_clusters_dict, emb_id_to_face_dict, emb_id_to_img_id_dict, con=central_con,
                                  close_connections=False)
-        overwrite_dict(cluster_dict, updated_clusters_dict)
+        overwrite_dict(cluster_dict, result_clusters_dict)
 
     try:
-        DBManager.connection_wrapper(process_image_dir_worker)
+        DBManager.connection_wrapper(process_image_dir_worker, path_to_local_db=path_to_local_db, with_central=True,
+                                     with_local=True)
     except IncompleteDatabaseOperation:
         pass
 
 
-def user_choose_images(global_con=None, local_con=None, close_connections=True):
-    # TODO: Refactor! (too many different tasks, function name non-descriptive)
-    # TODO: make user user choose path
-    images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
-    path_to_local_db = DBManager.get_db_path(images_path, local=True)
+def user_choose_images(images_path, path_to_local_db=None, central_con=None, local_con=None, close_connections=True):
+    # TODO: Are the following lines a good default?
+    if path_to_local_db is None and local_con is None:
+        path_to_local_db = DBManager.get_db_path(images_path, local=True)
 
-    def user_choose_images_worker(global_con, local_con):
+    def user_choose_images_worker(central_con, local_con):
         DBManager.create_local_tables(drop_existing_tables=False, path_to_local_db=path_to_local_db,
                                       con=local_con, close_connections=False)
-        faces_rows = extract_faces(images_path, global_con=global_con, local_con=local_con, close_connections=False)
+        faces_rows = extract_faces(images_path, central_con=central_con, local_con=local_con, close_connections=False)
         return faces_rows
 
     faces_rows = DBManager.connection_wrapper(user_choose_images_worker, path_to_local_db=path_to_local_db,
-                                              global_con=global_con, local_con=local_con,
-                                              close_connections=close_connections)
+                                              central_con=central_con, local_con=local_con, with_central=True,
+                                              with_local=True, close_connections=close_connections)
 
     # TODO: Implement check_if_known question(?)
     # check_if_known_decision = get_user_decision(
@@ -87,12 +94,14 @@ def user_choose_images(global_con=None, local_con=None, close_connections=True):
 
 
 def user_choose_images_path():
-    path = input('Please enter a path with images of people you would like to add.\n')
-    while not os.path.exists(path):
-        log_error(f"unable to find path '{path}'")
+    # TODO: make user user choose path
+    # images_path = input('Please enter a path with images of people you would like to add.\n')
+    images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
+    while not os.path.exists(images_path):
+        log_error(f"unable to find path '{images_path}'")
         print("\nPlease try again.")
-        path = input('Please enter a path with images of people you would like to add.\n')
-    return path  # IMG_PATH
+        images_path = input('Please enter a path with images of people you would like to add.\n')
+    return images_path
 
 
 def faces_to_embeddings(faces):
@@ -103,7 +112,7 @@ def _to_tensor(img):
     return TO_TENSOR(img).unsqueeze(0)
 
 
-def extract_faces(path, check_if_known=True, global_con=None, local_con=None, close_connections=True):
+def extract_faces(path, check_if_known=True, central_con=None, local_con=None, close_connections=True):
     # TODO: Refactor (extract functions)? + rename
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
     # TODO: Store + update max_img_id and max_embedding_id somewhere rather than (always) get them via DB query?
@@ -111,7 +120,7 @@ def extract_faces(path, check_if_known=True, global_con=None, local_con=None, cl
     path_to_local_db = DBManager.get_db_path(path, local=True)
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
 
-    def extract_faces_worker(global_con, local_con):
+    def extract_faces_worker(central_con, local_con):
         # TODO: Outsource as function to DBManager?
         # TODO: Check whether known locally and centrally separately?
 
@@ -124,7 +133,7 @@ def extract_faces(path, check_if_known=True, global_con=None, local_con=None, cl
         path_id = DBManager.get_path_id(path)
         if path_id is None:
             # path not yet known
-            path_id = DBManager.store_directory_path(path, con=global_con, close_connections=False)
+            path_id = DBManager.store_directory_path(path, con=central_con, close_connections=False)
             DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
 
         faces_rows = []
@@ -141,7 +150,7 @@ def extract_faces(path, check_if_known=True, global_con=None, local_con=None, cl
 
             DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
                                   path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
-            DBManager.store_image_path(img_id=img_id, path_id=path_id, con=global_con, close_connections=False)
+            DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
 
             img_faces = cut_out_faces(Models.mtcnn, img)
             # TODO: Better way to create these row_dicts?
@@ -155,13 +164,8 @@ def extract_faces(path, check_if_known=True, global_con=None, local_con=None, cl
 
         return faces_rows
 
-    if global_con is None:
-        global_con = DBManager.open_central_connection()
-    if local_con is None:
-        local_con = DBManager.open_local_connection(path_to_local_db)
-
-    faces_rows = DBManager.connection_wrapper(extract_faces_worker, global_con=global_con, local_con=local_con,
-                                              close_connections=close_connections)
+    faces_rows = DBManager.connection_wrapper(extract_faces_worker, central_con=central_con, local_con=local_con,
+                                              with_central=True, with_local=True, close_connections=close_connections)
     return faces_rows
 
 

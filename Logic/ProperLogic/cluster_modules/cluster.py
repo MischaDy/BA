@@ -34,8 +34,8 @@ class Cluster:
             if center_point is not None:
                 self.center_point = center_point
             else:
-                self.center_point = Cluster.sum_embeddings(self.embeddings_dict.values()) / self.num_embeddings
-            self.max_id_reducer(self.embeddings_dict.keys())
+                self.center_point = Cluster.sum_embeddings(embeddings) / self.num_embeddings
+            self.max_id_reducer.process_iterable(self.embeddings_dict.keys())
             self.max_embedding_id = self.max_id_reducer.get_state()
 
         self.cluster_id = cluster_id
@@ -83,7 +83,8 @@ class Cluster:
 
         old_num_embeddings = self.num_embeddings
         self.num_embeddings = len(self.embeddings_dict)
-        embeddings_sum = torch.sum(torch.stack(self.get_embeddings(as_list=True)), dim=0)
+        embeddings = self.get_embeddings(as_list=True)
+        embeddings_sum = self.sum_embeddings(embeddings)
 
         if self.center_point is not None:
             self.center_point = (old_num_embeddings * self.center_point + embeddings_sum) / self.num_embeddings
@@ -123,4 +124,5 @@ class Cluster:
 
     @staticmethod
     def sum_embeddings(embeddings):
-        return reduce(torch.add, embeddings)
+        # return reduce(torch.add, embeddings)
+        return torch.sum(torch.stack(embeddings), dim=0)

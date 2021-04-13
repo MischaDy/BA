@@ -115,4 +115,6 @@ class ClusterDict(dict):
         self.remove_clusters([cluster])
 
     def get_max_id(self):
+        if self.max_id is None:
+            return self.max_id_reducer.default
         return self.max_id

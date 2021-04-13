@@ -75,39 +75,63 @@ class DBManager:
         return sqlite3.connect(path)
 
     @classmethod
-    def connection_wrapper(cls, func, path_to_local_db=None, con=None, global_con=None, local_con=None,
-                           close_connections=True):
+    def connection_wrapper(cls, func, path_to_local_db=None, con=None, central_con=None, local_con=None,
+                           with_central=False, with_local=False, close_connections=True):
         """
         If con is provided, the other two con params are ignored.
 
+        :param with_local:
+        :param with_central:
         :param func:
         :param path_to_local_db:
         :param con:
-        :param global_con:
+        :param central_con:
         :param local_con:
         :param close_connections:
         :return:
         """
-        # TODO: Does everything work even without explicit local/global call?
-        # TODO: Allow to not pass global/local con, but still open it here (and thus close it)?
-        # TODO: Generalize to allow for one global and any number of local connections?
+        # TODO: Does everything work even without explicit local/central call?
+        # TODO: Allow to not pass central/local con, but still open it here (and thus close it)?
+        # TODO: Generalize to allow for one central and any number of local connections?
         # TODO: How to make this a decorator?
+        # TODO: Refactor!
 
-        if not any([con, global_con, local_con]):
-            # no connections provided
-            con = cls.open_connection(path_to_local_db)
-            close_connections = True
-
+        # determine connections to use
+        connections_dict = {}
         if con is not None:
             # con provided, other two con params ignored
-            connections_dict = {'con': con}
+            connections_dict['con'] = con
         else:
-            # at least one specific con parameter provided
-            connections_dict = {}
-            if global_con is not None:
-                connections_dict['global_con'] = global_con
+            # add central con, if provided or desired
+            if central_con is not None:
+                connections_dict['central_con'] = central_con
+            elif with_central:
+                central_con = cls.open_central_connection()
+                connections_dict['central_con'] = central_con
+                # connections created here, so must be closed here
+                close_connections = True
+
+            # add local con, if provided or desired
             if local_con is not None:
                 connections_dict['local_con'] = local_con
+            elif with_local:
+                if path_to_local_db is None:
+                    # TODO: Place this in open_connection?
+                    error_msg = 'cannot open local connection when no path is provided'
+                    log_error(error_msg)
+                    raise IncompleteDatabaseOperation(error_msg)
+
+                local_con = cls.open_local_connection(path_to_local_db)
+                connections_dict['local_con'] = local_con
+                # connections created here, so must be closed here
+                close_connections = True
+
+        if not connections_dict:
+            # no connection type specified
+            con = cls.open_connection(path_to_local_db)
+            connections_dict['con'] = con
+            # connections created here, so must be closed here
+            close_connections = True
 
         connections = connections_dict.values()
         commit_connections = True
@@ -473,7 +497,6 @@ class DBManager:
 
         :param close_connections:
         :param con:
-        :param path_to_local_db:
         :return:
         """
         cls.clear_tables(Tables.central_tables, con=con, close_connections=close_connections)

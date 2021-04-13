@@ -76,12 +76,16 @@ def clear_central_tables(con=None, close_connections=True):
 
 
 def user_choose_local_db_dir_path():
+    # TODO: Refactor, use user_choose function!
     # local_db_dir_path = input('Please enter a path containing a local table you would like to clear.\n')
     # TODO: Make user choose paths!
     local_db_dir_path = (r'C:\Users\Mischa\Desktop\Uni\20-21 WS'
                          r'\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs')
     while True:
-        if not os.path.exists(local_db_dir_path):
+        if not local_db_dir_path:
+            local_db_dir_path = None
+            break
+        elif not os.path.exists(local_db_dir_path):
             log_error(f"unable to find path '{local_db_dir_path}'")
         elif not DBManager.is_local_db_in_dir(local_db_dir_path):
             log_error(f"unable to find local database file '{...}' in path '{local_db_dir_path}'")

@@ -1071,7 +1071,7 @@ class DBManager:
 
     @classmethod
     def is_local_db_in_dir(cls, path):
-        return cls.local_db_file_name not in os.listdir(path)
+        return cls.local_db_file_name in os.listdir(path)
 
 
 class IncompleteDatabaseOperation(RuntimeError):

@@ -1,6 +1,7 @@
 # Credits: https://sebastianraschka.com/Articles/2014_sqlite_in_python_tutorial.html
 
 import datetime
+import io
 import os
 import sqlite3
 import sys
@@ -9,7 +10,6 @@ from itertools import starmap, repeat
 
 import torch
 from PIL import Image
-import io
 
 from Logic.ProperLogic.cluster_modules.cluster import Cluster
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
@@ -160,7 +160,7 @@ class DBManager:
                 pass
 
     @classmethod
-    def create_temp_table(cls, con, temp_table):
+    def create_temp_table(cls, temp_table, con):
         # TODO: Create table in memory? (sqlite3.connect(":memory:"))
         #       ---> Not possible, since other stuff isn't in memory(?)
         cls._create_tables([temp_table], create_temp_flags=[True], con=con, close_connections=False)
@@ -389,6 +389,7 @@ class DBManager:
         :param close_connections:
         :return: None
         """
+        # TODO: Do not remove embeddings just like that!!!
         # TODO: More efficient way of deleting all clusters!
         if clusters_to_remove is None and not remove_all:
             log_error(f"'clusters_to_remove' or 'remove_all' must be provided")
@@ -420,11 +421,11 @@ class DBManager:
             rows_dicts = [{Columns.cluster_id.col_name: cluster_id}
                           for cluster_id in cluster_ids_to_remove]
 
-            cls.create_temp_table(con, temp_table)
+            cls.create_temp_table(temp_table, con=con)
             cls.store_in_table(temp_table, rows_dicts, con=con, close_connections=False)
-            deleted_embeddings_row_dicts = cls.delete_from_table(embs_table, cond=embs_cond, con=con,
+            deleted_embeddings_row_dicts = cls.delete_from_table(embs_table, where_clause_part=embs_cond, con=con,
                                                                  close_connections=False)
-            cls.delete_from_table(attrs_table, cond=attrs_cond, con=con, close_connections=False)
+            cls.delete_from_table(attrs_table, where_clause_part=attrs_cond, con=con, close_connections=False)
             return deleted_embeddings_row_dicts
 
         deleted_embeddings_row_dicts = cls.connection_wrapper(remove_clusters_worker, con=con,
@@ -432,7 +433,7 @@ class DBManager:
         return deleted_embeddings_row_dicts
 
     @classmethod
-    def delete_from_table(cls, table, with_clause_part='', cond='', path_to_local_db=None, con=None,
+    def delete_from_table(cls, table, with_clause_part='', where_clause_part='', path_to_local_db=None, con=None,
                           close_connections=True):
         """
 
@@ -440,19 +441,19 @@ class DBManager:
         :param con:
         :param table:
         :param with_clause_part:
-        :param cond:
+        :param where_clause_part:
         :param path_to_local_db:
         :return:
         """
         with_clause = cls._build_with_clause(with_clause_part)
-        where_clause = cls._build_where_clause(cond)
+        where_clause = cls._build_where_clause(where_clause_part)
 
         def delete_from_table_worker(con):
             # TODO: 'Copy' generator instead of cast to list? (Saves space)
             # Cast to list is *necessary* here, since fetch function only returns a generator. It will be executed after
             # the corresponding rows are deleted from table and will thus yield nothing.
             deleted_row_dicts = list(
-                cls.fetch_from_table(table, path_to_local_db, cond=cond, as_dicts=True, con=con,
+                cls.fetch_from_table(table, path_to_local_db, cond=where_clause_part, as_dicts=True, con=con,
                                      close_connections=False)
             )
             con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
@@ -909,6 +910,10 @@ class DBManager:
         return cls._build_clause('WITH', with_clause_part)
 
     @classmethod
+    def _build_or_clause(cls, or_clause_part):
+        return cls._build_clause('OR', or_clause_part)
+
+    @classmethod
     def _build_where_clause(cls, cond):
         return cls._build_clause('WHERE', cond)
 
@@ -921,10 +926,10 @@ class DBManager:
         return f'{keyword} {clause_part}' if clause_part else ''
 
     @classmethod
-    def build_select(cls, select_clause, from_clause='', cond=''):
-        where_clause = cls._build_where_clause(cond)
-        from_clause = cls._build_from_clause(from_clause)
-        return f'SELECT {select_clause} {from_clause} {where_clause}'
+    def build_select(cls, select_clause_part, from_clause_part='', where_clause_part=''):
+        where_clause = cls._build_where_clause(where_clause_part)
+        from_clause = cls._build_from_clause(from_clause_part)
+        return f'SELECT {select_clause_part} {from_clause} {where_clause}'
 
     @classmethod
     def get_dir_paths_to_img_ids(cls, person_label):
@@ -1009,7 +1014,7 @@ class DBManager:
         """
 
         def get_image_names(con):
-            cls.create_temp_table(con, temp_table)
+            cls.create_temp_table(temp_table, con=con)
             cls.store_in_table(temp_table, image_id_row_dicts, con=con, close_connections=False)
             return con.execute(get_image_names_sql).fetchall()
 
@@ -1055,7 +1060,7 @@ class DBManager:
         set_values = f"{temp_table}.{Columns.new_cluster_id.col_name}"
 
         def reset_cluster_ids_worker(con):
-            cls.create_temp_table(con, temp_table)
+            cls.create_temp_table(temp_table, con=con)
             cls.store_in_table(temp_table, temp_row_dicts, con=con, close_connections=False)
             cls._custom_update_table(Tables.cluster_attributes_table, col_names_to_update, set_values, con=con,
                                      close_connections=False)
@@ -1065,10 +1070,7 @@ class DBManager:
         cls.connection_wrapper(reset_cluster_ids_worker, con=con, close_connections=close_connections)
 
     @classmethod
-    def _custom_update_table(cls, table, col_names, set_values, on_clause=None, con=None, close_connections=True):
-        if on_clause is None:
-            on_clause = ''
-
+    def _custom_update_table(cls, table, col_names, set_values, or_clause='', con=None, close_connections=True):
         col_names_str = ', '.join(col_names)
         # values_template = cls.make_values_template(len(col_names))
 
@@ -1076,7 +1078,7 @@ class DBManager:
         where_clause = f"{table}.{Columns.cluster_id} = {temp_table}.{Columns.old_cluster_id}"
 
         update_sql = f"""
-            UPDATE {on_clause} {table}
+            UPDATE {or_clause} {table}
             SET ({col_names_str}) = ({set_values})
             FROM ({temp_table}) AS {temp_table}
             WHERE {where_clause} 

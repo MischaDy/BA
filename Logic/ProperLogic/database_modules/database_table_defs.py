@@ -244,6 +244,8 @@ class Tables:
 
     # ----- central tables -----
 
+    # TODO: An FK is missing?! (for image paths)
+
     cluster_attributes_table = TableSchema(
         'cluster_attributes',
         [Columns.cluster_id.with_constraint('PRIMARY KEY'),  # also used by embeddings table
@@ -316,7 +318,13 @@ class Tables:
          Columns.new_cluster_id]
     )
 
-    temp_tables = (temp_cluster_ids_table, temp_image_ids_table, temp_old_and_new_ids)
+    temp_emb_and_new_cluster_ids_table = TableSchema(
+        'temp_emb_and_new_cluster_ids',
+        [Columns.embedding_id,
+         Columns.new_cluster_id]
+    )
+
+    temp_tables = (temp_cluster_ids_table, temp_image_ids_table, temp_old_and_new_ids, temp_emb_and_new_cluster_ids_table)
 
     @classmethod
     def is_local_table(cls, table):

@@ -1095,8 +1095,136 @@ class DBManager:
         cls.connection_wrapper(custom_update_table_worker, con=con, close_connections=close_connections)
 
     @classmethod
+    def update_table(cls, table, col_names, set_values, or_clause_part=None, from_clause_part=None,
+                     where_clause_part=None, con=None, close_connections=True):
+        or_clause = cls._build_or_clause(or_clause_part)
+        from_clause = cls._build_from_clause(from_clause_part)
+        where_clause = cls._build_where_clause(where_clause_part)
+        set_clause = ', '.join(f'{col_name} = {set_value}'
+                               for col_name, set_value in zip(col_names, set_values))
+
+        update_sql = f"""
+            UPDATE {or_clause} {table}
+            SET {set_clause}
+            {from_clause}
+            {where_clause}
+        """
+
+        # values_template = cls.make_values_template(len(col_names))
+
+        # temp_table = Tables.temp_old_and_new_ids
+        # where_clause = f"{table}.{Columns.cluster_id} = {temp_table}.{Columns.old_cluster_id}"
+        # from_clause = f'({temp_table}) AS {temp_table}'
+
+        #     UPDATE inventory
+        #     SET quantity = quantity - daily.amt
+        #     FROM (SELECT sum(quantity) AS amt, itemId FROM sales GROUP BY 2) AS daily
+        #     WHERE inventory.itemId = daily.itemId;
+
+        def update_table_worker(con):
+            con.execute(update_sql)
+
+        cls.connection_wrapper(update_table_worker, con=con, close_connections=close_connections)
+
+    @classmethod
     def is_local_db_in_dir(cls, path):
         return cls.local_db_file_name in os.listdir(path)
+
+    @classmethod
+    def overwrite_clusters(cls, new_cluster_dict, modified_clusters_dict, removed_clusters_dict, con=None,
+                           close_connections=True):
+        clusters = new_cluster_dict.get_clusters()
+
+        def overwrite_clusters_worker(con):
+            cls.upsert_cluster_attributes(clusters, con=con, close_connections=False)
+            cls.update_embeddings(clusters, con=con, close_connections=False)
+            cls.remove_cluster_attributes(removed_clusters_dict, con=con, close_connections=False)
+
+        cls.connection_wrapper(overwrite_clusters_worker, con=con, close_connections=close_connections)
+
+    @classmethod
+    def upsert_cluster_attributes(cls, clusters, con=None, close_connections=True):
+        # TODO: Improve efficiency - don't build rows etc. if cluster already exists(?)
+
+        if is_instance_by_type_name(clusters, ClusterDict):
+            clusters = clusters.get_clusters()
+
+        # Store in cluster_attributes and embeddings tables
+        # Use on conflict clause for when cluster label and/or center change
+        attrs_update_cols = [Columns.label, Columns.center]
+        attrs_update_expressions = [f'excluded.{Columns.label}', f'excluded.{Columns.center}']
+        attrs_on_conflict = cls.build_on_conflict_sql(conflict_target_cols=[Columns.cluster_id],
+                                                      update_cols=attrs_update_cols,
+                                                      update_expressions=attrs_update_expressions)
+        attributes_row_dicts = cls.make_attr_row_dicts(clusters)
+
+        def store_cluster_attributes_worker(con):
+            cls.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict,
+                               con=con, close_connections=False)
+
+        cls.connection_wrapper(store_cluster_attributes_worker, con=con, close_connections=close_connections)
+
+    @classmethod
+    def update_embeddings(cls, clusters, con=None, close_connections=True):
+        # TODO: Improve efficiency - don't build rows etc. if cluster already exists(?)
+
+        if is_instance_by_type_name(clusters, ClusterDict):
+            clusters = clusters.get_clusters()
+
+        table = Tables.embeddings_table
+        temp_table = Tables.temp_emb_and_new_cluster_ids_table
+
+        col_names = [Columns.cluster_id.col_name]
+        set_values = [f'{temp_table}.{Columns.cluster_id}']
+
+        from_clause_part = f'({temp_table}) AS {temp_table}'
+
+        select_temp_emb_ids = cls.build_select(Columns.embedding_id, temp_table)
+        where_clause_part = f'{table}.{Columns.embedding_id} IN ({select_temp_emb_ids})'
+
+        #     UPDATE inventory
+        #     SET quantity = quantity - daily.amt
+        #     FROM (SELECT sum(quantity) AS amt, itemId FROM sales GROUP BY 2) AS daily
+        #     WHERE inventory.itemId = daily.itemId;
+
+        emb_and_cluster_id_row_dicts = [
+            {Columns.embedding_id.col_name: embedding_id,
+             Columns.cluster_id.col_name: cluster.cluster_id}
+            for cluster in clusters
+            for embedding_id in cluster.get_embeddings_ids()
+        ]
+
+        def store_embeddings_worker(con):
+            cls.create_temp_table(temp_table, con=con)
+            cls.store_in_table(temp_table, emb_and_cluster_id_row_dicts, con=con, close_connections=False)
+            cls.update_table(table, col_names, set_values,
+                             from_clause_part=from_clause_part, where_clause_part=where_clause_part, con=con,
+                             close_connections=False)
+
+        cls.connection_wrapper(store_embeddings_worker, con=con, close_connections=close_connections)
+
+    @classmethod
+    def remove_cluster_attributes(cls, clusters, con=None, close_connections=True):
+        if is_instance_by_type_name(clusters, ClusterDict):
+            clusters = clusters.get_clusters()
+
+        table = Tables.cluster_attributes_table
+        temp_table = Tables.temp_cluster_ids_table
+
+        where_clause_part = f'{table}.{Columns.cluster_id} IN ({temp_table})'
+
+        cluster_id_row_dicts = [
+            {Columns.cluster_id.col_name: cluster.cluster_id}
+            for cluster in clusters
+        ]
+
+        def remove_cluster_attributes_worker(con):
+            cls.create_temp_table(temp_table, con=con)
+            cls.store_in_table(temp_table, cluster_id_row_dicts, con=con, close_connections=False)
+            cls.delete_from_table(table, where_clause_part=where_clause_part, con=con,
+                                  close_connections=False)
+
+        cls.connection_wrapper(remove_cluster_attributes_worker, con=con, close_connections=close_connections)
 
 
 class IncompleteDatabaseOperation(RuntimeError):

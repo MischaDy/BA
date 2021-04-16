@@ -374,6 +374,7 @@ class DBManager:
 
     @classmethod
     def remove_cluster(cls, cluster_to_remove, con=None, close_connections=True):
+        # TODO: Use this at all???
         clusters_to_remove = ClusterDict([cluster_to_remove])
         return cls.remove_clusters(clusters_to_remove, con=con, close_connections=close_connections)
 
@@ -389,6 +390,7 @@ class DBManager:
         :param close_connections:
         :return: None
         """
+        # TODO: Use this at all???
         # TODO: Do not remove embeddings just like that!!!
         # TODO: More efficient way of deleting all clusters!
         if clusters_to_remove is None and not remove_all:
@@ -1131,9 +1133,9 @@ class DBManager:
         return cls.local_db_file_name in os.listdir(path)
 
     @classmethod
-    def overwrite_clusters(cls, new_cluster_dict, modified_clusters_dict, removed_clusters_dict, con=None,
+    def overwrite_clusters(cls, modified_clusters_dict, removed_clusters_dict, con=None,
                            close_connections=True):
-        clusters = new_cluster_dict.get_clusters()
+        clusters = modified_clusters_dict.get_clusters()
 
         def overwrite_clusters_worker(con):
             cls.upsert_cluster_attributes(clusters, con=con, close_connections=False)

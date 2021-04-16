@@ -229,15 +229,13 @@ class Tables:
         [Columns.image_id.with_constraint('PRIMARY KEY'),
          Columns.file_name.with_constraint('NOT NULL'),
          Columns.last_modified.with_constraint('NOT NULL')
-         ],
-        []
+         ]
     )
 
     path_id_table = TableSchema(
         'path_id',
         [Columns.path_id_col.with_constraint('PRIMARY KEY')
-         ],
-        []
+         ]
     )
 
     local_tables = (images_table, path_id_table)

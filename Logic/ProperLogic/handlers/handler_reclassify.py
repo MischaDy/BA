@@ -3,10 +3,17 @@ from Logic.ProperLogic.database_modules.database_logic import DBManager, Incompl
 from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict
 
 
-def reclassify(cluster_dict, **kwargs):
+def reclassify(cluster_dict, embeddings_with_ids=None, **kwargs):
+    cluster_dict_copy = cluster_dict.copy()
+
     def reclassify_worker(con):
-        embeddings_with_ids = list(DBManager.get_all_embeddings(with_ids=True))
-        if not embeddings_with_ids:
+        # all operations in worker, so if any DB operation raises error, it is caught
+        if embeddings_with_ids is not None:
+            local_embeddings_with_ids = embeddings_with_ids
+        else:
+            local_embeddings_with_ids = list(DBManager.get_all_embeddings(with_ids=True))
+
+        if not local_embeddings_with_ids:
             log_error('no embeddings found, nothing to edit')
             return
         new_cluster_dict = DBManager.get_certain_clusters()
@@ -15,12 +22,10 @@ def reclassify(cluster_dict, **kwargs):
                                                              final_clusters_only=True)
         new_cluster_dict.reset_ids()
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
-        DBManager.overwrite_clusters(new_cluster_dict, modified_clusters_dict, removed_clusters_dict, con=con,
-                                     close_connections=False)
-        DBManager.store_clusters()
+        DBManager.overwrite_clusters(modified_clusters_dict, removed_clusters_dict, con=con, close_connections=False)
         overwrite_dict(cluster_dict, new_cluster_dict)
 
     try:
         DBManager.connection_wrapper(reclassify_worker)
     except IncompleteDatabaseOperation:
-        pass
+        overwrite_dict(cluster_dict, cluster_dict_copy)

@@ -5,11 +5,10 @@ from functools import partial
 from PIL import Image
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
-from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
-from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
-from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict
+from Logic.ProperLogic.handlers.handler_reclassify import reclassify
+from Logic.ProperLogic.misc_helpers import log_error
 from Logic.ProperLogic.models import Models
 from Logic.ProperLogic.handlers.helpers import TO_TENSOR
 
@@ -28,7 +27,6 @@ def process_image_dir(cluster_dict, **kwargs):
 
     images_path = user_choose_images_path()
     path_to_local_db = DBManager.get_db_path(images_path, local=True)
-    cluster_dict_copy = cluster_dict.copy()
 
     def process_image_dir_worker(central_con, local_con):
         faces_rows = list(user_choose_images(images_path, path_to_local_db=path_to_local_db, central_con=central_con,
@@ -37,35 +35,22 @@ def process_image_dir(cluster_dict, **kwargs):
             return
 
         # TODO: Extract this dictionary-querying as function?
-        embeddings_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
-                                  faces_rows))
-        thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
-                         faces_rows)
-        image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
-                        faces_rows)
-        faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
-                    faces_rows)
+        thumb_col = Columns.thumbnail.col_name
+        emb_id_col = Columns.embedding_id.col_name
 
-        embeddings = list(faces_to_embeddings(faces))
+        embeddings_with_ids = [
+            (row_dict[emb_id_col],
+             faces_to_embeddings(row_dict[thumb_col]))
+            for row_dict in faces_rows
+        ]
 
-        emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
-        emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
-
-        # TODO: Call reclassify handler here?
-        clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids,
-                                                             existing_clusters_dict=cluster_dict,
-                                                             final_clusters_only=False)
-        # passing result cluster dict already overwrites it
-        _, modified_clusters_dict, removed_clusters_dict = clustering_result
-        DBManager.remove_clusters(removed_clusters_dict, con=central_con, close_connections=False)
-        DBManager.store_clusters(modified_clusters_dict, emb_id_to_face_dict, emb_id_to_img_id_dict, con=central_con,
-                                 close_connections=False)
+        reclassify(cluster_dict, embeddings_with_ids)
 
     try:
         DBManager.connection_wrapper(process_image_dir_worker, path_to_local_db=path_to_local_db, with_central=True,
                                      with_local=True)
     except IncompleteDatabaseOperation:
-        overwrite_dict(cluster_dict, cluster_dict_copy)
+        pass
 
 
 def user_choose_images(images_path, path_to_local_db=None, central_con=None, local_con=None, close_connections=True):

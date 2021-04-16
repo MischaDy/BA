@@ -1138,9 +1138,9 @@ class DBManager:
         clusters = modified_clusters_dict.get_clusters()
 
         def overwrite_clusters_worker(con):
+            cls.remove_cluster_attributes(removed_clusters_dict, con=con, close_connections=False)
             cls.upsert_cluster_attributes(clusters, con=con, close_connections=False)
             cls.update_embeddings(clusters, con=con, close_connections=False)
-            cls.remove_cluster_attributes(removed_clusters_dict, con=con, close_connections=False)
 
         cls.connection_wrapper(overwrite_clusters_worker, con=con, close_connections=close_connections)
 

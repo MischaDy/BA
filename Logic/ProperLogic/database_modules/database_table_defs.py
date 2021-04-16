@@ -242,27 +242,43 @@ class Tables:
 
     # ----- central tables -----
 
-    # TODO: An FK is missing?! (for image paths)
-
     cluster_attributes_table = TableSchema(
         'cluster_attributes',
         [Columns.cluster_id.with_constraint('PRIMARY KEY'),  # also used by embeddings table
          Columns.label,
          Columns.center
+         ]
+    )
+
+    directory_paths_table = TableSchema(
+        'directory_paths',
+        [Columns.path_id_col.with_constraint('PRIMARY KEY'),
+         Columns.path.with_constraint('UNIQUE NOT NULL')
+         ]
+    )
+
+    image_paths_table = TableSchema(
+        'image_paths',
+        [Columns.image_id.with_constraint('PRIMARY KEY'),
+         Columns.path_id_col.with_constraint('NOT NULL'),
          ],
-        []
+        [f'FOREIGN KEY ({Columns.path_id_col}) REFERENCES {directory_paths_table} ({Columns.path_id_col})'
+         + ' ON DELETE CASCADE',
+         ],
     )
 
     embeddings_table = TableSchema(
         'embeddings',
-        [Columns.cluster_id.with_constraint('NOT NULL'),  # also used by cluster attributes table
+        [Columns.cluster_id,
          Columns.image_id.with_constraint('NOT NULL'),
          Columns.embedding_id.with_constraint('PRIMARY KEY'),
          Columns.embedding.with_constraint('NOT NULL'),
          Columns.thumbnail.with_constraint('NOT NULL'),
          ],
         [f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id})'
-         + ' ON DELETE CASCADE',
+         + ' ON DELETE SET NULL',
+         f'FOREIGN KEY ({Columns.image_id}) REFERENCES {image_paths_table} ({Columns.image_id})'
+         + ' ON DELETE RESTRICT',
          ],
     )
 
@@ -272,25 +288,6 @@ class Tables:
          Columns.label.with_constraint('NOT NULL'),
          ],
         [f'FOREIGN KEY ({Columns.embedding_id}) REFERENCES {embeddings_table} ({Columns.embedding_id})'
-         + ' ON DELETE CASCADE',
-         ],
-    )
-
-    directory_paths_table = TableSchema(
-        'directory_paths',
-        [Columns.path_id_col.with_constraint('PRIMARY KEY'),
-         Columns.path.with_constraint('UNIQUE NOT NULL')
-         ],
-        [],
-    )
-
-    # TODO: FK with image_id col not possible, since not unique in embeddings table!
-    image_paths_table = TableSchema(
-        'image_paths',
-        [Columns.image_id.with_constraint('PRIMARY KEY'),
-         Columns.path_id_col.with_constraint('NOT NULL'),
-         ],
-        [f'FOREIGN KEY ({Columns.path_id_col}) REFERENCES {directory_paths_table} ({Columns.path_id_col})'
          + ' ON DELETE CASCADE',
          ],
     )

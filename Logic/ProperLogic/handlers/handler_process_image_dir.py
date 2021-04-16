@@ -22,11 +22,13 @@ def process_image_dir(cluster_dict, **kwargs):
     :param kwargs:
     :return:
     """
+    # TODO: Split embeddings storage and clustering, so one can be complete even if the other fails
     # TODO: Refactor + improve efficiency
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
 
     images_path = user_choose_images_path()
     path_to_local_db = DBManager.get_db_path(images_path, local=True)
+    cluster_dict_copy = cluster_dict.copy()
 
     def process_image_dir_worker(central_con, local_con):
         faces_rows = list(user_choose_images(images_path, path_to_local_db=path_to_local_db, central_con=central_con,
@@ -49,22 +51,21 @@ def process_image_dir(cluster_dict, **kwargs):
         emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
         emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
 
-        result_clusters_dict = ClusterDict()
+        # TODO: Call reclassify handler here?
         clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids,
-                                                             existing_clusters_dict=result_clusters_dict,
+                                                             existing_clusters_dict=cluster_dict,
                                                              final_clusters_only=False)
         # passing result cluster dict already overwrites it
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
         DBManager.remove_clusters(removed_clusters_dict, con=central_con, close_connections=False)
         DBManager.store_clusters(modified_clusters_dict, emb_id_to_face_dict, emb_id_to_img_id_dict, con=central_con,
                                  close_connections=False)
-        overwrite_dict(cluster_dict, result_clusters_dict)
 
     try:
         DBManager.connection_wrapper(process_image_dir_worker, path_to_local_db=path_to_local_db, with_central=True,
                                      with_local=True)
     except IncompleteDatabaseOperation:
-        pass
+        overwrite_dict(cluster_dict, cluster_dict_copy)
 
 
 def user_choose_images(images_path, path_to_local_db=None, central_con=None, local_con=None, close_connections=True):

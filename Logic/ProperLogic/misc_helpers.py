@@ -194,7 +194,7 @@ def get_user_input_of_type(prompt=None, obj_name='object', class_=str, exception
     :return:
     """
     def __make_prompt(obj_name, must_be):
-        prompt = "\n" + f"Please enter the {obj_name} ({must_be})."
+        prompt = "\n" + f"Please enter the {obj_name} ({must_be})." + "\n"
         return prompt
 
     def __make_error_msg(obj_name, must_be):

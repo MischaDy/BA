@@ -213,24 +213,32 @@ class DBManager:
                                close_connections=close_connections)
 
     @classmethod
-    def store_in_table(cls, table, row_dicts, on_conflict='', path_to_local_db=None, con=None, close_connections=True):
+    def store_in_table(cls, table, row_dicts, or_clause_part=None, on_conflict_update='', path_to_local_db=None,
+                       con=None, close_connections=True):
         """
 
+        :param or_clause_part:
         :param con:
         :param close_connections:
         :param table:
         :param row_dicts: iterable of dicts storing (col_name, col_value)-pairs
-        :param on_conflict:
+        :param on_conflict_update:
         :param path_to_local_db:
         :return:
         """
         rows = cls.row_dicts_to_rows(table, row_dicts)
         if not rows:
             return
+
+        or_clause = cls._build_or_clause(or_clause_part)
         values_template = cls.make_values_template(len(row_dicts[0]))
 
         def store_in_table_worker(con):
-            con.executemany(f'INSERT INTO {table} VALUES ({values_template}) {on_conflict};', rows)
+            con.executemany(
+                f"""INSERT {or_clause} INTO {table}
+                    VALUES ({values_template}) {on_conflict_update};""",
+                rows
+            )
 
         cls.connection_wrapper(store_in_table_worker, path_to_local_db, con=con,
                                close_connections=close_connections)
@@ -277,9 +285,9 @@ class DBManager:
         embeddings_row_dicts = cls.make_embs_row_dicts(clusters, emb_id_to_face_dict, emb_id_to_img_id_dict)
 
         def store_clusters_worker(con):
-            cls.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict,
+            cls.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict_update=attrs_on_conflict,
                                con=con, close_connections=False)
-            cls.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict=embs_on_conflict,
+            cls.store_in_table(Tables.embeddings_table, embeddings_row_dicts, on_conflict_update=embs_on_conflict,
                                con=con, close_connections=False)
 
         cls.connection_wrapper(store_clusters_worker, con=con, close_connections=close_connections)
@@ -309,7 +317,7 @@ class DBManager:
                                                        update_expressions=[f'excluded.{Columns.label}'])
 
         def store_certain_tables_worker(con):
-            cls.store_in_table(table, row_dicts, on_conflict=labels_on_conflict, con=con, close_connections=False)
+            cls.store_in_table(table, row_dicts, on_conflict_update=labels_on_conflict, con=con, close_connections=False)
 
         cls.connection_wrapper(store_certain_tables_worker, con=con, close_connections=close_connections)
 
@@ -364,10 +372,11 @@ class DBManager:
     def store_path_id(cls, path_id, path_to_local_db, con=None, close_connections=True):
         # TODO: Allow img_id to be None?
         path_id_row = {Columns.path_id_col.col_name: path_id}
+        or_clause_part = 'IGNORE'
 
         def store_path_id_worker(con):
-            cls.store_in_table(Tables.path_id_table, [path_id_row], path_to_local_db=path_to_local_db, con=con,
-                               close_connections=False)
+            cls.store_in_table(Tables.path_id_table, [path_id_row], or_clause_part=or_clause_part,
+                               path_to_local_db=path_to_local_db, con=con, close_connections=False)
 
         cls.connection_wrapper(store_path_id_worker, path_to_local_db=path_to_local_db, con=con,
                                close_connections=close_connections)
@@ -1133,14 +1142,18 @@ class DBManager:
         return cls.local_db_file_name in os.listdir(path)
 
     @classmethod
-    def overwrite_clusters(cls, modified_clusters_dict, removed_clusters_dict, con=None,
-                           close_connections=True):
+    def overwrite_clusters(cls, modified_clusters_dict, removed_clusters_dict, emb_id_to_face_dict=None,
+                           emb_id_to_img_id_dict=None, no_new_embs=False, con=None, close_connections=True):
         clusters = modified_clusters_dict.get_clusters()
 
         def overwrite_clusters_worker(con):
             cls.remove_cluster_attributes(removed_clusters_dict, con=con, close_connections=False)
             cls.upsert_cluster_attributes(clusters, con=con, close_connections=False)
-            cls.update_embeddings(clusters, con=con, close_connections=False)
+            if no_new_embs:
+                cls.update_embeddings(clusters, con=con, close_connections=close_connections)
+                return
+            cls.upsert_embeddings(clusters, emb_id_to_face_dict=emb_id_to_face_dict,
+                                  emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con, close_connections=False)
 
         cls.connection_wrapper(overwrite_clusters_worker, con=con, close_connections=close_connections)
 
@@ -1150,6 +1163,8 @@ class DBManager:
 
         if is_instance_by_type_name(clusters, ClusterDict):
             clusters = clusters.get_clusters()
+        if not clusters:
+            return
 
         # Store in cluster_attributes and embeddings tables
         # Use on conflict clause for when cluster label and/or center change
@@ -1161,59 +1176,127 @@ class DBManager:
         attributes_row_dicts = cls.make_attr_row_dicts(clusters)
 
         def store_cluster_attributes_worker(con):
-            cls.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts, on_conflict=attrs_on_conflict,
-                               con=con, close_connections=False)
+            cls.store_in_table(Tables.cluster_attributes_table, attributes_row_dicts,
+                               on_conflict_update=attrs_on_conflict, con=con, close_connections=False)
 
         cls.connection_wrapper(store_cluster_attributes_worker, con=con, close_connections=close_connections)
 
     @classmethod
-    def update_embeddings(cls, clusters, con=None, close_connections=True):
+    def upsert_embeddings(cls, clusters, emb_id_to_face_dict=None, emb_id_to_img_id_dict=None, con=None,
+                          close_connections=True):
+        """
+
+        :param close_connections:
+        :param con:
+        :param emb_id_to_img_id_dict:
+        :param emb_id_to_face_dict:
+        :param clusters: Iterable of clusters to store.
+        :return: None
+        """
         # TODO: Improve efficiency - don't build rows etc. if cluster already exists(?)
 
         if is_instance_by_type_name(clusters, ClusterDict):
             clusters = clusters.get_clusters()
+        if not clusters:
+            return
 
-        table = Tables.embeddings_table
+        if emb_id_to_face_dict is None:
+            emb_id_to_face_dict = cls.get_thumbnails(with_embeddings_ids=True, as_dict=True)
+        if emb_id_to_img_id_dict is None:
+            emb_id_to_img_id_dict = cls.get_image_ids(with_embeddings_ids=True, as_dict=True)
+
+        embs_table = Tables.embeddings_table
         temp_table = Tables.temp_emb_and_new_cluster_ids_table
 
-        col_names = [Columns.cluster_id.col_name]
-        set_values = [f'{temp_table}.{Columns.cluster_id}']
+        embs_update_cols = [Columns.cluster_id.col_name]
+        embs_update_expressions = cls._build_update_expressions(embs_update_cols)
 
-        from_clause_part = f'({temp_table}) AS {temp_table}'
+        emb_and_cluster_id_row_dicts = [
+            {Columns.embedding_id.col_name: embedding_id,
+             Columns.new_cluster_id.col_name: cluster.cluster_id}
+            for cluster in clusters
+            for embedding_id in cluster.get_embeddings_ids()
+        ]
 
-        select_temp_emb_ids = cls.build_select(Columns.embedding_id, temp_table)
-        where_clause_part = f'{table}.{Columns.embedding_id} IN ({select_temp_emb_ids})'
+        # Use on conflict clause for when cluster id changes
+        embs_on_conflict = cls.build_on_conflict_sql(conflict_target_cols=[Columns.embedding_id],
+                                                     update_cols=embs_update_cols,
+                                                     update_expressions=embs_update_expressions)
 
+        embeddings_row_dicts = cls.make_embs_row_dicts(clusters, emb_id_to_face_dict, emb_id_to_img_id_dict)
+
+        def store_embeddings_worker(con):
+            cls.create_temp_table(temp_table, con=con)
+            cls.store_in_table(temp_table, emb_and_cluster_id_row_dicts, con=con, close_connections=False)
+            cls.store_in_table(embs_table, embeddings_row_dicts, on_conflict_update=embs_on_conflict, con=con,
+                               close_connections=False)
+
+        cls.connection_wrapper(store_embeddings_worker, con=con, close_connections=close_connections)
+
+    @classmethod
+    def update_embeddings(cls, clusters, con=None, close_connections=True):
+        """
+
+        :param close_connections:
+        :param con:
+        :param clusters: Iterable of clusters to store.
+        :return: None
+        """
+        # TODO: Improve efficiency - don't build rows etc. if cluster already exists(?)
+
+        if is_instance_by_type_name(clusters, ClusterDict):
+            clusters = clusters.get_clusters()
+        if not clusters:
+            return
+
+        embs_table = Tables.embeddings_table
+        temp_table = Tables.temp_emb_and_new_cluster_ids_table
+
+        embs_col_names = [Columns.cluster_id.col_name]
+        embs_set_values = [f'{temp_table}.{Columns.new_cluster_id}']
+        from_clause_part = temp_table
+        where_clause_part = f'{embs_table}.{Columns.embedding_id} = {temp_table}.{Columns.embedding_id}'
+
+        emb_and_cluster_id_row_dicts = [
+            {Columns.embedding_id.col_name: embedding_id,
+             Columns.new_cluster_id.col_name: cluster.cluster_id}
+            for cluster in clusters
+            for embedding_id in cluster.get_embeddings_ids()
+        ]
+
+        # update_sql = f"""
+        #     UPDATE {embs_table}
+        #     SET ({Columns.cluster_id}) = ({_row_name}.{Columns.cluster_id})
+        #     FROM ({temp_table}) AS {_row_name}
+        #     WHERE {where_clause}
+        # """
+        #
         #     UPDATE inventory
         #     SET quantity = quantity - daily.amt
         #     FROM (SELECT sum(quantity) AS amt, itemId FROM sales GROUP BY 2) AS daily
         #     WHERE inventory.itemId = daily.itemId;
 
-        emb_and_cluster_id_row_dicts = [
-            {Columns.embedding_id.col_name: embedding_id,
-             Columns.cluster_id.col_name: cluster.cluster_id}
-            for cluster in clusters
-            for embedding_id in cluster.get_embeddings_ids()
-        ]
-
-        def store_embeddings_worker(con):
+        def update_embeddings_worker(con):
             cls.create_temp_table(temp_table, con=con)
             cls.store_in_table(temp_table, emb_and_cluster_id_row_dicts, con=con, close_connections=False)
-            cls.update_table(table, col_names, set_values,
-                             from_clause_part=from_clause_part, where_clause_part=where_clause_part, con=con,
-                             close_connections=False)
+            cls.update_table(embs_table, embs_col_names, embs_set_values, from_clause_part=from_clause_part,
+                             where_clause_part=where_clause_part, con=con, close_connections=False)
 
-        cls.connection_wrapper(store_embeddings_worker, con=con, close_connections=close_connections)
+        cls.connection_wrapper(update_embeddings_worker, con=con, close_connections=close_connections)
 
     @classmethod
     def remove_cluster_attributes(cls, clusters, con=None, close_connections=True):
         if is_instance_by_type_name(clusters, ClusterDict):
             clusters = clusters.get_clusters()
 
+        if not clusters:
+            return
+
         table = Tables.cluster_attributes_table
         temp_table = Tables.temp_cluster_ids_table
 
-        where_clause_part = f'{table}.{Columns.cluster_id} IN ({temp_table})'
+        select_cluster_ids = f"SELECT {Columns.cluster_id} FROM {temp_table}"
+        where_clause_part = f'{table}.{Columns.cluster_id} IN ({select_cluster_ids})'
 
         cluster_id_row_dicts = [
             {Columns.cluster_id.col_name: cluster.cluster_id}
@@ -1227,6 +1310,10 @@ class DBManager:
                                   close_connections=False)
 
         cls.connection_wrapper(remove_cluster_attributes_worker, con=con, close_connections=close_connections)
+
+    @classmethod
+    def _build_update_expressions(cls, update_cols):
+        return [f'excluded.{col}' for col in update_cols]
 
 
 class IncompleteDatabaseOperation(RuntimeError):

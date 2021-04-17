@@ -55,8 +55,8 @@ class CoreAlgorithm:
         # TODO: Allow embeddings_ids to be shorter than embeddings and 'fill up' remaining ids?
         if not embeddings:
             if final_clusters_only:
-                return []
-            return [], [], []
+                return ClusterDict()
+            return ClusterDict(), ClusterDict(), ClusterDict()
 
         if embeddings_ids is None:
             embeddings_with_ids = embeddings

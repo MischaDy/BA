@@ -103,7 +103,7 @@ def user_choose_embedding_id_worker(faces_dict, label):
 def user_choose_face_label(old_label):
     prompt = ("\n"
               f"The current label of the face is: '{old_label}'."
-              "\nPlease enter a new label, or press Enter to cancel.")
+              "\nPlease enter a new label, or press Enter to cancel.\n")
     new_label = get_user_input_of_type(prompt, obj_name='label', allow_empty=True)
     return new_label
 

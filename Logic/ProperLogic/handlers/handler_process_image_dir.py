@@ -56,6 +56,7 @@ def process_image_dir(cluster_dict, **kwargs):
         emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
 
         # TODO: Call reclassify handler here?
+        # TODO: Clear existing clusters? Issues with ids etc.????
         # passing result cluster dict already overwrites it
         clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids,
                                                              existing_clusters_dict=cluster_dict,

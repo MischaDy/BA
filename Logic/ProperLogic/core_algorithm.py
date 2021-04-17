@@ -37,12 +37,14 @@ class CoreAlgorithm:
     max_num_cluster_comps = max_num_total_comps // max_cluster_size  # maximum number of clusters to compute distance to
 
     @classmethod
-    def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_clusters_dict=None, final_clusters_only=True):
+    def cluster_embeddings(cls, embeddings, embeddings_ids=None, existing_clusters_dict=None,
+                           should_reset_cluster_ids=False, final_clusters_only=True):
         """
         Build clusters from face embeddings stored in the given path using the specified classification threshold.
         (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed
         in the same cluster. If cluster_save_path is set, store the resulting clusters as directories in the given path.
 
+        :param should_reset_cluster_ids:
         :param embeddings: Iterable containing the embeddings. It embeddings_ids is None, must consist of
         (id, embedding)-pairs
         :param embeddings_ids: Ordered iterable with the embedding ids. Must be at least as long as embeddings.
@@ -75,15 +77,16 @@ class CoreAlgorithm:
 
             embeddings_with_ids = starfilterfalse(exists_in_any_cluster, embeddings_with_ids)
         cluster_dict = existing_clusters_dict
+
+        if should_reset_cluster_ids:
+            cluster_dict.reset_ids()
+            next_cluster_id = cluster_dict.get_max_id() + 1
+        else:
+            max_existing_id = cluster_dict.get_max_id()
+            max_db_id = DBManager.get_max_cluster_id()
+            next_cluster_id = max(max_existing_id, max_db_id) + 1
+
         modified_clusters_ids, removed_clusters_ids = set(), set()
-
-        max_existing_id = existing_clusters_dict.get_max_id()
-        max_db_id = DBManager.get_max_cluster_id()
-        next_cluster_id = max(max_existing_id, max_db_id) + 1
-
-        # counter_vals = (range(2, cls.num_embeddings_to_classify + 1) if cls.num_embeddings_to_classify >= 0
-        #                 else count(2))
-
         get_closest_clusters = cls._choose_closest_clusters_func(len(cluster_dict))
         for embedding_id, new_embedding in embeddings_with_ids:
             closest_clusters = get_closest_clusters(cluster_dict, new_embedding)

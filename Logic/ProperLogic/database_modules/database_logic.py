@@ -514,7 +514,7 @@ class DBManager:
         cls.clear_tables(Tables.central_tables, con=con, close_connections=close_connections)
 
     @classmethod
-    def fetch_from_table(cls, table, path_to_local_db=None, col_names=None, cond='', cond_params=None, as_dicts=False,
+    def fetch_from_table(cls, table, path_to_local_db=None, cols=None, cond='', cond_params=None, as_dicts=False,
                          con=None, close_connections=True):
         """
 
@@ -524,16 +524,16 @@ class DBManager:
         :param con:
         :param table:
         :param path_to_local_db:
-        :param col_names: An iterable of column names, or an iterable containing only the string '*' (default).
+        :param cols: An iterable of column names, or an iterable containing only the string '*' (default).
         :param cond:
         :return:
         """
         # TODO: allow for multiple conditions(?)
         # TODO: Refactor?
         # TODO: More elegant solution?
-        if col_names is None or '*' in col_names:
-            col_names = table.get_column_names()
-        cols_template = ','.join(col_names)
+        if cols is None or '*' in cols:
+            cols = table.get_column_names()
+        cols_template = ','.join(map(str, cols))
         where_clause = cls._build_where_clause(cond)
         fetch_sql = f'SELECT {cols_template} FROM {table} {where_clause};'
 
@@ -546,7 +546,7 @@ class DBManager:
                                       close_connections=close_connections)
 
         # cast row of query results to row of usable data
-        processed_rows = (starmap(cls.sql_value_to_data, zip(row, col_names))
+        processed_rows = (starmap(cls.sql_value_to_data, zip(row, cols))
                           for row in rows)
         output_func = table.row_to_row_dict if as_dicts else tuple
         return map(output_func, processed_rows)
@@ -629,9 +629,9 @@ class DBManager:
 
     @classmethod
     def get_column(cls, col, table, with_embeddings_ids=False, as_dict=True, cond='', con=None, close_connections=True):
-        col_names = [Columns.embedding_id.col_name] if with_embeddings_ids else []
-        col_names.append(col.col_name)
-        query_results = cls.fetch_from_table(table, col_names=col_names, cond=cond, con=con,
+        cols = [Columns.embedding_id] if with_embeddings_ids else []
+        cols.append(col)
+        query_results = cls.fetch_from_table(table, cols=cols, cond=cond, con=con,
                                              close_connections=close_connections)
         if with_embeddings_ids and as_dict:
             return dict(query_results)
@@ -686,8 +686,8 @@ class DBManager:
 
     @classmethod
     def get_images_attributes(cls, path_to_local_db=None):
-        col_names = [Columns.file_name.col_name, Columns.last_modified.col_name]
-        rows = cls.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db, col_names=col_names)
+        cols = [Columns.file_name, Columns.last_modified]
+        rows = cls.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db, cols=cols)
         return rows
 
     @classmethod
@@ -755,7 +755,7 @@ class DBManager:
         cond_params = [path]
         path_id_rows = list(cls.fetch_from_table(
             Tables.directory_paths_table,
-            col_names=[Columns.path_id_col.col_name],
+            cols=[Columns.path_id_col],
             cond=cond,
             cond_params=cond_params
         ))
@@ -769,9 +769,9 @@ class DBManager:
     @classmethod
     def get_all_embeddings(cls, with_ids=False, as_dict=False):
         # TODO: Refactor?
-        col_names = [Columns.embedding_id.col_name] if with_ids else []
-        col_names.append(Columns.embedding.col_name)
-        embeddings = cls.fetch_from_table(Tables.embeddings_table, col_names=col_names)
+        cols = [Columns.embedding_id] if with_ids else []
+        cols.append(Columns.embedding)
+        embeddings = cls.fetch_from_table(Tables.embeddings_table, cols=cols)
         if with_ids and as_dict:
             return dict(embeddings)
         return embeddings
@@ -1142,15 +1142,17 @@ class DBManager:
         return cls.local_db_file_name in os.listdir(path)
 
     @classmethod
-    def overwrite_clusters(cls, modified_clusters_dict, removed_clusters_dict, emb_id_to_face_dict=None,
-                           emb_id_to_img_id_dict=None, no_new_embs=False, con=None, close_connections=True):
-        clusters = modified_clusters_dict.get_clusters()
+    def overwrite_clusters(cls, clusters_to_store_dict, clusters_to_remove_dict=None, emb_id_to_face_dict=None,
+                           emb_id_to_img_id_dict=None, no_new_embs=False, clear_clusters=False, con=None,
+                           close_connections=True):
+        clusters = clusters_to_store_dict.get_clusters()
 
         def overwrite_clusters_worker(con):
-            cls.remove_cluster_attributes(removed_clusters_dict, con=con, close_connections=False)
+            cls.remove_cluster_attributes(clusters_to_remove_dict, remove_all=clear_clusters, con=con,
+                                          close_connections=False)
             cls.upsert_cluster_attributes(clusters, con=con, close_connections=False)
             if no_new_embs:
-                cls.update_embeddings(clusters, con=con, close_connections=close_connections)
+                cls.update_embeddings(clusters, con=con, close_connections=False)
                 return
             cls.upsert_embeddings(clusters, emb_id_to_face_dict=emb_id_to_face_dict,
                                   emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con, close_connections=False)
@@ -1285,29 +1287,48 @@ class DBManager:
         cls.connection_wrapper(update_embeddings_worker, con=con, close_connections=close_connections)
 
     @classmethod
-    def remove_cluster_attributes(cls, clusters, con=None, close_connections=True):
-        if is_instance_by_type_name(clusters, ClusterDict):
-            clusters = clusters.get_clusters()
+    def remove_cluster_attributes(cls, clusters=None, remove_all=False, con=None, close_connections=True):
+        """
+        If remove_all is set, all clusters are removed and the clusters argument is ignored.
 
-        if not clusters:
-            return
+        :param clusters:
+        :param remove_all:
+        :param con:
+        :param close_connections:
+        :return:
+        """
+        if clusters is None and not remove_all:
+            raise IncompleteDatabaseOperation("one of 'clusters' and 'remove_all' must be provided to remove the"
+                                              " cluster attributes")
 
         table = Tables.cluster_attributes_table
-        temp_table = Tables.temp_cluster_ids_table
 
-        select_cluster_ids = f"SELECT {Columns.cluster_id} FROM {temp_table}"
-        where_clause_part = f'{table}.{Columns.cluster_id} IN ({select_cluster_ids})'
+        if remove_all:
+            # remove all clusters
+            def remove_cluster_attributes_worker(con):
+                cls.delete_from_table(table, con=con, close_connections=False)
 
-        cluster_id_row_dicts = [
-            {Columns.cluster_id.col_name: cluster.cluster_id}
-            for cluster in clusters
-        ]
+        else:
+            # remove specific clusters
+            if is_instance_by_type_name(clusters, ClusterDict):
+                clusters = clusters.get_clusters()
+            if not clusters:
+                return
 
-        def remove_cluster_attributes_worker(con):
-            cls.create_temp_table(temp_table, con=con)
-            cls.store_in_table(temp_table, cluster_id_row_dicts, con=con, close_connections=False)
-            cls.delete_from_table(table, where_clause_part=where_clause_part, con=con,
-                                  close_connections=False)
+            temp_table = Tables.temp_cluster_ids_table
+            select_cluster_ids = f"SELECT {Columns.cluster_id} FROM {temp_table}"
+            where_clause_part = f'{table}.{Columns.cluster_id} IN ({select_cluster_ids})'
+
+            cluster_id_row_dicts = [
+                {Columns.cluster_id.col_name: cluster.cluster_id}
+                for cluster in clusters
+            ]
+
+            def remove_cluster_attributes_worker(con):
+                cls.create_temp_table(temp_table, con=con)
+                cls.store_in_table(temp_table, cluster_id_row_dicts, con=con, close_connections=False)
+                cls.delete_from_table(table, where_clause_part=where_clause_part, con=con,
+                                      close_connections=False)
 
         cls.connection_wrapper(remove_cluster_attributes_worker, con=con, close_connections=close_connections)
 

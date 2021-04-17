@@ -60,8 +60,8 @@ def process_image_dir(cluster_dict, **kwargs):
         # passing result cluster dict already overwrites it
         clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids,
                                                              existing_clusters_dict=cluster_dict,
+                                                             should_reset_cluster_ids=True,
                                                              final_clusters_only=False)
-        cluster_dict.reset_ids()
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
         DBManager.overwrite_clusters(modified_clusters_dict, removed_clusters_dict,
                                      emb_id_to_face_dict=emb_id_to_face_dict,

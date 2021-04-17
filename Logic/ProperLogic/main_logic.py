@@ -110,7 +110,7 @@ def call_handler(handler, *args, **kwargs):
 
 
 def _show_thumbnail():
-    thumbs = DBManager.fetch_from_table(Tables.embeddings_table, col_names=[Columns.thumbnail])
+    thumbs = DBManager.fetch_from_table(Tables.embeddings_table, cols=[Columns.thumbnail])
     thumbs[0].show()
 
 

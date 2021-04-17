@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 # TODO: Randomize order of input images/embeddings, to check algorithmic stability (of clustering quality)!
 
 
-CLUSTERS_PATH = 'stored_clusters'
+CLUSTERS_PATH = '../ProperLogic/stored_clusters'
 
 SAVE_RESULTS = True
 SAVE_PATH = 'results'

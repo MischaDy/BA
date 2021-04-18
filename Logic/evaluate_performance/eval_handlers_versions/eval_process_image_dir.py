@@ -6,6 +6,7 @@ PROGRESS_STEPS = 10
 
 
 def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None):
+    Models.altered_mtcnn.keep_all = False
     try:
         faces_rows, emb_id_to_name_dict = eval_get_faces_rows(images_path, max_num_proc_imgs=max_num_proc_imgs)
     except IncompleteDatabaseOperation:
@@ -96,16 +97,16 @@ def eval_extract_faces(path, check_if_known=True, max_num_proc_imgs=None, centra
 
         faces_rows = []
         emb_id_to_name_dict = {}
-        img_id = max_img_id + 1
+        start_img_id = max_img_id + 1
         max_embedding_id = initial_max_embedding_id
 
         if max_num_proc_imgs is not None:
-            counted_img_loader = zip(range(1, max_num_proc_imgs + 1), img_loader)
+            counted_img_loader = zip(range(start_img_id, max_num_proc_imgs + 1), img_loader)
         else:
-            counted_img_loader = enumerate(img_loader, start=1)
+            counted_img_loader = enumerate(img_loader, start=start_img_id)
 
-        for counter, (img_path, img_name, img) in counted_img_loader:
-            print_progress(counter, 'image')
+        for img_id, (img_path, img_name, img) in counted_img_loader:
+            print_progress(img_id, 'image')
 
             last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
             if check_if_known and (img_name, last_modified) in imgs_names_and_date:
@@ -115,25 +116,25 @@ def eval_extract_faces(path, check_if_known=True, max_num_proc_imgs=None, centra
                                   path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
             DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
 
-            try:
-                img_faces = cut_out_faces(Models.mtcnn, img)
-            except FaceDetectionError as e:
-                e.args = (*e.args, img_path)
-                log_error(e)
+            # img_faces = cut_out_faces(Models.mtcnn, img)
+            img_face = Models.altered_mtcnn.forward_return_results(img)
+            if img_face is None:
+                log_error(f"no faces found in image '{img_path}'")
                 continue
 
-            if len(img_faces) != 1:
-                error_msg = f'more than 1 face encountered!' '\n' f'{counter}, {img_path}, {img_name}'
-                raise RuntimeError(error_msg)
+            # if len(img_faces) != 1:
+            #     error_msg = f'more than 1 face encountered!' '\n' f'{img_id}, {img_path}, {img_name}'
+            #     raise RuntimeError(error_msg)
 
             cur_faces_rows = []
-            for embedding_id, face in enumerate(img_faces, start=max_embedding_id + 1):
-                cur_faces_rows.append({Columns.thumbnail.col_name: face,
-                                       Columns.image_id.col_name: img_id,
-                                       Columns.embedding_id.col_name: embedding_id})
-                emb_id_to_name_dict[embedding_id] = img_name
+            embedding_id = max_embedding_id + 1
+            face = img_face
+            cur_faces_rows.append({Columns.thumbnail.col_name: face,
+                                   Columns.image_id.col_name: img_id,
+                                   Columns.embedding_id.col_name: embedding_id})
+            emb_id_to_name_dict[embedding_id] = img_name
             faces_rows.extend(cur_faces_rows)
-            max_embedding_id += len(img_faces)
+            max_embedding_id += 1
             img_id += 1
 
         return faces_rows, emb_id_to_name_dict

@@ -9,10 +9,9 @@ from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
-from Logic.ProperLogic.handlers.handler_reclassify import reclassify
 from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict, starfilter, get_every_nth_item, \
     ignore_first_n_args_decorator
-from Logic.ProperLogic.models import Models
+from Logic.ProperLogic.models_modules.models import Models
 from Logic.ProperLogic.handlers.helpers import TO_TENSOR
 
 
@@ -165,8 +164,8 @@ def extract_faces(path, check_if_known=True, central_con=None, local_con=None, c
             DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
                                   path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
             DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
-
-            img_faces = cut_out_faces(Models.mtcnn, img)
+            # img_faces = cut_out_faces(Models.mtcnn, img)
+            img_faces = Models.altered_mtcnn.forward_return_results(img)
             # TODO: Better way to create these row_dicts?
             cur_faces_rows = [{Columns.thumbnail.col_name: face,
                                Columns.image_id.col_name: img_id,
@@ -216,34 +215,35 @@ def choose_args(indices, *args):
     return [arg for i, arg in enumerate(args) if i in indices]
 
 
-def cut_out_faces(mtcnn, img):
-    """
-    NOTE: This part is copied from the extract_face function in facenet_pytorch/models/utils/detect_face.py,
-    since this particular functionality is only provided for saving, not for returning the face pictures.
-    """
-    # TODO: Use a file buffer or something like that to save from the original function instead of doing this??
-    #       --> Not possible, it expects file path
-    boxes, _ = mtcnn.detect(img)
-    if boxes is None:
-        raise FaceDetectionError('no faces detected in image')
-    image_size, mtcnn_margin = mtcnn.image_size, mtcnn.margin
-    faces = []
-    for box in boxes:
-        margin = [
-            mtcnn_margin * (box[2] - box[0]) / (image_size - mtcnn_margin),
-            mtcnn_margin * (box[3] - box[1]) / (image_size - mtcnn_margin),
-            ]
-        raw_image_size = get_size(img)
-        box = [
-            int(max(box[0] - margin[0] / 2, 0)),
-            int(max(box[1] - margin[1] / 2, 0)),
-            int(min(box[2] + margin[0] / 2, raw_image_size[0])),
-            int(min(box[3] + margin[1] / 2, raw_image_size[1])),
-        ]
-
-        face = crop_resize(img, box, image_size)
-        faces.append(face)
-    return faces
+# def cut_out_faces(mtcnn, img, keep_all=True):
+#     """
+#     NOTE: This part is copied from the extract_face function in facenet_pytorch/models/utils/detect_face.py,
+#     since this particular functionality is only provided for saving, not for returning the face pictures.
+#     """
+#     boxes, _ = mtcnn.detect(img)
+#     if boxes is None:
+#         raise FaceDetectionError('no faces detected in image')
+#     if not keep_all:
+#         boxes = boxes[0]
+#
+#     image_size, mtcnn_margin = mtcnn.image_size, mtcnn.margin
+#     faces = []
+#     for box in boxes:
+#         margin = [
+#             mtcnn_margin * (box[2] - box[0]) / (image_size - mtcnn_margin),
+#             mtcnn_margin * (box[3] - box[1]) / (image_size - mtcnn_margin),
+#             ]
+#         raw_image_size = get_size(img)
+#         box = [
+#             int(max(box[0] - margin[0] / 2, 0)),
+#             int(max(box[1] - margin[1] / 2, 0)),
+#             int(min(box[2] + margin[0] / 2, raw_image_size[0])),
+#             int(min(box[3] + margin[1] / 2, raw_image_size[1])),
+#         ]
+#
+#         face = crop_resize(img, box, image_size)
+#         faces.append(face)
+#     return faces
 
 
 def get_img_names(dir_path, recursive=False, img_extensions=None, with_paths=False):

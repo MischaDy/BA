@@ -33,7 +33,6 @@ def main(clusters, emb_id_to_name_dict, save_results, save_path):
     # num_pairs = sum i=0...num_embeddings-1 {i} = n (n-1) / 2
     # = len(list(combinations(range(n), 2)))
     # = 2293011
-    # TODO: num pairs computations seems to be wrong!
     num_pairs = num_embeddings * (num_embeddings + 1) / 2
     other_result_types = ['true positives', 'false positives', 'false negatives']
     num_true_negatives = num_pairs - sum(get_multiple(output_dict, other_result_types))
@@ -124,7 +123,7 @@ def count_false_negatives(clusters, emb_id_to_name_dict):
         # Count iff result of check (yes/no) is same as wanted type (true/false positives)
         return _are_same_person(*emb_id_pair, emb_id_to_name_dict)
 
-    clusters_embedding_pairs = _get_inter_clusters_embedding_pairs(clusters)
+    clusters_embedding_pairs = _get_inter_clusters_embedding_id_pairs(clusters)
     total_positives = 0
     for embedding_pairs in clusters_embedding_pairs:
         # if count % 10000 == 0:
@@ -137,23 +136,23 @@ def count_false_negatives(clusters, emb_id_to_name_dict):
 def _get_intra_clusters_embedding_id_pairs(clusters):
     # TODO: Refactor
     for cluster in clusters:
-        cluster_embeddings = cluster.get_embeddings_ids()
-        embedding_pairs = combinations_with_replacement(cluster_embeddings, 2)
-        yield embedding_pairs
+        cluster_embeddings_ids = cluster.get_embeddings_ids()
+        embedding_id_pairs = combinations_with_replacement(cluster_embeddings_ids, 2)
+        yield embedding_id_pairs
 
 
-def _get_inter_clusters_embedding_pairs(clusters):
+def _get_inter_clusters_embedding_id_pairs(clusters):
     # TODO: Refactor
     cluster_pairs = combinations(clusters, 2)
     logging.info('STARTING INTER-CLUSTERS ITERATIONS')
     for count, (cluster1, cluster2) in enumerate(cluster_pairs):
         if count % INTER_CLUSTERS_ITERATIONS_PROGRESS == 0:
             logging.info(f' --- cluster iteration: {count}')
-        cluster1_embeddings = cluster1.get_embeddings()
-        cluster2_embeddings = cluster2.get_embeddings()
+        cluster1_embeddings_ids = cluster1.get_embeddings_ids()
+        cluster2_embeddings_ids = cluster2.get_embeddings_ids()
 
-        embedding_pairs = product(cluster1_embeddings, cluster2_embeddings)
-        yield embedding_pairs
+        embeddings_ids_pairs = product(cluster1_embeddings_ids, cluster2_embeddings_ids)
+        yield embeddings_ids_pairs
 
 
 # ------- HELPERS -------

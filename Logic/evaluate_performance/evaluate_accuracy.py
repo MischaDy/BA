@@ -8,13 +8,16 @@ from eval_handlers_versions.eval_process_image_dir import eval_process_image_dir
 import f_measure
 
 
-MAX_NUM_PROC_IMGS = 1
+# set to None to process all
+MAX_NUM_PROC_IMGS = 10
 # IMAGES_PATH = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\subset_cplfw\images'
 IMAGES_PATH = r'..\my_test\subset_cplfw\images'
 SAVE_RESULTS = True
 SAVE_PATH = 'results'
 DROP_TABLES = True
 
+
+# TODO: Fix <class 'sqlite3.IntegrityError'>, ('UNIQUE constraint failed: images.image_id',)
 
 def run_evaluation(images_path):
     if DROP_TABLES:

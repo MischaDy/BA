@@ -115,7 +115,13 @@ def eval_extract_faces(path, check_if_known=True, max_num_proc_imgs=None, centra
                                   path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
             DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
 
-            img_faces = cut_out_faces(Models.mtcnn, img)
+            try:
+                img_faces = cut_out_faces(Models.mtcnn, img)
+            except FaceDetectionError as e:
+                e.args = (*e.args, img_path)
+                log_error(e)
+                continue
+
             if len(img_faces) != 1:
                 error_msg = f'more than 1 face encountered!' '\n' f'{counter}, {img_path}, {img_name}'
                 raise RuntimeError(error_msg)

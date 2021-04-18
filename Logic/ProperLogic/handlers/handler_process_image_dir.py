@@ -224,6 +224,8 @@ def cut_out_faces(mtcnn, img):
     # TODO: Use a file buffer or something like that to save from the original function instead of doing this??
     #       --> Not possible, it expects file path
     boxes, _ = mtcnn.detect(img)
+    if boxes is None:
+        raise FaceDetectionError('no faces detected in image')
     image_size, mtcnn_margin = mtcnn.image_size, mtcnn.margin
     faces = []
     for box in boxes:
@@ -286,3 +288,7 @@ def is_img(obj_path, img_extensions=None):
     if not os.path.isfile(obj_path):
         return False
     return any(map(lambda ext: obj_path.endswith(ext), img_extensions))
+
+
+class FaceDetectionError(RuntimeError):
+    pass

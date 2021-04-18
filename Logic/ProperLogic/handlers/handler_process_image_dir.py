@@ -1,6 +1,7 @@
 import datetime
 import os
 from functools import partial
+from itertools import chain
 
 from PIL import Image
 from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
@@ -181,15 +182,16 @@ def extract_faces(path, check_if_known=True, central_con=None, local_con=None, c
     return faces_rows
 
 
-def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=False, extensions=None):
+def load_imgs_from_path(dir_path, recursive=False, output_file_names=False, output_file_paths=False, extensions=None):
     """
     Yield all images in the given directory.
     If img_img_extensions is empty, all files are assumed to be images. Otherwise, only files with extensions appearing
     in the set will be returned.
 
+    :param dir_path: Directory containing images
+    :param recursive: Whether subdirectories should also be processed (recursively)
     :param output_file_names: Whether the tensor should be yielded together with the corresponding file name
     :param output_file_paths: Whether the tensor should be yielded together with the corresponding file path
-    :param dir_path: Directory containing images
     :param extensions: Iterable of file extensions considered images, e.g. ['jpg', 'png']. Default: 'jpg' and 'png'.
     filtering
     :return: Yield(!) tuples of image_names and PIL images contained in this folder
@@ -202,8 +204,7 @@ def load_imgs_from_path(dir_path, output_file_names=False, output_file_paths=Fal
         indices.append(1)
     indices.append(2)
     output_format_func = partial(choose_args, indices)
-    for img_name in get_img_names(dir_path, extensions):
-        img_path = os.path.join(dir_path, img_name)
+    for img_path, img_name in get_img_names(dir_path, recursive, extensions):
         with Image.open(img_path) as img:
             yield output_format_func(img_path, img_name, img)
 
@@ -242,18 +243,26 @@ def cut_out_faces(mtcnn, img):
     return faces
 
 
-def get_img_names(dir_path, img_extensions=None):
+def get_img_names(dir_path, recursive=False, img_extensions=None):
     """
     Yield all image file paths in dir_path.
     """
-
-    # TODO: Implement recursive option?
-    # TODO: Put function outside?
+    # TODO: Output image names *and* paths!
+    # TODO: Put the following function outside?
     def is_img_known_extensions(obj_name):
-        return is_img(os.path.join(dir_path, obj_name), img_extensions)
+        obj_path = os.path.join(dir_path, obj_name)
+        return is_img(obj_path, img_extensions)
 
-    image_paths = filter(is_img_known_extensions, os.listdir(dir_path))
-    return image_paths
+    objects_in_dir = os.listdir(dir_path)
+    img_names_in_dir = filter(is_img_known_extensions, objects_in_dir)
+    if not recursive:
+        return img_names_in_dir
+
+    dir_paths = filter(os.path.isdir, objects_in_dir)
+    subdirs_img_names_iterables = map(partial(get_img_names, recursive=True),
+                                      dir_paths)
+    all_img_names = chain(img_names_in_dir, *subdirs_img_names_iterables)
+    return all_img_names
 
 
 def is_img(obj_path, img_extensions=None):

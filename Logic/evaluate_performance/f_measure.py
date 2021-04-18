@@ -9,148 +9,142 @@ logging.basicConfig(level=logging.INFO)
 
 # TODO: Randomize order of input images/embeddings, to check algorithmic stability (of clustering quality)!
 
-
-CLUSTERS_PATH = '../ProperLogic/stored_clusters'
-
-SAVE_RESULTS = True
-SAVE_PATH = 'results'
+# SAVE_RESULTS = True
+# SAVE_PATH = 'results'
+INTER_CLUSTERS_ITERATIONS_PROGRESS = 10000
 
 # cf. Bijl - A comparison of clustering algorithms for face clustering
 
 
-# TODO: For future: how to do this more elegantly? write/log to string buffer or sth?
-TEMP_OUTPUT_DICT = {}
-
-
-def main(clusters_path, save_results, save_path):
+def main(clusters, emb_id_to_name_dict, save_results, save_path):
     if not save_results:
-        ans = input("Really don't save the results? Press Enter without entering anything to abort.\n")
+        ans = input("Really don't save the results? Press Enter without entering anything to abort function.\n")
         if not ans:
             exit()
         print()
 
-    f_measure = compute_f_measure(clusters_path)
-    TEMP_OUTPUT_DICT['f-measure'] = f_measure
-    num_embeddings = len(os.listdir(clusters_path))
+    output_dict = {}
+    f_measure = compute_f_measure(clusters, emb_id_to_name_dict, output_dict)
+    output_dict['f-measure'] = f_measure
+    num_embeddings = len(emb_id_to_name_dict)
     # num_pairs = sum i=0...num_embeddings-1 {i} = n (n-1) / 2
     # = len(list(combinations(range(n), 2)))
     # = 2293011
     num_pairs = num_embeddings * (num_embeddings - 1) / 2
-    num_true_negatives = num_pairs - sum(value for value in TEMP_OUTPUT_DICT.values() if str(value).isdigit())
-    TEMP_OUTPUT_DICT['true negatives'] = num_true_negatives
+    num_true_negatives = num_pairs - sum(value for value in output_dict.values() if str(value).isdigit())
+    output_dict['true negatives'] = num_true_negatives
 
     if save_results:
-        file_name = f'results_{round(time.time())}.txt'
-        file_path = os.path.join(save_path, file_name)
-        with open(file_path, 'w') as file:
-            output = '\n'.join(f'{key}: {value}' for key, value in TEMP_OUTPUT_DICT.items())
-            file.write(output)
+        save_f_measure_result(save_path, output_dict)
 
 
-def compute_f_measure(clusters_path):
-    global TEMP_OUTPUT_DICT
-    num_true_positives = count_true_positives(clusters_path)
-    precision = compute_pairwise_precision(clusters_path, num_true_positives)
-    recall = compute_pairwise_recall(clusters_path, num_true_positives)
-    TEMP_OUTPUT_DICT['precision'] = precision
-    TEMP_OUTPUT_DICT['recall'] = recall
+def save_f_measure_result(save_path, output_dict):
+    file_name = f'results_{round(time.time())}.txt'
+    file_path = os.path.join(save_path, file_name)
+    with open(file_path, 'w') as file:
+        output = '\n'.join(f'{key}: {value}' for key, value in output_dict.items())
+        file.write(output)
+
+
+def compute_f_measure(clusters, emb_id_to_name_dict, output_dict):
+    num_true_positives = count_true_positives(clusters, emb_id_to_name_dict)
+    precision = compute_pairwise_precision(clusters, emb_id_to_name_dict, output_dict, num_true_positives)
+    recall = compute_pairwise_recall(clusters, emb_id_to_name_dict, output_dict, num_true_positives)
+    output_dict['precision'] = precision
+    output_dict['recall'] = recall
     return 2 * precision * recall / (precision + recall)
 
 
-def compute_pairwise_precision(clusters_path, num_true_positives=None):
-    global TEMP_OUTPUT_DICT
+def compute_pairwise_precision(clusters, emb_id_to_name_dict, output_dict, num_true_positives=None):
     """Fraction of faces correctly clustered together of all faces clustered together"""
     # intuition: Of all faces *placed* in same cluster(s), how many really *belonged* there (together)?
     # best when: clusters small
     if num_true_positives is None:
-        num_true_positives = count_true_positives(clusters_path)
-    num_false_positives = count_false_positives(clusters_path)
-    TEMP_OUTPUT_DICT['true positives'] = num_true_positives
-    TEMP_OUTPUT_DICT['false positives'] = num_false_positives
+        num_true_positives = count_true_positives(clusters, emb_id_to_name_dict)
+    num_false_positives = count_false_positives(clusters, emb_id_to_name_dict)
+    output_dict['true positives'] = num_true_positives
+    output_dict['false positives'] = num_false_positives
     return num_true_positives / (num_true_positives + num_false_positives)
 
 
-def compute_pairwise_recall(clusters_path, num_true_positives=None):
-    global TEMP_OUTPUT_DICT
+def compute_pairwise_recall(clusters, emb_id_to_name_dict, output_dict, num_true_positives=None):
     """Fraction of faces correctly clustered together of all faces belonging together"""
     # intuition: Of all faces which *belonged* in same cluster(s), how many were actually *placed* there (together)?
     # best when: clusters big
     if num_true_positives is None:
-        num_true_positives = count_true_positives(clusters_path)
-    num_false_negatives = count_false_negatives(clusters_path)
-    TEMP_OUTPUT_DICT['false negatives'] = num_false_negatives
+        num_true_positives = count_true_positives(clusters, emb_id_to_name_dict)
+    num_false_negatives = count_false_negatives(clusters, emb_id_to_name_dict)
+    output_dict['false negatives'] = num_false_negatives
     return num_true_positives / (num_true_positives + num_false_negatives)
 
 
 # TODO: Does order matter??? I.e. is (f1, f2) != (f2, f1)? Does this matter for the evaluation??
 # TODO: Parallelize the counting? Is this important? ---> only if slow or cumbersome!
-def count_true_positives(clusters_path):
+def count_true_positives(clusters, emb_id_to_name_dict):
     """Number of face pairs correctly clustered to same cluster"""
-    return _count_positives(clusters_path, True)
+    return _count_positives(clusters, emb_id_to_name_dict, True)
 
 
-def count_false_positives(clusters_path):
+def count_false_positives(clusters, emb_id_to_name_dict):
     """Number of face pairs incorrectly clustered to same cluster"""
-    return _count_positives(clusters_path, False)
+    return _count_positives(clusters, emb_id_to_name_dict, False)
 
 
-def _count_positives(clusters_path, type_of_positives):
+def _count_positives(clusters, emb_id_to_name_dict, type_of_positives):
     """
     ...
-    :param clusters_path: Path to the clusters, each containing embeddings
     :param type_of_positives: Boolean(!) indicating whether true or false positives are to be returned.
     :return: Number of
     """
-    def does_match(pair):
+    def does_match(emb_id_pair):
         # Count iff result of check (yes/no) is same as wanted type (true/false positives)
-        return _are_same_person(*pair) is type_of_positives
+        return _are_same_person(*emb_id_pair, emb_id_to_name_dict) is type_of_positives
 
-    clusters_embedding_pairs = _get_intra_clusters_embedding_pairs(clusters_path)
+    clusters_embedding_id_pairs = _get_intra_clusters_embedding_id_pairs(clusters)
+    total_positives = 0
+    for embedding_id_pairs in clusters_embedding_id_pairs:
+        cluster_positives = sum(map(does_match, embedding_id_pairs))
+        total_positives += cluster_positives
+    return total_positives
+
+
+def count_false_negatives(clusters, emb_id_to_name_dict):
+    """
+    Number of face pairs incorrectly clustered to different clusters
+
+    :return: Number of
+    """
+    def does_match(emb_id_pair):
+        # Count iff result of check (yes/no) is same as wanted type (true/false positives)
+        return _are_same_person(*emb_id_pair, emb_id_to_name_dict)
+
+    clusters_embedding_pairs = _get_inter_clusters_embedding_pairs(clusters)
     total_positives = 0
     for embedding_pairs in clusters_embedding_pairs:
+        # if count % 10000 == 0:
+        #     logging.info(f'--- --- embeddings iteration: {count}')
         cluster_positives = sum(map(does_match, embedding_pairs))
         total_positives += cluster_positives
     return total_positives
 
 
-def count_false_negatives(clusters_path):
-    """Number of face pairs incorrectly clustered to different clusters"""
-    """
-    ...
-    :param clusters_path: Path to the clusters, each containing embeddings
-    :param type_of_positives: Boolean(!) indicating whether true or false positives are to be returned.
-    :return: Number of
-    """
-    clusters_embedding_pairs = _get_inter_clusters_embedding_pairs(clusters_path)
-    total_positives = 0
-    for embedding_pairs in clusters_embedding_pairs:
-        # if count % 10000 == 0:
-        #     logging.info(f'--- --- embeddings iteration: {count}')
-        cluster_positives = sum(map(lambda pair: _are_same_person(*pair), embedding_pairs))
-        total_positives += cluster_positives
-    return total_positives
-
-
-# TODO: Refactor
-def _get_intra_clusters_embedding_pairs(clusters_path):
-    for cluster_name in os.listdir(clusters_path):
-        cluster_embeddings_path = os.path.join(clusters_path, cluster_name)
-        cluster_embeddings = os.listdir(cluster_embeddings_path)
+def _get_intra_clusters_embedding_id_pairs(clusters):
+    # TODO: Refactor
+    for cluster in clusters:
+        cluster_embeddings = cluster.get_embeddings(with_embeddings_ids=False)
         embedding_pairs = combinations_with_replacement(cluster_embeddings, 2)
         yield embedding_pairs
 
 
-# TODO: Refactor
-def _get_inter_clusters_embedding_pairs(clusters_path):
-    cluster_pairs = combinations(os.listdir(clusters_path), 2)
+def _get_inter_clusters_embedding_pairs(clusters):
+    # TODO: Refactor
+    cluster_pairs = combinations(clusters, 2)
     logging.info('STARTING INTER-CLUSTERS ITERATIONS')
-    for count, (cluster1_name, cluster2_name) in enumerate(cluster_pairs):
-        if count % 10000 == 0:
+    for count, (cluster1, cluster2) in enumerate(cluster_pairs):
+        if count % INTER_CLUSTERS_ITERATIONS_PROGRESS == 0:
             logging.info(f' --- cluster iteration: {count}')
-        cluster1_embeddings_path = os.path.join(clusters_path, cluster1_name)
-        cluster2_embeddings_path = os.path.join(clusters_path, cluster2_name)
-        cluster1_embeddings = os.listdir(cluster1_embeddings_path)
-        cluster2_embeddings = os.listdir(cluster2_embeddings_path)
+        cluster1_embeddings = cluster1.get_embeddings()
+        cluster2_embeddings = cluster2.get_embeddings()
 
         embedding_pairs = product(cluster1_embeddings, cluster2_embeddings)
         yield embedding_pairs
@@ -158,10 +152,11 @@ def _get_inter_clusters_embedding_pairs(clusters_path):
 
 # ------- HELPERS -------
 
-def _are_same_person(embedding_name1, embedding_name2):
+def _are_same_person(emb_id1, emb_id2, emb_id_to_name_dict):
     # TODO: Don't assume underscore based naming with digits at end as only difference!?
-    person1_numbered_name, _ = os.path.splitext(embedding_name1)
-    person2_numbered_name, _ = os.path.splitext(embedding_name2)
+    emb_name1, emb_name2 = map(emb_id_to_name_dict.get, [emb_id1, emb_id2])
+    person1_numbered_name, _ = os.path.splitext(emb_name1)
+    person2_numbered_name, _ = os.path.splitext(emb_name2)
     person1_name = _rstrip_underscored_part(person1_numbered_name)
     person2_name = _rstrip_underscored_part(person2_numbered_name)
     return person1_name == person2_name
@@ -186,5 +181,5 @@ def _rstrip_underscored_part(string):
 #     pass
 
 
-if __name__ == '__main__':
-    main(CLUSTERS_PATH, SAVE_RESULTS, SAVE_PATH)
+# if __name__ == '__main__':
+#     main(SAVE_RESULTS, SAVE_PATH)

@@ -1,11 +1,10 @@
-import os
 from functools import partial
 from typing import Union, Tuple
 
 from Logic.ProperLogic.cluster_modules.cluster import Cluster
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import DBManager
-from misc_helpers import remove_items, starfilterfalse, partition
+from Logic.ProperLogic.misc_helpers import remove_items, starfilterfalse, partition
 
 from itertools import combinations
 
@@ -24,9 +23,6 @@ EMBEDDINGS_PATH = 'stored_embeddings'
 # TODO: Test, that cluster-split works and that params are ok!
 
 class CoreAlgorithm:
-    path_to_central_db = os.path.join(DBManager.db_files_path, DBManager.central_db_file_name)
-    path_to_local_db = os.path.join(DBManager.db_files_path, DBManager.local_db_file_name)
-
     # 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
     classification_threshold = 0.73
     # TODO: Is that a sensible value?

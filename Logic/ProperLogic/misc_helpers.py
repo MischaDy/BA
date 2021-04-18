@@ -1,5 +1,6 @@
 import logging
 import operator
+import os
 from functools import reduce
 
 from itertools import filterfalse, tee
@@ -365,3 +366,21 @@ def enumerate_strs(iterable, start=0):
     str_enumeration = ((str(count), item)
                        for count, item in enumerate(iterable, start))
     return str_enumeration
+
+
+def get_parent_dir_path(obj_path):
+    return os.path.split(obj_path)[0]
+
+
+def ignore_first_n_args_decorator(n=0):
+    def ignore_first_n_args(func):
+        # TODO: User functools.wraps or the like?
+        def wrapped(*args, **kwargs):
+            args_subset = args[n:]
+            return func(*args_subset, **kwargs)
+        return wrapped
+    return ignore_first_n_args
+
+
+def get_multiple(dict_, keys):
+    return map(dict_.get, keys)

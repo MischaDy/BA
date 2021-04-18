@@ -1,5 +1,8 @@
+import os
+
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import DBManager
+from Logic.ProperLogic.main_logic import init_program
 from eval_handlers_versions.eval_process_image_dir import eval_process_image_dir
 
 import f_measure
@@ -13,29 +16,31 @@ SAVE_PATH = 'results'
 DROP_TABLES = True
 
 
-def main(images_path):
+def run_evaluation(images_path):
     if DROP_TABLES:
-        drop_tables()
+        delete_db_files()
+    init_program()
+
     cluster_dict = ClusterDict()
     emb_id_to_name_dict = eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=MAX_NUM_PROC_IMGS)
     clusters = cluster_dict.get_clusters()
     f_measure.main(clusters, emb_id_to_name_dict, SAVE_RESULTS, SAVE_PATH)
 
 
-def drop_tables():
-    clear_central_tables()
-    clear_local_tables()
+def delete_db_files():
+    delete_central_db_file()
+    delete_local_db_file()
 
 
-def clear_local_tables():
-    path_to_local_db_dir_path = IMAGES_PATH
-    path_to_local_db = DBManager.get_db_path(path_to_local_db_dir_path, local=True)
-    DBManager.clear_local_tables(path_to_local_db)
+def delete_central_db_file():
+    path_to_central_db_file = DBManager.get_central_db_file_path()
+    os.remove(path_to_central_db_file)
 
 
-def clear_central_tables():
-    DBManager.clear_central_tables()
+def delete_local_db_file():
+    path_to_local_db_file = DBManager.get_local_db_file_path(IMAGES_PATH)
+    os.remove(path_to_local_db_file)
 
 
 if __name__ == '__main__':
-    main(IMAGES_PATH)
+    run_evaluation(IMAGES_PATH)

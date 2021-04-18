@@ -63,11 +63,11 @@ def clear_data(cluster_dict, **kwargs):
 
 
 def clear_local_tables(con=None, close_connections=True):
-    path_to_local_db_dir_path = user_choose_local_db_dir_path()
-    if path_to_local_db_dir_path is None:
+    local_db_dir_path = user_choose_local_db_dir_path()
+    if local_db_dir_path is None:
         return
 
-    path_to_local_db = DBManager.get_db_path(path_to_local_db_dir_path, local=True)
+    path_to_local_db = DBManager.get_local_db_file_path(local_db_dir_path)
     DBManager.clear_local_tables(path_to_local_db, con=con, close_connections=close_connections)
 
 

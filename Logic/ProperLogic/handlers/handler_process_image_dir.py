@@ -10,7 +10,8 @@ from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
 from Logic.ProperLogic.handlers.handler_reclassify import reclassify
-from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict
+from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict, starfilter, get_every_nth_item, \
+    ignore_first_n_args_decorator
 from Logic.ProperLogic.models import Models
 from Logic.ProperLogic.handlers.helpers import TO_TENSOR
 
@@ -29,7 +30,7 @@ def process_image_dir(cluster_dict, **kwargs):
 
     images_path = user_choose_images_path()
     try:
-        path_to_local_db = DBManager.get_db_path(images_path, local=True)
+        path_to_local_db = DBManager.get_local_db_file_path(images_path)
     except IncompleteDatabaseOperation:
         return
 
@@ -79,7 +80,7 @@ def process_image_dir(cluster_dict, **kwargs):
 def user_choose_images(images_path, path_to_local_db=None, central_con=None, local_con=None, close_connections=True):
     # TODO: Are the following lines a good default?
     if path_to_local_db is None and local_con is None:
-        path_to_local_db = DBManager.get_db_path(images_path, local=True)
+        path_to_local_db = DBManager.get_local_db_file_path(images_path)
 
     def user_choose_images_worker(central_con, local_con):
         DBManager.create_local_tables(drop_existing_tables=False, path_to_local_db=path_to_local_db,
@@ -130,7 +131,7 @@ def extract_faces(path, check_if_known=True, central_con=None, local_con=None, c
     # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
     # TODO: Store + update max_img_id and max_embedding_id somewhere rather than (always) get them via DB query?
 
-    path_to_local_db = DBManager.get_db_path(path, local=True)
+    path_to_local_db = DBManager.get_local_db_file_path(path)
     img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
 
     def extract_faces_worker(central_con, local_con):
@@ -204,7 +205,7 @@ def load_imgs_from_path(dir_path, recursive=False, output_file_names=False, outp
         indices.append(1)
     indices.append(2)
     output_format_func = partial(choose_args, indices)
-    for img_path, img_name in get_img_names(dir_path, recursive, extensions):
+    for img_name, img_path in get_img_names(dir_path, recursive, extensions, with_paths=True):
         with Image.open(img_path) as img:
             yield output_format_func(img_path, img_name, img)
 
@@ -243,26 +244,32 @@ def cut_out_faces(mtcnn, img):
     return faces
 
 
-def get_img_names(dir_path, recursive=False, img_extensions=None):
+def get_img_names(dir_path, recursive=False, img_extensions=None, with_paths=False):
     """
     Yield all image file paths in dir_path.
     """
-    # TODO: Output image names *and* paths!
     # TODO: Put the following function outside?
-    def is_img_known_extensions(obj_name):
-        obj_path = os.path.join(dir_path, obj_name)
+    @ignore_first_n_args_decorator(n=1)
+    def is_img_known_extensions(obj_path):
         return is_img(obj_path, img_extensions)
 
-    objects_in_dir = os.listdir(dir_path)
-    img_names_in_dir = filter(is_img_known_extensions, objects_in_dir)
+    object_names_in_dir = list(os.listdir(dir_path))
+    object_paths_in_dir = list(map(partial(os.path.join, dir_path),
+                                   object_names_in_dir))
+    object_names_and_paths = zip(object_names_in_dir, object_paths_in_dir)
+    img_names_and_paths = starfilter(is_img_known_extensions, object_names_and_paths)
+    img_names_in_dir = get_every_nth_item(img_names_and_paths, n=0)
     if not recursive:
+        if with_paths:
+            return img_names_and_paths
         return img_names_in_dir
 
-    dir_paths = filter(os.path.isdir, objects_in_dir)
-    subdirs_img_names_iterables = map(partial(get_img_names, recursive=True),
+    dir_paths = filter(os.path.isdir, object_paths_in_dir)
+    subdirs_img_names_iterables = map(partial(get_img_names, recursive=True, with_paths=with_paths),
                                       dir_paths)
-    all_img_names = chain(img_names_in_dir, *subdirs_img_names_iterables)
-    return all_img_names
+    img_objects_iterable = img_names_and_paths if with_paths else img_names_in_dir
+    all_img_objects = chain(img_objects_iterable, *subdirs_img_names_iterables)
+    return all_img_objects
 
 
 def is_img(obj_path, img_extensions=None):

@@ -15,7 +15,7 @@ from Logic.ProperLogic.cluster_modules.cluster import Cluster
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns, ColumnTypes, ColumnDetails, \
     ColumnSchema
-from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error, get_every_nth_item
+from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error, get_every_nth_item, get_parent_dir_path
 
 """
 ----- DB SCHEMA -----
@@ -39,7 +39,7 @@ cluster_attributes(INT cluster_id, TEXT label, BLOB center)
 
 class DBManager:
     __strange_sep = ' || '
-    db_files_path = 'database_modules'
+    db_files_path = get_parent_dir_path(__file__)
     central_db_file_name = 'central_db.sqlite'
     central_db_file_path = os.path.join(db_files_path, central_db_file_name)
     local_db_file_name = 'local_db.sqlite'
@@ -691,10 +691,18 @@ class DBManager:
         return rows
 
     @classmethod
-    def get_db_path(cls, path, local=True):
-        if local:
-            return os.path.join(path, cls.local_db_file_name)
-        return cls.central_db_file_name
+    def get_db_file_path(cls, path=None, local=True):
+        if not local:
+            return cls.central_db_file_path
+        return os.path.join(path, cls.local_db_file_name)
+
+    @classmethod
+    def get_local_db_file_path(cls, path):
+        return os.path.join(path, cls.local_db_file_name)
+
+    @classmethod
+    def get_central_db_file_path(cls):
+        return cls.central_db_file_path
 
     @classmethod
     def row_dicts_to_rows(cls, table, row_dicts):
@@ -1010,7 +1018,7 @@ class DBManager:
         :return:
         """
         # TODO: Refactor!
-        path_to_local_db = cls.get_db_path(dir_path, local=True)
+        path_to_local_db = cls.get_local_db_file_path(dir_path)
         temp_table = Tables.temp_image_ids_table
         images_table = Tables.images_table
 

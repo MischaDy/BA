@@ -4,6 +4,9 @@ import time
 from itertools import combinations, combinations_with_replacement, product
 
 import logging
+
+from Logic.ProperLogic.misc_helpers import get_multiple
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -30,8 +33,10 @@ def main(clusters, emb_id_to_name_dict, save_results, save_path):
     # num_pairs = sum i=0...num_embeddings-1 {i} = n (n-1) / 2
     # = len(list(combinations(range(n), 2)))
     # = 2293011
-    num_pairs = num_embeddings * (num_embeddings - 1) / 2
-    num_true_negatives = num_pairs - sum(value for value in output_dict.values() if str(value).isdigit())
+    # TODO: num pairs computations seems to be wrong!
+    num_pairs = num_embeddings * (num_embeddings + 1) / 2
+    other_result_types = ['true positives', 'false positives', 'false negatives']
+    num_true_negatives = num_pairs - sum(get_multiple(output_dict, other_result_types))
     output_dict['true negatives'] = num_true_negatives
 
     if save_results:
@@ -100,6 +105,7 @@ def _count_positives(clusters, emb_id_to_name_dict, type_of_positives):
         # Count iff result of check (yes/no) is same as wanted type (true/false positives)
         return _are_same_person(*emb_id_pair, emb_id_to_name_dict) is type_of_positives
 
+    # TODO: output one level to unflat?
     clusters_embedding_id_pairs = _get_intra_clusters_embedding_id_pairs(clusters)
     total_positives = 0
     for embedding_id_pairs in clusters_embedding_id_pairs:
@@ -131,7 +137,7 @@ def count_false_negatives(clusters, emb_id_to_name_dict):
 def _get_intra_clusters_embedding_id_pairs(clusters):
     # TODO: Refactor
     for cluster in clusters:
-        cluster_embeddings = cluster.get_embeddings(with_embeddings_ids=False)
+        cluster_embeddings = cluster.get_embeddings_ids()
         embedding_pairs = combinations_with_replacement(cluster_embeddings, 2)
         yield embedding_pairs
 

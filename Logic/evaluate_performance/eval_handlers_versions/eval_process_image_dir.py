@@ -13,7 +13,7 @@ def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None):
 
     cluster_dict_copy = cluster_dict.copy()
 
-    def eval_process_image_dir_worker(central_con):
+    def eval_process_image_dir_worker(con):
         if not faces_rows:
             return
 
@@ -39,11 +39,11 @@ def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None):
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
         DBManager.overwrite_clusters(modified_clusters_dict, removed_clusters_dict,
                                      emb_id_to_face_dict=emb_id_to_face_dict,
-                                     emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=central_con,
+                                     emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con,
                                      close_connections=False)
 
     try:
-        emb_id_to_name_dict = DBManager.connection_wrapper(eval_process_image_dir_worker)
+        DBManager.connection_wrapper(eval_process_image_dir_worker)
         return emb_id_to_name_dict
     except IncompleteDatabaseOperation:
         overwrite_dict(cluster_dict, cluster_dict_copy)
@@ -51,7 +51,7 @@ def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None):
 
 def eval_get_faces_rows(images_path, max_num_proc_imgs=None, central_con=None, local_con=None, close_connections=True):
     if local_con is None:
-        path_to_local_db = DBManager.get_db_path(images_path, local=True)
+        path_to_local_db = DBManager.get_local_db_file_path(images_path)
     else:
         path_to_local_db = None
 
@@ -78,7 +78,7 @@ def print_progress(val, val_name):
 
 def eval_extract_faces(path, check_if_known=True, max_num_proc_imgs=None, central_con=None, local_con=None,
                        close_connections=True):
-    path_to_local_db = DBManager.get_db_path(path, local=True)
+    path_to_local_db = DBManager.get_local_db_file_path(path)
     img_loader = load_imgs_from_path(path, recursive=True, output_file_names=True, output_file_paths=True)
 
     def extract_faces_worker(central_con, local_con):

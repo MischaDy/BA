@@ -9,22 +9,22 @@ import f_measure
 
 
 # set to None to process all
-MAX_NUM_PROC_IMGS = 1
+MAX_NUM_PROC_IMGS = None
 # IMAGES_PATH = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\subset_cplfw\images'
 IMAGES_PATH = r'..\my_test\subset_cplfw\images'
 SAVE_RESULTS = True
 SAVE_PATH = 'results'
-DROP_TABLES = False
+DELETE_LOCAL_DB_FILE = False
+DELETE_CENTRAL_DB_FILE = False
 
 
 # TODO: Store processed embeddings with cluster_id = NULL immediately!
 
 def run_evaluation(images_path):
-    if DROP_TABLES:
-        delete_db_files()
+    delete_db_files()
     init_program()
 
-    if DROP_TABLES:
+    if DELETE_CENTRAL_DB_FILE:
         cluster_dict = ClusterDict()
     else:
         cluster_dict = DBManager.load_cluster_dict()
@@ -34,8 +34,10 @@ def run_evaluation(images_path):
 
 
 def delete_db_files():
-    delete_central_db_file()
-    delete_local_db_file()
+    if DELETE_CENTRAL_DB_FILE:
+        delete_central_db_file()
+    if DELETE_LOCAL_DB_FILE:
+        delete_local_db_file()
 
 
 def delete_central_db_file():

@@ -4,7 +4,6 @@ from functools import partial
 from itertools import chain
 
 from PIL import Image
-from facenet_pytorch.models.utils.detect_face import get_size, crop_resize
 
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
@@ -13,6 +12,9 @@ from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict, starfilter
     ignore_first_n_args_decorator
 from Logic.ProperLogic.models_modules.models import Models
 from Logic.ProperLogic.handlers.helpers import TO_TENSOR
+
+
+# TODO: Transfer code from eval_process_handler to here!
 
 
 def process_image_dir(cluster_dict, **kwargs):

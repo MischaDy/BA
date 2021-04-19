@@ -1,5 +1,12 @@
-from Logic.ProperLogic.handlers.handler_process_image_dir import *
+import datetime
+import os
 
+from Logic.ProperLogic.core_algorithm import CoreAlgorithm
+from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
+from Logic.ProperLogic.database_modules.database_table_defs import Columns
+from Logic.ProperLogic.handlers.handler_process_image_dir import load_imgs_from_path, face_to_embedding
+from Logic.ProperLogic.misc_helpers import overwrite_dict, log_error
+from Logic.ProperLogic.models_modules.models import Models
 
 PRINT_PROGRESS = True
 PROGRESS_STEPS = 10
@@ -35,7 +42,8 @@ def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None):
         overwrite_dict(cluster_dict, cluster_dict_copy)
 
 
-def eval_get_emb_id_to_name_dict(images_path, max_num_proc_imgs=None, central_con=None, local_con=None, close_connections=True):
+def eval_get_emb_id_to_name_dict(images_path, max_num_proc_imgs=None, central_con=None, local_con=None,
+                                 close_connections=True):
     if local_con is None:
         path_to_local_db = DBManager.get_local_db_file_path(images_path)
     else:
@@ -98,8 +106,8 @@ def eval_extract_faces(path, check_if_known=True, max_num_proc_imgs=None, centra
             DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
                                   path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
             DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
-
             emb_id_to_name_dict[embedding_id] = img_name
+            embedding_id += 1
 
         return emb_id_to_name_dict
 

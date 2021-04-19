@@ -8,40 +8,25 @@ PROGRESS_STEPS = 10
 def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None):
     Models.altered_mtcnn.keep_all = False
     try:
-        faces_rows, emb_id_to_name_dict = eval_get_faces_rows(images_path, max_num_proc_imgs=max_num_proc_imgs)
+        emb_id_to_name_dict = eval_get_emb_id_to_name_dict(images_path, max_num_proc_imgs=max_num_proc_imgs)
     except IncompleteDatabaseOperation:
         return
 
     cluster_dict_copy = cluster_dict.copy()
 
     def eval_process_image_dir_worker(con):
-        if not faces_rows:
+        embeddings_with_ids = list(DBManager.get_all_embeddings(with_ids=True))
+        if not embeddings_with_ids:
             return
 
-        embeddings_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
-                                  faces_rows))
-        thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
-                         faces_rows)
-        image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
-                        faces_rows)
-        faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
-                    faces_rows)
-
-        embeddings = list(faces_to_embeddings(faces))
-
-        emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
-        emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
-
         # passing result cluster dict already overwrites it
-        clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids,
+        clustering_result = CoreAlgorithm.cluster_embeddings(embeddings_with_ids,
                                                              existing_clusters_dict=cluster_dict,
                                                              should_reset_cluster_ids=True,
                                                              final_clusters_only=False)
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
-        DBManager.overwrite_clusters(modified_clusters_dict, removed_clusters_dict,
-                                     emb_id_to_face_dict=emb_id_to_face_dict,
-                                     emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=con,
-                                     close_connections=False)
+        DBManager.overwrite_clusters_simplified(modified_clusters_dict, removed_clusters_dict, con=con,
+                                                close_connections=False)
 
     try:
         DBManager.connection_wrapper(eval_process_image_dir_worker)
@@ -50,7 +35,7 @@ def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None):
         overwrite_dict(cluster_dict, cluster_dict_copy)
 
 
-def eval_get_faces_rows(images_path, max_num_proc_imgs=None, central_con=None, local_con=None, close_connections=True):
+def eval_get_emb_id_to_name_dict(images_path, max_num_proc_imgs=None, central_con=None, local_con=None, close_connections=True):
     if local_con is None:
         path_to_local_db = DBManager.get_local_db_file_path(images_path)
     else:
@@ -59,17 +44,17 @@ def eval_get_faces_rows(images_path, max_num_proc_imgs=None, central_con=None, l
     def eval_get_faces_rows_worker(central_con, local_con):
         DBManager.create_local_tables(drop_existing_tables=False, path_to_local_db=path_to_local_db, con=local_con,
                                       close_connections=False)
-        faces_rows, emb_id_to_name_dict = eval_extract_faces(images_path, max_num_proc_imgs=max_num_proc_imgs,
-                                                             central_con=central_con,
-                                                             local_con=local_con, close_connections=False)
-        return list(faces_rows), emb_id_to_name_dict
+        emb_id_to_name_dict = eval_extract_faces(images_path, max_num_proc_imgs=max_num_proc_imgs,
+                                                 central_con=central_con,
+                                                 local_con=local_con, close_connections=False)
+        return emb_id_to_name_dict
 
-    faces_rows, emb_id_to_name_dict = DBManager.connection_wrapper(eval_get_faces_rows_worker,
-                                                                   path_to_local_db=path_to_local_db,
-                                                                   central_con=central_con, local_con=local_con,
-                                                                   with_central=True,
-                                                                   with_local=True, close_connections=close_connections)
-    return faces_rows, emb_id_to_name_dict
+    emb_id_to_name_dict = DBManager.connection_wrapper(eval_get_faces_rows_worker,
+                                                       path_to_local_db=path_to_local_db,
+                                                       central_con=central_con, local_con=local_con,
+                                                       with_central=True,
+                                                       with_local=True, close_connections=close_connections)
+    return emb_id_to_name_dict
 
 
 def print_progress(val, val_name):
@@ -80,32 +65,30 @@ def print_progress(val, val_name):
 def eval_extract_faces(path, check_if_known=True, max_num_proc_imgs=None, central_con=None, local_con=None,
                        close_connections=True):
     path_to_local_db = DBManager.get_local_db_file_path(path)
-    img_loader = load_imgs_from_path(path, recursive=True, output_file_names=True, output_file_paths=True)
+    path_id = DBManager.get_path_id(path)
+    if path_id is None:
+        # path not yet known
+        path_id = DBManager.store_directory_path(path, con=central_con, close_connections=False)
+        DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
+    imgs_names_and_date = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
 
-    def extract_faces_worker(central_con, local_con):
-        imgs_names_and_date = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
+    # Note: 'MAX' returns None / (None, ) as a default value
+    max_img_id = DBManager.get_max_image_id(path_to_local_db=path_to_local_db)
+    start_img_id = max_img_id + 1
+    initial_max_embedding_id = DBManager.get_max_embedding_id()
 
-        # Note: 'MAX' returns None / (None, ) as a default value
-        max_img_id = DBManager.get_max_image_id(path_to_local_db=path_to_local_db)
-        initial_max_embedding_id = DBManager.get_max_embedding_id()
-
-        path_id = DBManager.get_path_id(path)
-        if path_id is None:
-            # path not yet known
-            path_id = DBManager.store_directory_path(path, con=central_con, close_connections=False)
-            DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
-
-        faces_rows = []
-        emb_id_to_name_dict = {}
-        start_img_id = max_img_id + 1
-        max_embedding_id = initial_max_embedding_id
-
+    def get_counted_img_loader():
+        img_loader = load_imgs_from_path(path, recursive=True, output_file_names=True, output_file_paths=True)
         if max_num_proc_imgs is not None:
-            counted_img_loader = zip(range(start_img_id, max_num_proc_imgs + 1), img_loader)
-        else:
-            counted_img_loader = enumerate(img_loader, start=start_img_id)
+            return zip(range(start_img_id, max_num_proc_imgs + 1), img_loader)
+        return enumerate(img_loader, start=start_img_id)
 
-        for img_id, (img_path, img_name, img) in counted_img_loader:
+    def get_emb_id_to_name_dict(central_con, local_con):
+        print('----- get_emb_id_to_name_dict -----')
+        emb_id_to_name_dict = {}
+        # TODO: Also auto-increment emb_id etc.
+        embedding_id = initial_max_embedding_id + 1
+        for img_id, (img_path, img_name, img) in get_counted_img_loader():
             print_progress(img_id, 'image')
 
             last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
@@ -116,31 +99,41 @@ def eval_extract_faces(path, check_if_known=True, max_num_proc_imgs=None, centra
                                   path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
             DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
 
-            # img_faces = cut_out_faces(Models.mtcnn, img)
-            img_face = Models.altered_mtcnn.forward_return_results(img)
-            if img_face is None:
+            emb_id_to_name_dict[embedding_id] = img_name
+
+        return emb_id_to_name_dict
+
+    def store_embedding_row_dicts(central_con):
+        print('----- get_embedding_row_dicts -----')
+        # TODO: Also auto-increment emb_id etc.
+        embedding_id = initial_max_embedding_id + 1
+        for img_id, (img_path, img_name, img) in get_counted_img_loader():
+            print_progress(img_id, 'image')
+
+            last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
+            if check_if_known and (img_name, last_modified) in imgs_names_and_date:
+                continue
+
+            face = Models.altered_mtcnn.forward_return_results(img)
+            if face is None:
                 log_error(f"no faces found in image '{img_path}'")
                 continue
 
-            # if len(img_faces) != 1:
-            #     error_msg = f'more than 1 face encountered!' '\n' f'{img_id}, {img_path}, {img_name}'
-            #     raise RuntimeError(error_msg)
+            embedding_row_dict = {Columns.cluster_id.col_name: 'NULL',
+                                  Columns.embedding.col_name: face_to_embedding(face),
+                                  Columns.thumbnail.col_name: face,
+                                  Columns.image_id.col_name: img_id,
+                                  Columns.embedding_id.col_name: embedding_id}
+            DBManager.store_embedding(embedding_row_dict, con=central_con, close_connections=False)
+            embedding_id += 1
 
-            cur_faces_rows = []
-            embedding_id = max_embedding_id + 1
-            face = img_face
-            cur_faces_rows.append({Columns.thumbnail.col_name: face,
-                                   Columns.image_id.col_name: img_id,
-                                   Columns.embedding_id.col_name: embedding_id})
-            emb_id_to_name_dict[embedding_id] = img_name
-            faces_rows.extend(cur_faces_rows)
-            max_embedding_id += 1
-            img_id += 1
+    def eval_extract_faces_worker(central_con, local_con):
+        emb_id_to_name_dict = get_emb_id_to_name_dict(central_con, local_con)
+        store_embedding_row_dicts(central_con)
+        return emb_id_to_name_dict
 
-        return faces_rows, emb_id_to_name_dict
-
-    faces_rows, emb_id_to_name_dict = DBManager.connection_wrapper(extract_faces_worker, central_con=central_con,
-                                                                   local_con=local_con,
-                                                                   with_central=True, with_local=True,
-                                                                   close_connections=close_connections)
-    return faces_rows, emb_id_to_name_dict
+    emb_id_to_name_dict = DBManager.connection_wrapper(eval_extract_faces_worker, central_con=central_con,
+                                                       local_con=local_con,
+                                                       with_central=True, with_local=True,
+                                                       close_connections=close_connections)
+    return emb_id_to_name_dict

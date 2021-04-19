@@ -9,22 +9,25 @@ import f_measure
 
 
 # set to None to process all
-MAX_NUM_PROC_IMGS = 10
+MAX_NUM_PROC_IMGS = 1
 # IMAGES_PATH = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\subset_cplfw\images'
 IMAGES_PATH = r'..\my_test\subset_cplfw\images'
 SAVE_RESULTS = True
 SAVE_PATH = 'results'
-DROP_TABLES = True
+DROP_TABLES = False
 
 
-# TODO: Fix <class 'sqlite3.IntegrityError'>, ('UNIQUE constraint failed: images.image_id',)
+# TODO: Store processed embeddings with cluster_id = NULL immediately!
 
 def run_evaluation(images_path):
     if DROP_TABLES:
         delete_db_files()
     init_program()
 
-    cluster_dict = ClusterDict()
+    if DROP_TABLES:
+        cluster_dict = ClusterDict()
+    else:
+        cluster_dict = DBManager.load_cluster_dict()
     emb_id_to_name_dict = eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=MAX_NUM_PROC_IMGS)
     clusters = cluster_dict.get_clusters()
     f_measure.main(clusters, emb_id_to_name_dict, SAVE_RESULTS, SAVE_PATH)

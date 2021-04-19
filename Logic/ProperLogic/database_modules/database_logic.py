@@ -1168,6 +1168,19 @@ class DBManager:
         cls.connection_wrapper(overwrite_clusters_worker, con=con, close_connections=close_connections)
 
     @classmethod
+    def overwrite_clusters_simplified(cls, clusters_to_store_dict, clusters_to_remove_dict=None, clear_clusters=False,
+                                      con=None, close_connections=True):
+        clusters = clusters_to_store_dict.get_clusters()
+
+        def overwrite_clusters_simplified_worker(con):
+            cls.remove_cluster_attributes(clusters_to_remove_dict, remove_all=clear_clusters, con=con,
+                                          close_connections=False)
+            cls.upsert_cluster_attributes(clusters, con=con, close_connections=False)
+            cls.update_embeddings(clusters, con=con, close_connections=False)
+
+        cls.connection_wrapper(overwrite_clusters_simplified_worker, con=con, close_connections=close_connections)
+
+    @classmethod
     def upsert_cluster_attributes(cls, clusters, con=None, close_connections=True):
         # TODO: Improve efficiency - don't build rows etc. if cluster already exists(?)
 
@@ -1343,6 +1356,17 @@ class DBManager:
     @classmethod
     def _build_update_expressions(cls, update_cols):
         return [f'excluded.{col}' for col in update_cols]
+
+    @classmethod
+    def store_embeddings(cls, embeddings_row_dicts, con=None, close_connections=True):
+        def store_embeddings_worker(con):
+            cls.store_in_table(Tables.embeddings_table, embeddings_row_dicts, con=con, close_connections=False)
+
+        cls.connection_wrapper(store_embeddings_worker, con=con, close_connections=close_connections)
+
+    @classmethod
+    def store_embedding(cls, embeddings_row_dict, con=None, close_connections=True):
+        cls.store_embeddings([embeddings_row_dict], con=con, close_connections=close_connections)
 
 
 class IncompleteDatabaseOperation(RuntimeError):

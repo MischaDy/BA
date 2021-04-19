@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 
 # SAVE_RESULTS = True
 # SAVE_PATH = 'results'
-INTER_CLUSTERS_ITERATIONS_PROGRESS = 10000
+CLUSTERS_ITERATIONS_PROGRESS = 1000
 
 # cf. Bijl - A comparison of clustering algorithms for face clustering
 
@@ -125,9 +125,9 @@ def count_false_negatives(clusters, emb_id_to_name_dict):
 
     clusters_embedding_pairs = _get_inter_clusters_embedding_id_pairs(clusters)
     total_positives = 0
-    for embedding_pairs in clusters_embedding_pairs:
-        # if count % 10000 == 0:
-        #     logging.info(f'--- --- embeddings iteration: {count}')
+    for count, embedding_pairs in enumerate(clusters_embedding_pairs, start=1):
+        if count % CLUSTERS_ITERATIONS_PROGRESS == 0:
+            logging.info(f'--- --- embeddings iteration: {count}')
         cluster_positives = sum(map(does_match, embedding_pairs))
         total_positives += cluster_positives
     return total_positives
@@ -146,7 +146,7 @@ def _get_inter_clusters_embedding_id_pairs(clusters):
     cluster_pairs = combinations(clusters, 2)
     logging.info('STARTING INTER-CLUSTERS ITERATIONS')
     for count, (cluster1, cluster2) in enumerate(cluster_pairs):
-        if count % INTER_CLUSTERS_ITERATIONS_PROGRESS == 0:
+        if count % CLUSTERS_ITERATIONS_PROGRESS == 0:
             logging.info(f' --- cluster iteration: {count}')
         cluster1_embeddings_ids = cluster1.get_embeddings_ids()
         cluster2_embeddings_ids = cluster2.get_embeddings_ids()

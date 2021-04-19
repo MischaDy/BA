@@ -215,37 +215,6 @@ def choose_args(indices, *args):
     return [arg for i, arg in enumerate(args) if i in indices]
 
 
-# def cut_out_faces(mtcnn, img, keep_all=True):
-#     """
-#     NOTE: This part is copied from the extract_face function in facenet_pytorch/models/utils/detect_face.py,
-#     since this particular functionality is only provided for saving, not for returning the face pictures.
-#     """
-#     boxes, _ = mtcnn.detect(img)
-#     if boxes is None:
-#         raise FaceDetectionError('no faces detected in image')
-#     if not keep_all:
-#         boxes = boxes[0]
-#
-#     image_size, mtcnn_margin = mtcnn.image_size, mtcnn.margin
-#     faces = []
-#     for box in boxes:
-#         margin = [
-#             mtcnn_margin * (box[2] - box[0]) / (image_size - mtcnn_margin),
-#             mtcnn_margin * (box[3] - box[1]) / (image_size - mtcnn_margin),
-#             ]
-#         raw_image_size = get_size(img)
-#         box = [
-#             int(max(box[0] - margin[0] / 2, 0)),
-#             int(max(box[1] - margin[1] / 2, 0)),
-#             int(min(box[2] + margin[0] / 2, raw_image_size[0])),
-#             int(min(box[3] + margin[1] / 2, raw_image_size[1])),
-#         ]
-#
-#         face = crop_resize(img, box, image_size)
-#         faces.append(face)
-#     return faces
-
-
 def get_img_names(dir_path, recursive=False, img_extensions=None, with_paths=False):
     """
     Yield all image file paths in dir_path.

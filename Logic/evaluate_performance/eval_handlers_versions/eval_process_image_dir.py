@@ -1,18 +1,18 @@
 import datetime
 import os
 
-from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
 from Logic.ProperLogic.handlers.handler_process_image_dir import load_imgs_from_path, face_to_embedding
 from Logic.ProperLogic.misc_helpers import overwrite_dict, log_error
 from Logic.ProperLogic.models_modules.models import Models
+from Logic.evaluate_performance.eval_custom_classes.eval_core_algorithm import EvalCoreAlgorithm
 
-PRINT_PROGRESS = True
-PROGRESS_STEPS = 10
+PRINT_PROGRESS = False
+PROGRESS_STEPS = 100
 
 
-def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None):
+def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None, metric=2, threshold=0.73):
     Models.altered_mtcnn.keep_all = False
     try:
         eval_process_faces(images_path, max_num_proc_imgs=max_num_proc_imgs)
@@ -26,11 +26,12 @@ def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None):
         if not embeddings_with_ids:
             return
 
+        eval_core_algorithm = EvalCoreAlgorithm(metric=metric, classification_threshold=threshold)
         # passing result cluster dict already overwrites it
-        clustering_result = CoreAlgorithm.cluster_embeddings(embeddings_with_ids,
-                                                             existing_clusters_dict=cluster_dict,
-                                                             should_reset_cluster_ids=True,
-                                                             final_clusters_only=False)
+        clustering_result = eval_core_algorithm.cluster_embeddings_no_split(embeddings_with_ids,
+                                                                            existing_clusters_dict=cluster_dict,
+                                                                            should_reset_cluster_ids=True,
+                                                                            final_clusters_only=False)
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
         DBManager.overwrite_clusters_simplified(modified_clusters_dict, removed_clusters_dict, con=con,
                                                 close_connections=False)

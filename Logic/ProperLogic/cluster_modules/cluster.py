@@ -34,7 +34,7 @@ class Cluster:
             if center_point is not None:
                 self.center_point = center_point
             else:
-                self.center_point = Cluster.sum_embeddings(embeddings) / self.num_embeddings
+                self.center_point = self.sum_embeddings(embeddings) / self.num_embeddings
             self.max_id_reducer.process_iterable(self.embeddings_dict.keys())
             self.max_embedding_id = self.max_id_reducer.get_state()
 
@@ -116,7 +116,7 @@ class Cluster:
         return self.embeddings_dict.get(embedding_id) is not None
 
     def compute_dist_to_center(self, embedding):
-        return Cluster.compute_dist(self.center_point, embedding)
+        return self.compute_dist(self.center_point, embedding)
 
     @staticmethod
     def compute_dist(embedding1, embedding2):

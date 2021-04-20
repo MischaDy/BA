@@ -15,12 +15,12 @@ logging.basicConfig(level=logging.INFO)
 # SAVE_RESULTS = True
 # SAVE_PATH = 'results'
 # INTRACLUSTER_ITERATIONS_PROGRESS = 1000
-INTERCLUSTER_ITERATIONS_PROGRESS = 50000
+INTERCLUSTER_ITERATIONS_PROGRESS = 200000
 
 # cf. Bijl - A comparison of clustering algorithms for face clustering
 
 
-def main(clusters, emb_id_to_name_dict, save_results, save_path):
+def main(clusters, emb_id_to_name_dict, save_results, save_path, save_file_name_postfix=''):
     if not save_results:
         ans = input("Really don't save the results? Press Enter without entering anything to abort function.\n")
         if not ans:
@@ -40,11 +40,13 @@ def main(clusters, emb_id_to_name_dict, save_results, save_path):
     output_dict['true negatives'] = num_true_negatives
 
     if save_results:
-        save_f_measure_result(save_path, output_dict)
+        save_f_measure_result(save_path, output_dict, save_file_name_postfix)
 
 
-def save_f_measure_result(save_path, output_dict):
-    file_name = f'results_{round(time.time())}.txt'
+def save_f_measure_result(save_path, output_dict, save_file_name_postfix):
+    if save_file_name_postfix and not save_file_name_postfix.startswith('_'):
+        save_file_name_postfix = '___' + save_file_name_postfix
+    file_name = f'results_{round(time.time())}{save_file_name_postfix}.txt'
     file_path = os.path.join(save_path, file_name)
     with open(file_path, 'w') as file:
         output = '\n'.join(f'{key}: {value}' for key, value in output_dict.items())

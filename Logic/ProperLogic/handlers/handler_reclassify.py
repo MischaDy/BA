@@ -20,10 +20,11 @@ def reclassify(cluster_dict, embeddings_with_ids=None, con=None, close_connectio
             return
 
         new_cluster_dict = DBManager.get_certain_clusters()
-        clustering_result = CoreAlgorithm.cluster_embeddings(embeddings=local_embeddings_with_ids,
-                                                             existing_clusters_dict=new_cluster_dict,
-                                                             should_reset_cluster_ids=True,
-                                                             final_clusters_only=False)
+        core_algorithm = CoreAlgorithm()
+        clustering_result = core_algorithm.cluster_embeddings(embeddings=local_embeddings_with_ids,
+                                                              existing_clusters_dict=new_cluster_dict,
+                                                              should_reset_cluster_ids=True,
+                                                              final_clusters_only=False)
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
         DBManager.overwrite_clusters(new_cluster_dict, removed_clusters_dict, no_new_embs=True,
                                      clear_clusters=True, con=con, close_connections=False)

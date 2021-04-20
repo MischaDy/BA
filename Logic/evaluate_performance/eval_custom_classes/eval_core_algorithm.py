@@ -1,43 +1,21 @@
 from functools import partial
-from typing import Union, Tuple
-
-from Logic.ProperLogic.cluster_modules.cluster import Cluster
-from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
-from Logic.ProperLogic.database_modules.database_logic import DBManager
-from Logic.ProperLogic.misc_helpers import remove_items, starfilterfalse, partition
-
 from itertools import combinations
 
-import logging
-logging.basicConfig(level=logging.INFO)
+from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
+from Logic.ProperLogic.core_algorithm import CoreAlgorithm
+from Logic.ProperLogic.database_modules.database_logic import DBManager
+from Logic.ProperLogic.misc_helpers import starfilterfalse, remove_items, partition
+from Logic.evaluate_performance.eval_custom_classes.eval_cluster import EvalCluster
 
 
-# design decision re. splitting: check for cluster size first, because greater efficiency (short-circuit), although if
-# both cluster-size and too far from center apply, it would be better to start reclustering with new embedding.
+class EvalCoreAlgorithm(CoreAlgorithm):
+    def __init__(self, classification_threshold=0.73, r=2, max_cluster_size=100, max_num_total_comps=1000, metric=2):
+        super().__init__(classification_threshold, r, max_cluster_size, max_num_total_comps)
+        self.metric = metric
+        EvalCluster.set_metric(metric)
 
-
-CLUSTERS_PATH = 'stored_clusters'
-EMBEDDINGS_PATH = 'stored_embeddings'
-
-
-# TODO: Test, that cluster-split works and that params are ok!
-
-class CoreAlgorithm:
-    def __init__(self, classification_threshold=0.73, r=2, max_cluster_size=100, max_num_total_comps=1000):
-        # 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
-        # TODO: Is r=2 a sensible value?
-
-        self.classification_threshold = classification_threshold
-        # max dist to cluster center before an emb. gets own cluster
-        self.reclustering_threshold = r * classification_threshold
-
-        self.max_cluster_size = max_cluster_size
-        self.max_num_total_comps = max_num_total_comps
-        # maximum number of clusters to compute distance to
-        self.max_num_cluster_comps = max_num_total_comps // max_cluster_size
-
-    def cluster_embeddings(self, embeddings, embeddings_ids=None, existing_clusters_dict=None,
-                           should_reset_cluster_ids=False, final_clusters_only=True):
+    def cluster_embeddings_no_split(self, embeddings, embeddings_ids=None, existing_clusters_dict=None,
+                                    should_reset_cluster_ids=False, final_clusters_only=True):
         """
         Build clusters from face embeddings stored in the given path using the specified classification threshold.
         (Currently handled as: All embeddings closer than the distance given by the classification threshold are placed
@@ -96,17 +74,8 @@ class CoreAlgorithm:
             if shortest_emb_dist <= self.classification_threshold:
                 closest_cluster.add_embedding(new_embedding, embedding_id)
                 modified_clusters_ids.add(closest_cluster.cluster_id)
-
-                is_cluster_too_big = self.is_cluster_too_big(closest_cluster)
-                if is_cluster_too_big or self.exists_emb_too_far_from_center(closest_cluster):
-                    new_clusters = self.split_cluster(closest_cluster)
-                    cluster_dict.remove_cluster(closest_cluster)
-                    removed_clusters_ids.add(closest_cluster.cluster_id)
-                    cluster_dict.add_clusters(new_clusters)
-                    for new_cluster in new_clusters:
-                        modified_clusters_ids.add(new_cluster.cluster_id)
             else:
-                new_cluster = Cluster(next_cluster_id, [new_embedding], [embedding_id])
+                new_cluster = EvalCluster(next_cluster_id, [new_embedding], [embedding_id])
                 next_cluster_id += 1
                 cluster_dict.add_cluster(new_cluster)
                 modified_clusters_ids.add(new_cluster.cluster_id)
@@ -117,42 +86,8 @@ class CoreAlgorithm:
         removed_clusters = cluster_dict.get_clusters_by_ids(removed_clusters_ids)
         return cluster_dict, ClusterDict(modified_clusters), ClusterDict(removed_clusters)
 
-    def _choose_closest_clusters_func(self, num_clusters):
-        """
-        n = total number of clusters
-        c = number of closest clusters to use
-             n log(n) < c * n
-        <==>        n < 2^c
-
-        :param num_clusters:
-        :return:
-        """
-        # TODO: Implement
-        # if num_clusters < 2 ** cls.max_num_cluster_comps:
-        def get_closest_clusters(cluster_dict, new_embedding):
-            # sort clusters by distance from their center to embedding; only consider closest clusters
-            clusters_by_center_dist = sorted(cluster_dict.get_clusters(),
-                                             key=lambda cluster: cluster.compute_dist_to_center(new_embedding))
-            closest_clusters = clusters_by_center_dist[:self.max_num_cluster_comps]
-            return closest_clusters
-        return get_closest_clusters
-
-    def is_cluster_too_big(self, cluster):
-        return self.max_cluster_size is not None and cluster.get_size() >= self.max_cluster_size
-
-    def exists_emb_too_far_from_center(self, cluster):
-        if self.reclustering_threshold is None:
-            return False
-
-        def is_too_far_from_center(emb):
-            return cluster.compute_dist_to_center(emb) > self.reclustering_threshold
-        return any(map(is_too_far_from_center, cluster.get_embeddings()))
-
     @classmethod
-    def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True) -> Union[Union[Cluster, None],
-                                                                                               Tuple[float,
-                                                                                                     Union[Cluster,
-                                                                                                           None]]]:
+    def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True):
         """
         Determine closest cluster to current embedding, i.e. the one which stores the closest embedding to
         the current embedding.
@@ -165,7 +100,7 @@ class CoreAlgorithm:
         shortest_emb_dist = float('inf')
         closest_cluster = None
         for cluster in clusters:
-            min_cluster_emb_dist = min(map(partial(Cluster.compute_dist, embedding),
+            min_cluster_emb_dist = min(map(partial(EvalCluster.compute_dist, embedding),
                                            cluster.get_embeddings()))
             if min_cluster_emb_dist < shortest_emb_dist:
                 shortest_emb_dist = min_cluster_emb_dist
@@ -195,8 +130,8 @@ class CoreAlgorithm:
 
         max_cluster_id = DBManager.get_max_cluster_id()
         new_cluster1_id, new_cluster2_id = max_cluster_id + 1, max_cluster_id + 2
-        new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, cluster_start_emb1, label=label),
-                                      Cluster(new_cluster2_id, cluster_start_emb2, label=label))
+        new_cluster1, new_cluster2 = (EvalCluster(new_cluster1_id, cluster_start_emb1, label=label),
+                                      EvalCluster(new_cluster2_id, cluster_start_emb2, label=label))
 
         def is_closer_to_cluster1(emb):
             dist_to_cluster1 = new_cluster1.compute_dist_to_center(emb)
@@ -227,4 +162,4 @@ class CoreAlgorithm:
         #             max_dist = cur_dist
         #             max_dist_embs = (emb1, emb2)
         embs_pairs = combinations(embeddings, r=2)
-        return max(embs_pairs, key=Cluster.compute_dist)
+        return max(embs_pairs, key=EvalCluster.compute_dist)

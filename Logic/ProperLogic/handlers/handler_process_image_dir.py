@@ -61,10 +61,11 @@ def process_image_dir(cluster_dict, **kwargs):
         # TODO: Call reclassify handler here?
         # TODO: Clear existing clusters? Issues with ids etc.????
         # passing result cluster dict already overwrites it
-        clustering_result = CoreAlgorithm.cluster_embeddings(embeddings, embeddings_ids,
-                                                             existing_clusters_dict=cluster_dict,
-                                                             should_reset_cluster_ids=True,
-                                                             final_clusters_only=False)
+        core_algorithm = CoreAlgorithm()
+        clustering_result = core_algorithm.cluster_embeddings(embeddings, embeddings_ids,
+                                                              existing_clusters_dict=cluster_dict,
+                                                              should_reset_cluster_ids=True,
+                                                              final_clusters_only=False)
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
         DBManager.overwrite_clusters(modified_clusters_dict, removed_clusters_dict,
                                      emb_id_to_face_dict=emb_id_to_face_dict,

@@ -319,7 +319,14 @@ class Tables:
          Columns.new_cluster_id]
     )
 
-    temp_tables = (temp_cluster_ids_table, temp_image_ids_table, temp_old_and_new_ids, temp_emb_and_new_cluster_ids_table)
+    temp_img_ids_and_names_table = TableSchema(
+        'temp_img_ids_and_names',
+        [Columns.image_id,
+         Columns.file_name]
+    )
+
+    temp_tables = (temp_cluster_ids_table, temp_image_ids_table, temp_old_and_new_ids,
+                   temp_emb_and_new_cluster_ids_table, temp_img_ids_and_names_table)
 
     @classmethod
     def is_local_table(cls, table):

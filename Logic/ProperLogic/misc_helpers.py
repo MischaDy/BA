@@ -384,3 +384,8 @@ def ignore_first_n_args_decorator(n=0):
 
 def get_multiple(dict_, keys):
     return map(dict_.get, keys)
+
+
+def get_inverse_dict(dict_):
+    keys, values = dict_.keys(), dict_.values()
+    return dict(zip(values, keys))

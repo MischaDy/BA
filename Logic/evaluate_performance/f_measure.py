@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 # SAVE_RESULTS = True
 # SAVE_PATH = 'results'
 # INTRACLUSTER_ITERATIONS_PROGRESS = 1000
-INTERCLUSTER_ITERATIONS_PROGRESS = 10000
+INTERCLUSTER_ITERATIONS_PROGRESS = 50000
 
 # cf. Bijl - A comparison of clustering algorithms for face clustering
 

@@ -44,9 +44,6 @@ class DBManager:
     central_db_file_path = os.path.join(db_files_path, central_db_file_name)
     local_db_file_name = 'local_db.sqlite'
 
-    def __init__(self):
-        raise NotImplementedError
-
     @classmethod
     def open_central_connection(cls):
         """
@@ -464,8 +461,8 @@ class DBManager:
             # Cast to list is *necessary* here, since fetch function only returns a generator. It will be executed after
             # the corresponding rows are deleted from table and will thus yield nothing.
             deleted_row_dicts = list(
-                cls.fetch_from_table(table, path_to_local_db, cond=where_clause_part, as_dicts=True, con=con,
-                                     close_connections=False)
+                cls.fetch_from_table(table, cond=where_clause_part, as_dicts=True, path_to_local_db=path_to_local_db,
+                                     con=con, close_connections=False)
             )
             con.execute(f'{with_clause} DELETE FROM {table} {where_clause};')
             return deleted_row_dicts
@@ -514,7 +511,7 @@ class DBManager:
         cls.clear_tables(Tables.central_tables, con=con, close_connections=close_connections)
 
     @classmethod
-    def fetch_from_table(cls, table, path_to_local_db=None, cols=None, cond='', cond_params=None, as_dicts=False,
+    def fetch_from_table(cls, table, cols=None, cond='', cond_params=None, as_dicts=False, path_to_local_db=None,
                          con=None, close_connections=True):
         """
 
@@ -528,6 +525,7 @@ class DBManager:
         :param cond:
         :return:
         """
+        # TODO: Provide option of returning as row dicts?
         # TODO: allow for multiple conditions(?)
         # TODO: Refactor?
         # TODO: More elegant solution?
@@ -687,7 +685,7 @@ class DBManager:
     @classmethod
     def get_images_attributes(cls, path_to_local_db=None):
         cols = [Columns.file_name, Columns.last_modified]
-        rows = cls.fetch_from_table(Tables.images_table, path_to_local_db=path_to_local_db, cols=cols)
+        rows = cls.fetch_from_table(Tables.images_table, cols=cols, path_to_local_db=path_to_local_db)
         return rows
 
     @classmethod

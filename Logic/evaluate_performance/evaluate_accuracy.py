@@ -20,11 +20,12 @@ SAVE_PATH = 'results'
 SAVE_FILE_NAME_POSTFIX = ''
 DELETE_LOCAL_DB_FILE = False
 DELETE_CENTRAL_DB_FILE = False
+CLEAR_CLUSTERS = True
 
-# METRICS = [2, 1, 0.5, 0]  # , 1.5, 1.25, 1, 0.75, 0.5, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0]
-# THRESHOLDS = np.linspace(0.5, 1.0, num=11)  # num = 1  ==>  step size = 0.05
-METRICS = [2, 0]
-THRESHOLDS = [0.5, 1.0]
+METRICS = [2, 1.5, 1, 0.75, 0.5, 0.3, 0.2, 0.1, 0]
+THRESHOLDS = np.linspace(0.5, 1.0, num=6)  # num = 1  ==>  step size = 0.05
+# METRICS = [20, 0]
+# THRESHOLDS = [0.1, 10]
 
 
 def run_evaluation(images_path):
@@ -42,11 +43,13 @@ def run_evaluation(images_path):
 
 
 def run_metric_evaluation(images_path):
-    for threshold, metric in product(THRESHOLDS, METRICS):
+    for counter, (threshold, metric) in enumerate(product(THRESHOLDS, METRICS), start=1):
+        print('\n' f'-------------- STARTING EVAL {counter} --------------' '\n')
         delete_db_files()
+        clear_clusters()
         init_program()
 
-        if DELETE_CENTRAL_DB_FILE:
+        if CLEAR_CLUSTERS:
             cluster_dict = ClusterDict()
         else:
             cluster_dict = EvalDBManager.load_cluster_dict()
@@ -74,6 +77,11 @@ def delete_central_db_file():
 def delete_local_db_file():
     path_to_local_db_file = EvalDBManager.get_local_db_file_path(IMAGES_PATH)
     os.remove(path_to_local_db_file)
+
+
+def clear_clusters():
+    if CLEAR_CLUSTERS:
+        EvalDBManager.clear_clusters()
 
 
 if __name__ == '__main__':

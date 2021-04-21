@@ -8,6 +8,10 @@ from Logic.ProperLogic.misc_helpers import starfilterfalse, remove_items, partit
 from Logic.evaluate_performance.eval_custom_classes.eval_cluster import EvalCluster
 
 
+PRINT_PROGRESS = True
+PROGRESS_STEPS = 100
+
+
 class EvalCoreAlgorithm(CoreAlgorithm):
     def __init__(self, classification_threshold=0.73, r=2, max_cluster_size=100, max_num_total_comps=1000, metric=2):
         super().__init__(classification_threshold, r, max_cluster_size, max_num_total_comps)
@@ -32,6 +36,7 @@ class EvalCoreAlgorithm(CoreAlgorithm):
         """
         # TODO: Allow embeddings_ids to be none? Get next id via DB query?
         # TODO: Allow embeddings_ids to be shorter than embeddings and 'fill up' remaining ids?
+        # embeddings = list(embeddings)
         if not embeddings:
             if final_clusters_only:
                 return ClusterDict()
@@ -40,21 +45,26 @@ class EvalCoreAlgorithm(CoreAlgorithm):
         if embeddings_ids is None:
             embeddings_with_ids = embeddings
         else:
-            if len(embeddings) > len(embeddings_ids):
-                raise ValueError(f'Too few ids for embeddings ({len(embeddings_ids)} passed, but {len(embeddings)}'
-                                 f' needed)')
+            # if len(embeddings) > len(embeddings_ids):
+            #     raise ValueError(f'Too few ids for embeddings ({len(embeddings_ids)} passed, but {len(embeddings)}'
+            #                      f' needed)')
             embeddings_with_ids = zip(embeddings_ids, embeddings)
 
         if existing_clusters_dict is None:
             existing_clusters_dict = ClusterDict()
         else:
+            # # Don't iterate over embeddings in existing clusters
+            # embeddings_with_ids = dict(embeddings_with_ids)
+            # existing_embeddings = existing_clusters_dict.get_embeddings()
+            # remove_multiple(embeddings_with_ids, existing_embeddings)
+            # embeddings_with_ids = embeddings_with_ids.items()
             # Don't iterate over embeddings in existing clusters
             def exists_in_any_cluster(emb_id, _):
                 return existing_clusters_dict.any_cluster_with_emb(emb_id)
 
             embeddings_with_ids = starfilterfalse(exists_in_any_cluster, embeddings_with_ids)
-        cluster_dict = existing_clusters_dict
 
+        cluster_dict = existing_clusters_dict
         if should_reset_cluster_ids:
             cluster_dict.reset_ids()
             next_cluster_id = cluster_dict.get_max_id() + 1
@@ -66,6 +76,7 @@ class EvalCoreAlgorithm(CoreAlgorithm):
         modified_clusters_ids, removed_clusters_ids = set(), set()
         get_closest_clusters = self._choose_closest_clusters_func(len(cluster_dict))
         for embedding_id, new_embedding in embeddings_with_ids:
+            print_progress(embedding_id, "embedding_id")
             closest_clusters = get_closest_clusters(cluster_dict, new_embedding)
 
             # find cluster containing the closest embedding to new_embedding
@@ -163,3 +174,8 @@ class EvalCoreAlgorithm(CoreAlgorithm):
         #             max_dist_embs = (emb1, emb2)
         embs_pairs = combinations(embeddings, r=2)
         return max(embs_pairs, key=EvalCluster.compute_dist)
+
+
+def print_progress(val, val_name):
+    if PRINT_PROGRESS and val % PROGRESS_STEPS == 0:
+        print(f'{val_name} -- {val}')

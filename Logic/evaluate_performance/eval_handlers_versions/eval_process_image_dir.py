@@ -23,8 +23,6 @@ def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None, me
 
     def eval_process_image_dir_worker(con):
         embeddings_with_ids = list(DBManager.get_all_embeddings(with_ids=True))
-        if not embeddings_with_ids:
-            return
 
         eval_core_algorithm = EvalCoreAlgorithm(metric=metric, classification_threshold=threshold)
         # passing result cluster dict already overwrites it

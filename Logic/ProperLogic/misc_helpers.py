@@ -386,6 +386,11 @@ def get_multiple(dict_, keys):
     return map(dict_.get, keys)
 
 
+def remove_multiple(dict_, keys):
+    for key in keys:
+        dict_.pop(key)
+
+
 def get_inverse_dict(dict_):
     keys, values = dict_.keys(), dict_.values()
     return dict(zip(values, keys))

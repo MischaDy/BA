@@ -134,6 +134,7 @@ def set_picture_label(embedding_id, new_label, cluster, cluster_dict):
 
     def set_pic_label_worker(con):
         if cluster.get_size() == 0:
+            # TODO: Remove cluster like that???
             embeddings_row_dicts = DBManager.remove_cluster(cluster, con=con, close_connections=False)
             emb_id_to_face_dict = make_emb_id_to_face_dict_from_row_dicts(embeddings_row_dicts)
             emb_id_to_img_id_dict = make_emb_id_to_img_id_dict_from_row_dicts(embeddings_row_dicts)

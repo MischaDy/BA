@@ -1,4 +1,5 @@
 import operator
+from itertools import chain
 
 from Logic.ProperLogic.misc_helpers import log_error, MaxReducer
 
@@ -118,3 +119,7 @@ class ClusterDict(dict):
         if self.max_id is None:
             return self.max_id_reducer.default
         return self.max_id
+
+    def get_embeddings(self):
+        return chain(*map(lambda cluster: cluster.get_embeddings(),
+                          self.get_clusters(with_ids=False)))

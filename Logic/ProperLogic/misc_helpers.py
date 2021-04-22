@@ -1,6 +1,7 @@
 import logging
 import operator
 import os
+from collections import defaultdict
 from functools import reduce
 
 from itertools import filterfalse, tee
@@ -394,3 +395,25 @@ def remove_multiple(dict_, keys):
 def get_inverse_dict(dict_):
     keys, values = dict_.keys(), dict_.values()
     return dict(zip(values, keys))
+
+
+def group_pairs(pairs, ret_dict=True):
+    """
+    Taken from first example in https://docs.python.org/3/library/collections.html#defaultdict-examples
+
+    :param ret_dict:
+    :param pairs:
+    :return:
+    """
+    groups_dict = defaultdict(list)
+    for key, val in pairs:
+        groups_dict[key].append(val)
+    if ret_dict:
+        return groups_dict
+    groups = sorted(groups_dict.items())
+    return groups
+
+
+def map_dict_vals(dict_, func):
+    for key, val in dict_.items():
+        dict_[key] = func(val)

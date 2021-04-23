@@ -9,6 +9,8 @@ logging.basicConfig(level=logging.INFO)
 
 
 class Cluster:
+    metric = 2
+
     def __init__(self, cluster_id, embeddings=None, embeddings_ids=None, label=None, center_point=None):
         """
         embeddings must be (flat) iterable of embeddings with len applicable
@@ -45,6 +47,10 @@ class Cluster:
 
     def set_cluster_id(self, cluster_id):
         self.cluster_id = cluster_id
+
+    @classmethod
+    def set_metric(cls, metric):
+        cls.metric = metric
 
     def get_embeddings(self, with_embeddings_ids=False, as_dict=False, as_list=False):
         if with_embeddings_ids or as_dict:
@@ -118,9 +124,9 @@ class Cluster:
     def compute_dist_to_center(self, embedding):
         return self.compute_dist(self.center_point, embedding)
 
-    @staticmethod
-    def compute_dist(embedding1, embedding2):
-        return float(torch.dist(embedding1, embedding2))
+    @classmethod
+    def compute_dist(cls, embedding1, embedding2):
+        return float(torch.dist(embedding1, embedding2, p=cls.metric))
 
     @staticmethod
     def sum_embeddings(embeddings):

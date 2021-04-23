@@ -1,11 +1,11 @@
 from functools import partial
 from itertools import combinations
 
+from Logic.ProperLogic.cluster_modules.cluster import Cluster
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import DBManager
 from Logic.ProperLogic.misc_helpers import starfilterfalse, remove_items, partition
-from Logic.evaluate_performance.eval_custom_classes.eval_cluster import EvalCluster
 from Logic.evaluate_performance.eval_custom_classes.max_items_list import SortedList
 
 PRINT_PROGRESS = True
@@ -16,7 +16,7 @@ class EvalCoreAlgorithm(CoreAlgorithm):
     def __init__(self, classification_threshold=0.73, r=2, max_cluster_size=100, max_num_total_comps=1000, metric=2):
         super().__init__(classification_threshold, r, max_cluster_size, max_num_total_comps)
         self.metric = metric
-        EvalCluster.set_metric(metric)
+        Cluster.set_metric(metric)
 
     def cluster_embeddings_no_split(self, embeddings, embeddings_ids=None, existing_clusters_dict=None,
                                     should_reset_cluster_ids=False, final_clusters_only=True):
@@ -86,7 +86,7 @@ class EvalCoreAlgorithm(CoreAlgorithm):
                 closest_cluster.add_embedding(new_embedding, embedding_id)
                 modified_clusters_ids.add(closest_cluster.cluster_id)
             else:
-                new_cluster = EvalCluster(next_cluster_id, [new_embedding], [embedding_id])
+                new_cluster = Cluster(next_cluster_id, [new_embedding], [embedding_id])
                 next_cluster_id += 1
                 cluster_dict.add_cluster(new_cluster)
                 modified_clusters_ids.add(new_cluster.cluster_id)
@@ -123,7 +123,7 @@ class EvalCoreAlgorithm(CoreAlgorithm):
         shortest_emb_dist = float('inf')
         closest_cluster = None
         for cluster in clusters:
-            min_cluster_emb_dist = min(map(partial(EvalCluster.compute_dist, embedding),
+            min_cluster_emb_dist = min(map(partial(Cluster.compute_dist, embedding),
                                            cluster.get_embeddings()))
             if min_cluster_emb_dist < shortest_emb_dist:
                 shortest_emb_dist = min_cluster_emb_dist
@@ -153,8 +153,8 @@ class EvalCoreAlgorithm(CoreAlgorithm):
 
         max_cluster_id = DBManager.get_max_cluster_id()
         new_cluster1_id, new_cluster2_id = max_cluster_id + 1, max_cluster_id + 2
-        new_cluster1, new_cluster2 = (EvalCluster(new_cluster1_id, cluster_start_emb1, label=label),
-                                      EvalCluster(new_cluster2_id, cluster_start_emb2, label=label))
+        new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, cluster_start_emb1, label=label),
+                                      Cluster(new_cluster2_id, cluster_start_emb2, label=label))
 
         def is_closer_to_cluster1(emb):
             dist_to_cluster1 = new_cluster1.compute_dist_to_center(emb)
@@ -185,7 +185,7 @@ class EvalCoreAlgorithm(CoreAlgorithm):
         #             max_dist = cur_dist
         #             max_dist_embs = (emb1, emb2)
         embs_pairs = combinations(embeddings, r=2)
-        return max(embs_pairs, key=EvalCluster.compute_dist)
+        return max(embs_pairs, key=Cluster.compute_dist)
 
 
 def print_progress(val, val_name):

@@ -4,6 +4,7 @@ from itertools import product
 import numpy as np
 
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
+from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation
 from Logic.ProperLogic.handlers.handler_clear_data import clear_clustering
 from Logic.ProperLogic.main_logic import init_program
 from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDBManager
@@ -38,8 +39,11 @@ def run_metric_evaluation(images_path, are_same_person_func, save_path, threshol
                           delete_central_db_file=False, delete_local_db_file=False, clear_clusters=True):
     for counter, (threshold, metric) in enumerate(product(thresholds, metrics), start=1):
         print('\n' f'-------------- STARTING EVAL {counter} --------------' '\n')
-        delete_db_files(delete_central_db_file, delete_local_db_file)
-        clear_clustering()
+        try:
+            clear_clustering()
+        except IncompleteDatabaseOperation:
+            input('Issue!')
+        delete_db_files(delete_central_db_file, delete_local_db_file, images_path)
         init_program()
 
         if clear_clusters:
@@ -56,21 +60,32 @@ def run_metric_evaluation(images_path, are_same_person_func, save_path, threshol
                        save_path, save_file_name_postfix)
 
 
-def delete_db_files(delete_central_db_file, delete_local_db_file):
-    if delete_central_db_file:
+def delete_db_files(should_delete_central_db_file, should_delete_local_db_file, images_path):
+    if should_delete_central_db_file:
         delete_central_db_file()
-    if delete_local_db_file:
-        delete_local_db_file()
+    if should_delete_local_db_file:
+        delete_local_db_file(images_path)
+
+
+def delete_db_file(path_to_db_file, is_local):
+    confirm = input('--- WARNING ---\n' f"Really delete {'local' if is_local else 'central'} db files")
+    if not confirm:
+        exit()
+
+    try:
+        os.remove(path_to_db_file)
+    except FileNotFoundError:
+        pass
 
 
 def delete_central_db_file():
     path_to_central_db_file = EvalDBManager.get_central_db_file_path()
-    os.remove(path_to_central_db_file)
+    delete_db_file(path_to_central_db_file)
 
 
 def delete_local_db_file(images_path):
     path_to_local_db_file = EvalDBManager.get_local_db_file_path(images_path)
-    os.remove(path_to_local_db_file)
+    delete_db_file(path_to_local_db_file)
 
 
 # if __name__ == '__main__':

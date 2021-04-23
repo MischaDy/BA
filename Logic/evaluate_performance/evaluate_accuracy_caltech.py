@@ -1,4 +1,5 @@
 import os
+from functools import partial
 from itertools import repeat
 
 from Logic.ProperLogic.misc_helpers import add_multiple_to_dict
@@ -15,7 +16,10 @@ METRICS = [2]  # , 1.5, 1, 0.75, 0.5, 0.3, 0.2, 0.1, 0]
 
 
 def get_img_name_to_id_dict():
-    image_dirs = filter(os.path.isdir, os.listdir(IMAGES_PATH))
+    def is_dir(file_obj):
+        return os.path.isdir(os.path.join(IMAGES_PATH, file_obj))
+
+    image_dirs = filter(is_dir, os.listdir(IMAGES_PATH))
     img_name_to_id_dict = {}
     for image_dir in image_dirs:
         image_dir_path = os.path.join(IMAGES_PATH, image_dir)
@@ -34,6 +38,7 @@ def caltech_are_same_person_func(emb_id1, emb_id2, emb_id_to_name_dict):
 
 
 if __name__ == '__main__':
-    run_metric_evaluation(IMAGES_PATH, caltech_are_same_person_func, SAVE_PATH)
+    run_metric_evaluation(IMAGES_PATH, caltech_are_same_person_func, save_path=SAVE_PATH,
+                          delete_central_db_file=DELETE_CENTRAL_DB_FILE, delete_local_db_file=DELETE_LOCAL_DB_FILE)
     # images_path, are_same_person_func, save_path, thresholds=(0.73,), metrics=(2,),
     #                           delete_central_db_file=False, delete_local_db_file=False, clear_clusters=True

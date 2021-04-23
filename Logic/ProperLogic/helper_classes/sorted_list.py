@@ -24,7 +24,7 @@ class SortedList(UserList):
     def add(self, new_item):
         new_item_val = self.key(new_item)
         try:
-            if self.order(self.data[-1], new_item_val):
+            if self.order(self.key(self.data[-1]), new_item_val):
                 return
         except IndexError:
             self.data.append(new_item)

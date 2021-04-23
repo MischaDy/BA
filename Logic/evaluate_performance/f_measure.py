@@ -20,6 +20,9 @@ INTERCLUSTER_ITERATIONS_PROGRESS = 200000
 # cf. Bijl - A comparison of clustering algorithms for face clustering
 
 class FMeasureComputation:
+    def __init__(self, are_same_person_func):
+        self.are_same_person_func = are_same_person_func
+
     def compute_f_measure(self, clusters, emb_id_to_name_dict, output_dict):
         num_true_positives = self.count_true_positives(clusters, emb_id_to_name_dict)
         precision = self.compute_pairwise_precision(clusters, emb_id_to_name_dict, output_dict, num_true_positives)
@@ -66,7 +69,7 @@ class FMeasureComputation:
         :return: Number of
         """
 
-        def does_match(self, emb_id_pair):
+        def does_match(emb_id_pair):
             # Count iff result of check (yes/no) is same as wanted type (true/false positives)
             return self.are_same_person_func(*emb_id_pair, emb_id_to_name_dict) is type_of_positives
 
@@ -85,7 +88,7 @@ class FMeasureComputation:
         :return: Number of
         """
 
-        def does_match(self, emb_id_pair):
+        def does_match(emb_id_pair):
             # Count iff result of check (yes/no) is same as wanted type (true/false positives)
             return self.are_same_person_func(*emb_id_pair, emb_id_to_name_dict)
 
@@ -150,6 +153,12 @@ def save_f_measure_result(save_path, output_dict, save_file_name_postfix):
         save_file_name_postfix = '___' + save_file_name_postfix
     file_name = f'results_{round(time.time())}{save_file_name_postfix}.txt'
     file_path = os.path.join(save_path, file_name)
+
+    try:
+        os.mkdir(save_path)
+    except FileExistsError:
+        pass
+
     with open(file_path, 'w') as file:
         output = '\n'.join(f'{key}: {value}' for key, value in output_dict.items())
         file.write(output)

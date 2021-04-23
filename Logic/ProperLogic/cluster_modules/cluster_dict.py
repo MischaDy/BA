@@ -1,7 +1,8 @@
 import operator
 from itertools import chain
 
-from Logic.ProperLogic.misc_helpers import log_error, MaxReducer
+from Logic.ProperLogic.helper_classes.reducer import MaxReducer
+from Logic.ProperLogic.misc_helpers import log_error
 
 
 class ClusterDict(dict):

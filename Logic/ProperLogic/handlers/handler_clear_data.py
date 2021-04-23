@@ -10,48 +10,52 @@ from Logic.ProperLogic.misc_helpers import get_user_decision, overwrite_dict, lo
 
 def clear_data(cluster_dict, **kwargs):
     # TODO: Include deletion cascade!
-    tables_kinds = {'l': '[l]ocal tables',
-                    'g': '[g]lobal tables',
-                    'b': '[b]oth kinds of tables',
-                    'n': '[n]either'}
+    data_kinds = {'l': '[l]ocal tables',
+                  'g': '[g]lobal tables',
+                  'b': '[b]oth local and global tables',
+                  'c': '[c]lusters',
+                  'n': '[n]either'}
     warning = "----- WARNING: DESTRUCTIVE ACTION -----\n"
 
-    should_clear_tables_func = partial(get_user_decision,
-                                       warning
-                                       + "Would you like to clear the local/global tables?"
-                                         " Don't worry, you will have to re-confirm a 'yes'.")
-    table_kind_to_clear_func = partial(get_user_decision,
-                                       choices_strs=tuple(tables_kinds.values()),
-                                       valid_choices=tuple(tables_kinds.keys()))
+    should_clear_data_func = partial(get_user_decision,
+                                     warning
+                                     + "Would you like to clear the local/global data?"
+                                       " Don't worry, you will have to re-confirm a 'yes'.")
+    data_kind_to_clear_func = partial(get_user_decision,
+                                      choices_strs=tuple(data_kinds.values()),
+                                      valid_choices=tuple(data_kinds.keys()))
 
-    should_clear_tables = should_clear_tables_func()
-    while should_clear_tables == 'y':
-        table_kind_to_clear = table_kind_to_clear_func(
+    should_clear_data = should_clear_data_func()
+    while should_clear_data == 'y':
+        data_kind_to_clear = data_kind_to_clear_func(
             prompt=(warning
-                    + "Which kinds of tables would you like to clear?"
+                    + "Which kind(s) of data would you like to clear?"
                       " Don't worry, you will have to re-confirm your choice.")
         )
-        if table_kind_to_clear == 'n':
-            should_clear_tables = should_clear_tables_func()
+        if data_kind_to_clear == 'n':
+            should_clear_data = should_clear_data_func()
             continue
 
-        chosen_table_to_clear_str = tables_kinds[table_kind_to_clear].replace('[', '').replace(']', '')
-        confirm_tables_to_clear = table_kind_to_clear_func(
+        chosen_data_to_clear_str = data_kinds[data_kind_to_clear].replace('[', '').replace(']', '')
+        confirm_data_to_clear = data_kind_to_clear_func(
             prompt=(warning
-                    + f"Are you sure that you want to clear {chosen_table_to_clear_str}?"
+                    + f"Are you sure that you want to clear {chosen_data_to_clear_str}?"
                       f" This action cannot be undone. To confirm your choice, simply re-enter it.")
         )
 
-        if confirm_tables_to_clear != table_kind_to_clear:
-            should_clear_tables = should_clear_tables_func()
+        if confirm_data_to_clear != data_kind_to_clear:
+            should_clear_data = should_clear_data_func()
             continue
 
         def clear_data_worker(con):
-            if table_kind_to_clear in ('l', 'b'):
+            if data_kind_to_clear in ('l', 'b'):
                 # TODO: How to use local connections here? Rollback on multiple?
                 clear_local_tables()
-            if table_kind_to_clear in ('g', 'b'):
+            if data_kind_to_clear in ('g', 'b'):
                 clear_central_tables(con=con, close_connections=False)
+                overwrite_dict(cluster_dict, dict())
+            if data_kind_to_clear == 'c':
+                clear_clustering(con=con, close_connections=False)
                 overwrite_dict(cluster_dict, dict())
 
         try:
@@ -59,7 +63,7 @@ def clear_data(cluster_dict, **kwargs):
         except IncompleteDatabaseOperation:
             continue
 
-        should_clear_tables = 'n'
+        should_clear_data = 'n'
 
 
 def clear_local_tables(con=None, close_connections=True):
@@ -73,6 +77,10 @@ def clear_local_tables(con=None, close_connections=True):
 
 def clear_central_tables(con=None, close_connections=True):
     DBManager.clear_central_tables(con=con, close_connections=close_connections)
+
+
+def clear_clustering(con=None, close_connections=True):
+    DBManager.clear_clusters(con=con, close_connections=close_connections)
 
 
 def user_choose_local_db_dir_path():

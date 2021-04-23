@@ -14,85 +14,127 @@ from Logic.ProperLogic.models_modules.models import Models
 from Logic.ProperLogic.handlers.helpers import TO_TENSOR
 
 
-# TODO: Transfer code from eval_process_handler to here!
-
-
-def process_image_dir(cluster_dict, **kwargs):
+def process_image_dir(cluster_dict, threshold=0.73, metric=2, **kwargs):
     """
     Extract faces from user-chosen images and cluster them
 
+    :param threshold:
+    :param metric:
     :param cluster_dict:
     :param kwargs:
     :return:
     """
-    # TODO: Split embeddings storage and clustering, so one can be complete even if the other fails
-    # TODO: Refactor + improve efficiency
     # TODO: Store entered paths(?) --> Makes it easier if user wants to revisit them, but probs rarely?
-
     images_path = user_choose_images_path()
     try:
-        path_to_local_db = DBManager.get_local_db_file_path(images_path)
+        process_faces(images_path)
     except IncompleteDatabaseOperation:
         return
 
     cluster_dict_copy = cluster_dict.copy()
 
-    def process_image_dir_worker(central_con, local_con):
-        faces_rows = list(user_choose_images(images_path, path_to_local_db=path_to_local_db, central_con=central_con,
-                                             local_con=local_con, close_connections=False))
-        if not faces_rows:
-            return
-
-        # TODO: Extract this dictionary-querying as function?
-        embeddings_ids = list(map(lambda row_dict: row_dict[Columns.embedding_id.col_name],
-                                  faces_rows))
-        thumbnails = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
-                         faces_rows)
-        image_ids = map(lambda row_dict: row_dict[Columns.image_id.col_name],
-                        faces_rows)
-        faces = map(lambda row_dict: row_dict[Columns.thumbnail.col_name],
-                    faces_rows)
-
-        embeddings = list(faces_to_embeddings(faces))
-
-        emb_id_to_face_dict = dict(zip(embeddings_ids, thumbnails))
-        emb_id_to_img_id_dict = dict(zip(embeddings_ids, image_ids))
+    def cluster_processed_faces(con):
+        embeddings_with_ids = list(DBManager.get_all_embeddings(with_ids=True))
 
         # TODO: Call reclassify handler here?
         # TODO: Clear existing clusters? Issues with ids etc.????
+        core_algorithm = CoreAlgorithm(metric=metric, classification_threshold=threshold)
         # passing result cluster dict already overwrites it
-        core_algorithm = CoreAlgorithm()
-        clustering_result = core_algorithm.cluster_embeddings(embeddings, embeddings_ids,
+        clustering_result = core_algorithm.cluster_embeddings(embeddings_with_ids,
                                                               existing_clusters_dict=cluster_dict,
                                                               should_reset_cluster_ids=True,
                                                               final_clusters_only=False)
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
-        DBManager.overwrite_clusters(modified_clusters_dict, removed_clusters_dict,
-                                     emb_id_to_face_dict=emb_id_to_face_dict,
-                                     emb_id_to_img_id_dict=emb_id_to_img_id_dict, con=central_con,
-                                     close_connections=False)
+        DBManager.overwrite_clusters_simplified(modified_clusters_dict, removed_clusters_dict, con=con,
+                                                close_connections=False)
 
     try:
-        DBManager.connection_wrapper(process_image_dir_worker, path_to_local_db=path_to_local_db, with_central=True,
-                                     with_local=True)
+        DBManager.connection_wrapper(cluster_processed_faces)
     except IncompleteDatabaseOperation:
         overwrite_dict(cluster_dict, cluster_dict_copy)
 
 
-def user_choose_images(images_path, path_to_local_db=None, central_con=None, local_con=None, close_connections=True):
-    # TODO: Are the following lines a good default?
-    if path_to_local_db is None and local_con is None:
+# TODO: Eval!
+def process_faces(images_path, central_con=None, local_con=None, close_connections=True):
+    if local_con is None:
         path_to_local_db = DBManager.get_local_db_file_path(images_path)
+    else:
+        path_to_local_db = None
 
-    def user_choose_images_worker(central_con, local_con):
-        DBManager.create_local_tables(drop_existing_tables=False, path_to_local_db=path_to_local_db,
-                                      con=local_con, close_connections=False)
-        faces_rows = extract_faces(images_path, central_con=central_con, local_con=local_con, close_connections=False)
-        return faces_rows
+    def process_faces_worker(central_con, local_con):
+        DBManager.create_local_tables(drop_existing_tables=False, path_to_local_db=path_to_local_db, con=local_con,
+                                      close_connections=False)
+        extract_faces(images_path, central_con=central_con, local_con=local_con, close_connections=False)
 
-    faces_rows = DBManager.connection_wrapper(user_choose_images_worker, path_to_local_db=path_to_local_db,
-                                              central_con=central_con, local_con=local_con, with_central=True,
-                                              with_local=True, close_connections=close_connections)
+    DBManager.connection_wrapper(process_faces_worker, path_to_local_db=path_to_local_db,
+                                 central_con=central_con, local_con=local_con, with_central=True, with_local=True,
+                                 close_connections=close_connections)
+
+
+def extract_faces(path, check_if_known=True, central_con=None, local_con=None, close_connections=True):
+    # TODO: Refactor (extract functions)? + rename
+    # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
+    # TODO: Store + update max_img_id and max_embedding_id somewhere rather than (always) get them via DB query?
+
+    path_to_local_db = DBManager.get_local_db_file_path(path)
+    path_id = DBManager.get_path_id(path)
+    if path_id is None:
+        # path not yet known
+        path_id = DBManager.store_directory_path(path, con=central_con, close_connections=False)
+        DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
+    imgs_names_and_date = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
+
+    # Note: 'MAX' returns None / (None, ) as a default value
+    max_img_id = DBManager.get_max_image_id(path_to_local_db=path_to_local_db)
+    start_img_id = max_img_id + 1
+    initial_max_embedding_id = DBManager.get_max_embedding_id()
+
+    def get_counted_img_loader():
+        img_loader = load_imgs_from_path(path, recursive=True, output_file_names=True, output_file_paths=True)
+        return enumerate(img_loader, start=start_img_id)
+
+    def store_embedding_row_dicts(con):
+        # TODO: Also auto-increment emb_id etc.
+        max_embedding_id = initial_max_embedding_id
+        for img_id, (img_path, img_name, img) in get_counted_img_loader():
+            # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
+            #       ---> Done?
+            # Check if image already stored --> don't process again
+            # known = (name, last modified) as a pair known for this director
+            last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
+            if check_if_known and (img_name, last_modified) in imgs_names_and_date:
+                continue
+
+            DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
+                                  path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
+            DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
+
+            faces = Models.altered_mtcnn.forward_return_results(img)
+            if not faces:
+                log_error(f"no faces found in image '{img_path}'")
+                continue
+
+            # TODO: Better way to create these row_dicts?
+            embeddings_row_dicts = [{Columns.cluster_id.col_name: 'NULL',
+                                     Columns.embedding.col_name: face_to_embedding(face),
+                                     Columns.thumbnail.col_name: face,
+                                     Columns.image_id.col_name: img_id,
+                                     Columns.embedding_id.col_name: embedding_id}
+                                    for embedding_id, face in enumerate(faces, start=max_embedding_id + 1)]
+            DBManager.store_embeddings(embeddings_row_dicts, con=con, close_connections=False)
+            max_embedding_id += len(faces)
+
+    DBManager.connection_wrapper(store_embedding_row_dicts, con=central_con, close_connections=close_connections)
+
+
+def user_choose_images_path():
+    # TODO: make user choose path
+    # images_path = input('Please enter a path with images of people you would like to add.\n')
+    images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
+    while not os.path.exists(images_path):
+        log_error(f"unable to find path '{images_path}'")
+        print("\nPlease try again.")
+        images_path = input('Please enter a path with images of people you would like to add.\n')
 
     # TODO: Implement check_if_known question(?)
     # check_if_known_decision = get_user_decision(
@@ -101,18 +143,6 @@ def user_choose_images(images_path, path_to_local_db=None, central_con=None, loc
     #    " to make them available again."
     # )
     # check_if_known = (check_if_known_decision == "n")
-
-    return faces_rows
-
-
-def user_choose_images_path():
-    # TODO: make user user choose path
-    # images_path = input('Please enter a path with images of people you would like to add.\n')
-    images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
-    while not os.path.exists(images_path):
-        log_error(f"unable to find path '{images_path}'")
-        print("\nPlease try again.")
-        images_path = input('Please enter a path with images of people you would like to add.\n')
     return images_path
 
 
@@ -126,63 +156,6 @@ def face_to_embedding(face):
 
 def _to_tensor(img):
     return TO_TENSOR(img).unsqueeze(0)
-
-
-def extract_faces(path, check_if_known=True, central_con=None, local_con=None, close_connections=True):
-    # TODO: Refactor (extract functions)? + rename
-    # TODO: Generate Thumbnails differently? (E.g. via Image.thumbnail or sth. like that)
-    # TODO: Store + update max_img_id and max_embedding_id somewhere rather than (always) get them via DB query?
-
-    path_to_local_db = DBManager.get_local_db_file_path(path)
-    img_loader = load_imgs_from_path(path, output_file_names=True, output_file_paths=True)
-
-    def extract_faces_worker(central_con, local_con):
-        # TODO: Outsource as function to DBManager?
-        # TODO: Check whether known locally and centrally separately?
-
-        imgs_names_and_date = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
-
-        # Note: 'MAX' returns None / (None, ) as a default value
-        max_img_id = DBManager.get_max_image_id(path_to_local_db=path_to_local_db)
-        initial_max_embedding_id = DBManager.get_max_embedding_id()
-
-        path_id = DBManager.get_path_id(path)
-        if path_id is None:
-            # path not yet known
-            path_id = DBManager.store_directory_path(path, con=central_con, close_connections=False)
-            DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
-
-        faces_rows = []
-        img_id = max_img_id + 1
-        max_embedding_id = initial_max_embedding_id
-        for img_path, img_name, img in img_loader:
-            # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
-            #       ---> Done?
-            # Check if image already stored --> don't process again
-            # known = (name, last modified) as a pair known for this directory
-            last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
-            if check_if_known and (img_name, last_modified) in imgs_names_and_date:
-                continue
-
-            DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
-                                  path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
-            DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
-            # img_faces = cut_out_faces(Models.mtcnn, img)
-            img_faces = Models.altered_mtcnn.forward_return_results(img)
-            # TODO: Better way to create these row_dicts?
-            cur_faces_rows = [{Columns.thumbnail.col_name: face,
-                               Columns.image_id.col_name: img_id,
-                               Columns.embedding_id.col_name: embedding_id}
-                              for embedding_id, face in enumerate(img_faces, start=max_embedding_id + 1)]
-            faces_rows.extend(cur_faces_rows)
-            max_embedding_id += len(img_faces)
-            img_id += 1
-
-        return faces_rows
-
-    faces_rows = DBManager.connection_wrapper(extract_faces_worker, central_con=central_con, local_con=local_con,
-                                              with_central=True, with_local=True, close_connections=close_connections)
-    return faces_rows
 
 
 def load_imgs_from_path(dir_path, recursive=False, output_file_names=False, output_file_paths=False, extensions=None):

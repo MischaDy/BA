@@ -4,6 +4,7 @@ from itertools import product
 import numpy as np
 
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
+from Logic.ProperLogic.handlers.handler_clear_data import clear_clustering
 from Logic.ProperLogic.main_logic import init_program
 from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDBManager
 from eval_handlers_versions.eval_process_image_dir import eval_process_image_dir
@@ -48,7 +49,7 @@ def run_metric_evaluation(images_path):
     for counter, (threshold, metric) in enumerate(product(THRESHOLDS, METRICS), start=1):
         print('\n' f'-------------- STARTING EVAL {counter} --------------' '\n')
         delete_db_files()
-        clear_clusters()
+        clear_clustering()
         init_program()
 
         if CLEAR_CLUSTERS:
@@ -79,11 +80,6 @@ def delete_central_db_file():
 def delete_local_db_file():
     path_to_local_db_file = EvalDBManager.get_local_db_file_path(IMAGES_PATH)
     os.remove(path_to_local_db_file)
-
-
-def clear_clusters():
-    if CLEAR_CLUSTERS:
-        EvalDBManager.clear_clusters()
 
 
 if __name__ == '__main__':

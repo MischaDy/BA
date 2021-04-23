@@ -9,6 +9,9 @@ from Logic.ProperLogic.misc_helpers import remove_items, starfilterfalse, partit
 from itertools import combinations
 
 import logging
+
+from Logic.ProperLogic.helper_classes.sorted_list import SortedList
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -23,7 +26,7 @@ EMBEDDINGS_PATH = 'stored_embeddings'
 # TODO: Test, that cluster-split works and that params are ok!
 
 class CoreAlgorithm:
-    def __init__(self, classification_threshold=0.73, r=2, max_cluster_size=100, max_num_total_comps=1000):
+    def __init__(self, classification_threshold=0.73, r=2, max_cluster_size=100, max_num_total_comps=1000, metric=2):
         # 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
         # TODO: Is r=2 a sensible value?
 
@@ -35,6 +38,8 @@ class CoreAlgorithm:
         self.max_num_total_comps = max_num_total_comps
         # maximum number of clusters to compute distance to
         self.max_num_cluster_comps = max_num_total_comps // max_cluster_size
+        self.metric = metric
+        Cluster.set_metric(metric)
 
     def cluster_embeddings(self, embeddings, embeddings_ids=None, existing_clusters_dict=None,
                            should_reset_cluster_ids=False, final_clusters_only=True):
@@ -75,8 +80,8 @@ class CoreAlgorithm:
                 return existing_clusters_dict.any_cluster_with_emb(emb_id)
 
             embeddings_with_ids = starfilterfalse(exists_in_any_cluster, embeddings_with_ids)
-        cluster_dict = existing_clusters_dict
 
+        cluster_dict = existing_clusters_dict
         if should_reset_cluster_ids:
             cluster_dict.reset_ids()
             next_cluster_id = cluster_dict.get_max_id() + 1
@@ -86,9 +91,8 @@ class CoreAlgorithm:
             next_cluster_id = max(max_existing_id, max_db_id) + 1
 
         modified_clusters_ids, removed_clusters_ids = set(), set()
-        get_closest_clusters = self._choose_closest_clusters_func(len(cluster_dict))
         for embedding_id, new_embedding in embeddings_with_ids:
-            closest_clusters = get_closest_clusters(cluster_dict, new_embedding)
+            closest_clusters = self.get_closest_clusters(cluster_dict, new_embedding)
 
             # find cluster containing the closest embedding to new_embedding
             shortest_emb_dist, closest_cluster = self.find_closest_cluster_to_embedding(closest_clusters, new_embedding)
@@ -117,25 +121,22 @@ class CoreAlgorithm:
         removed_clusters = cluster_dict.get_clusters_by_ids(removed_clusters_ids)
         return cluster_dict, ClusterDict(modified_clusters), ClusterDict(removed_clusters)
 
-    def _choose_closest_clusters_func(self, num_clusters):
-        """
-        n = total number of clusters
-        c = number of closest clusters to use
-             n log(n) < c * n
-        <==>        n < 2^c
+    def get_closest_clusters(self, cluster_dict, new_embedding):
+        def key(cluster):
+            return cluster.compute_dist_to_center(new_embedding)
 
-        :param num_clusters:
-        :return:
-        """
-        # TODO: Implement
-        # if num_clusters < 2 ** cls.max_num_cluster_comps:
-        def get_closest_clusters(cluster_dict, new_embedding):
-            # sort clusters by distance from their center to embedding; only consider closest clusters
-            clusters_by_center_dist = sorted(cluster_dict.get_clusters(),
-                                             key=lambda cluster: cluster.compute_dist_to_center(new_embedding))
-            closest_clusters = clusters_by_center_dist[:self.max_num_cluster_comps]
-            return closest_clusters
-        return get_closest_clusters
+        clusters = cluster_dict.get_clusters()
+        closest_clusters = SortedList(max_size=self.max_num_cluster_comps, key=key)
+        for cluster in clusters:
+            closest_clusters.add(cluster)
+        return closest_clusters
+
+    # def get_closest_clusters(self, cluster_dict, new_embedding):
+    #     # sort clusters by distance from their center to embedding; only consider closest clusters
+    #     clusters_by_center_dist = sorted(cluster_dict.get_clusters(),
+    #                                      key=lambda cluster: cluster.compute_dist_to_center(new_embedding))
+    #     closest_clusters = clusters_by_center_dist[:self.max_num_cluster_comps]
+    #     return closest_clusters
 
     def is_cluster_too_big(self, cluster):
         return self.max_cluster_size is not None and cluster.get_size() >= self.max_cluster_size
@@ -218,13 +219,5 @@ class CoreAlgorithm:
         # TODO: Improve efficiency --> No, ok for now
         if not len(embeddings) > 1:
             raise ValueError("'embeddings' must contain at least 2 embeddings")
-        # max_dist = -1
-        # max_dist_embs = (None, None)
-        # for ind1, emb1 in enumerate(embeddings):
-        #     for emb2 in embeddings[ind1+1:]:
-        #         cur_dist = Cluster.compute_dist(emb1, emb2)
-        #         if cur_dist > max_dist:
-        #             max_dist = cur_dist
-        #             max_dist_embs = (emb1, emb2)
         embs_pairs = combinations(embeddings, r=2)
         return max(embs_pairs, key=Cluster.compute_dist)

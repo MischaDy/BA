@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 from functools import reduce
 
-from itertools import filterfalse, tee
+from itertools import filterfalse, tee, islice
 
 
 # ----- OOP -----
@@ -417,3 +417,25 @@ def group_pairs(pairs, ret_dict=True):
 def map_dict_vals(dict_, func):
     for key, val in dict_.items():
         dict_[key] = func(val)
+
+
+def enumerate_descending(iterable):
+    size = len(iterable)
+    indices = reversed(range(size))
+    for ind, item in zip(indices, iterable):
+        yield ind, item
+
+
+def identity(*args):
+    if len(args) == 1:
+        return args[0]
+    return args
+
+
+def nth(iterable, n, default=None):
+    """
+    Returns the nth item or a default value
+
+    Taken from https://docs.python.org/3/library/itertools.html#itertools-recipes
+    """
+    return next(islice(iterable, n, None), default)

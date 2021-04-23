@@ -10,20 +10,22 @@ from eval_handlers_versions.eval_process_image_dir import eval_process_image_dir
 
 import f_measure
 
+# TODO: Also store statistics about resulting clustering! (number of clusters, mean/median cluster size + variance)
+
 
 # set to None to process all
 MAX_NUM_PROC_IMGS = None
 # IMAGES_PATH = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\subset_cplfw\images'
 IMAGES_PATH = r'..\my_test\subset_cplfw\images'
 SAVE_RESULTS = True
-SAVE_PATH = 'results'
+SAVE_PATH = 'results_thresholds'
 SAVE_FILE_NAME_POSTFIX = ''
 DELETE_LOCAL_DB_FILE = False
 DELETE_CENTRAL_DB_FILE = False
 CLEAR_CLUSTERS = True
 
-METRICS = [2, 1.5, 1, 0.75, 0.5, 0.3, 0.2, 0.1, 0]
-THRESHOLDS = np.linspace(0.5, 1.0, num=6)  # num = 1  ==>  step size = 0.05
+METRICS = [2]  # , 1.5, 1, 0.75, 0.5, 0.3, 0.2, 0.1, 0]
+THRESHOLDS = np.linspace(0.5, 1.0, num=11)  # ==>  step size = 0.05
 # METRICS = [20, 0]
 # THRESHOLDS = [0.1, 10]
 

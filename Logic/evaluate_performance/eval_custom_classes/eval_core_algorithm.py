@@ -6,7 +6,7 @@ from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import DBManager
 from Logic.ProperLogic.misc_helpers import starfilterfalse, remove_items, partition
 from Logic.evaluate_performance.eval_custom_classes.eval_cluster import EvalCluster
-
+from Logic.evaluate_performance.eval_custom_classes.max_items_list import SortedList
 
 PRINT_PROGRESS = True
 PROGRESS_STEPS = 100
@@ -74,7 +74,7 @@ class EvalCoreAlgorithm(CoreAlgorithm):
             next_cluster_id = max(max_existing_id, max_db_id) + 1
 
         modified_clusters_ids, removed_clusters_ids = set(), set()
-        get_closest_clusters = self._choose_closest_clusters_func(len(cluster_dict))
+        get_closest_clusters = self._eval_choose_closest_clusters_func()
         for embedding_id, new_embedding in embeddings_with_ids:
             print_progress(embedding_id, "embedding_id")
             closest_clusters = get_closest_clusters(cluster_dict, new_embedding)
@@ -96,6 +96,18 @@ class EvalCoreAlgorithm(CoreAlgorithm):
         modified_clusters = cluster_dict.get_clusters_by_ids(modified_clusters_ids)
         removed_clusters = cluster_dict.get_clusters_by_ids(removed_clusters_ids)
         return cluster_dict, ClusterDict(modified_clusters), ClusterDict(removed_clusters)
+
+    def _eval_choose_closest_clusters_func(self):
+        def get_closest_clusters(cluster_dict, new_embedding):
+            def key(cluster):
+                return cluster.compute_dist_to_center(new_embedding)
+
+            clusters = cluster_dict.get_clusters()
+            closest_clusters = SortedList(max_size=self.max_num_cluster_comps, key=key)
+            for cluster in clusters:
+                closest_clusters.add(cluster)
+            return closest_clusters
+        return get_closest_clusters
 
     @classmethod
     def find_closest_cluster_to_embedding(cls, clusters, embedding, return_dist=True):

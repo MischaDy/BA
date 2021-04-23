@@ -407,3 +407,8 @@ def nth(iterable, n, default=None):
     Taken from https://docs.python.org/3/library/itertools.html#itertools-recipes
     """
     return next(islice(iterable, n, None), default)
+
+
+def add_multiple_to_dict(dict_, items):
+    for key, value in items:
+        dict_[key] = value

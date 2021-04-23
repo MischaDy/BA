@@ -1,7 +1,7 @@
-from Logic.ProperLogic.misc_helpers import log_error, MaxReducer
+from Logic.ProperLogic.helper_classes.reducer import MaxReducer
+from Logic.ProperLogic.misc_helpers import log_error
 import torch
 
-from functools import reduce
 from itertools import count
 
 import logging

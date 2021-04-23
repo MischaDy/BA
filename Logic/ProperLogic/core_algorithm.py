@@ -10,7 +10,7 @@ from itertools import combinations
 
 import logging
 
-from Logic.evaluate_performance.eval_custom_classes.max_items_list import SortedList
+from Logic.ProperLogic.helper_classes.sorted_list import SortedList
 
 logging.basicConfig(level=logging.INFO)
 

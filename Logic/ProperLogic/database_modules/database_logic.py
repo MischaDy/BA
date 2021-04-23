@@ -1366,6 +1366,21 @@ class DBManager:
     def store_embedding(cls, embeddings_row_dict, con=None, close_connections=True):
         cls.store_embeddings([embeddings_row_dict], con=con, close_connections=close_connections)
 
+    @classmethod
+    def clear_clusters(cls, con=None, close_connections=True):
+        """
+        Delete all rows from cluster_attributes and certain_labels tables.
+
+        :param con:
+        :param close_connections:
+        :return:
+        """
+        def clear_clusters_worker(con):
+            cls.delete_from_table(Tables.cluster_attributes_table, con=con, close_connections=False)
+            cls.delete_from_table(Tables.certain_labels_table, con=con, close_connections=False)
+
+        cls.connection_wrapper(clear_clusters_worker, con=con, close_connections=close_connections)
+
 
 class IncompleteDatabaseOperation(RuntimeError):
     pass

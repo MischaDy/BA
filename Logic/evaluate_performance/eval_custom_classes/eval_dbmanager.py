@@ -39,11 +39,3 @@ class EvalDBManager(DBManager):
                                                    with_local=True, close_connections=close_connections)
         emb_id_to_name_dict = dict(emb_ids_and_names)
         return emb_id_to_name_dict
-
-    @classmethod
-    def clear_clusters(cls, con=None, close_connections=True):
-        def clear_clusters_worker(con):
-            cls.delete_from_table(Tables.cluster_attributes_table, con=con, close_connections=False)
-            cls.delete_from_table(Tables.certain_labels_table, con=con, close_connections=False)
-
-        cls.connection_wrapper(clear_clusters_worker, con=con, close_connections=close_connections)

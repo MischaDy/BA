@@ -453,6 +453,7 @@ class DBManager:
         :param path_to_local_db:
         :return:
         """
+        # TODO: More efficient way of deleting table completely! (drop + recreate?)
         with_clause = cls._build_with_clause(with_clause_part)
         where_clause = cls._build_where_clause(where_clause_part)
 
@@ -485,8 +486,7 @@ class DBManager:
             for table in tables:
                 cls.delete_from_table(table, path_to_local_db=path_to_local_db, con=con, close_connections=False)
 
-        cls.connection_wrapper(clear_tables_worker, path_to_local_db, con=con,
-                               close_connections=close_connections)
+        cls.connection_wrapper(clear_tables_worker, path_to_local_db, con=con, close_connections=close_connections)
 
     @classmethod
     def clear_local_tables(cls, path_to_local_db, con=None, close_connections=True):
@@ -1375,9 +1375,10 @@ class DBManager:
         :param close_connections:
         :return:
         """
+        tables = [Tables.cluster_attributes_table, Tables.certain_labels_table]
+
         def clear_clusters_worker(con):
-            cls.delete_from_table(Tables.cluster_attributes_table, con=con, close_connections=False)
-            cls.delete_from_table(Tables.certain_labels_table, con=con, close_connections=False)
+            cls.clear_tables(tables, con=con, close_connections=False)
 
         cls.connection_wrapper(clear_clusters_worker, con=con, close_connections=close_connections)
 

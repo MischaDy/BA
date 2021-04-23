@@ -136,7 +136,7 @@ class Commands:
     reclassify = Command('reclassify', 'reclassify individuals', 'c')
     reset_cluster_ids = Command('reset cluster ids', 'reset the cluster ids', 'r')
     view_person = Command('view person', 'view person', 'v')
-    clear_data = Command('clear data', 'clear the processed data', 'd')
+    clear_data = Command('clear data', 'clear (some of) the processed data', 'd')
     exit = Command('exit', 'exit', 'exit')
 
     @classmethod

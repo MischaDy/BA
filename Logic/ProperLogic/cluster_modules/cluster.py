@@ -125,8 +125,10 @@ class Cluster:
         return self.compute_dist(self.center_point, embedding)
 
     @classmethod
-    def compute_dist(cls, embedding1, embedding2):
-        return float(torch.dist(embedding1, embedding2, p=cls.metric))
+    def compute_dist(cls, embedding1, embedding2, metric=None):
+        if metric is None:
+            metric = cls.metric
+        return float(torch.dist(embedding1, embedding2, p=metric))
 
     @staticmethod
     def sum_embeddings(embeddings):

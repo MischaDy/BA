@@ -26,7 +26,7 @@ EMBEDDINGS_PATH = 'stored_embeddings'
 # TODO: Test, that cluster-split works and that params are ok!
 
 class CoreAlgorithm:
-    def __init__(self, classification_threshold=0.73, r=2, max_cluster_size=100, max_num_total_comps=1000):
+    def __init__(self, classification_threshold=0.73, r=2, max_cluster_size=100, max_num_total_comps=1000, metric=2):
         # 0.53  # OR 0.73 cf. Bijl - A comparison of clustering algorithms for face clustering
         # TODO: Is r=2 a sensible value?
 
@@ -38,6 +38,8 @@ class CoreAlgorithm:
         self.max_num_total_comps = max_num_total_comps
         # maximum number of clusters to compute distance to
         self.max_num_cluster_comps = max_num_total_comps // max_cluster_size
+        self.metric = metric
+        Cluster.set_metric(metric)
 
     def cluster_embeddings(self, embeddings, embeddings_ids=None, existing_clusters_dict=None,
                            should_reset_cluster_ids=False, final_clusters_only=True):

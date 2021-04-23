@@ -9,11 +9,6 @@ PROGRESS_STEPS = 100
 
 
 class EvalCoreAlgorithm(CoreAlgorithm):
-    def __init__(self, classification_threshold=0.73, r=2, max_cluster_size=100, max_num_total_comps=1000, metric=2):
-        super().__init__(classification_threshold, r, max_cluster_size, max_num_total_comps)
-        self.metric = metric
-        Cluster.set_metric(metric)
-
     def cluster_embeddings_no_split(self, embeddings, embeddings_ids=None, existing_clusters_dict=None,
                                     should_reset_cluster_ids=False, final_clusters_only=True):
         """

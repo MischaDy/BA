@@ -243,37 +243,37 @@ def get_every_nth_item(iterables, n=0):
     return map(get_nth_item, iterables)
 
 
-# def split_items(iterables, use_longest=False, fillvalue=None):
-#     """
-#     shortest iterable determines stuff!
-#
-#     ...
-#     Return nth element (zero-indexed!) in each iterable stored in the iterable.
-#
-#     Example: get_every_nth_item(zip(range(3, 7), 'abcdefgh')) --> [[3, 4, 5, 6], ['a', 'b', 'c', 'd']]
-#
-#     :param fillvalue:
-#     :param use_longest:
-#     :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
-#     :return: nth element in each iterable stored in 'iterables'
-#     """
-#     # TODO: Improve efficiency, fix docstring, refactor(?)
-#     # return list(starmap(get_every_nth_item, zip(iterables, range())))
-#     if len(iterables) == 0:
-#         return []
-#     len_aggregator = max if use_longest else min
-#     num_splits = len_aggregator(map(len, iterables))
-#     splits = [[] for _ in range(num_splits)]
-#
-#     if use_longest:
-#         for iterable in iterables:
-#             for split, item in zip_longest(splits, iterable, fillvalue=fillvalue):
-#                 split.append(item)
-#     else:
-#         for iterable in iterables:
-#             for split, item in zip(splits, iterable):
-#                 split.append(item)
-#     return splits
+def split_items(iterables, use_longest=False, fillvalue=None):
+    """
+    shortest iterable determines stuff!
+
+    ...
+    Return nth element (zero-indexed!) in each iterable stored in the iterable.
+
+    Example: get_every_nth_item(zip(range(3, 7), 'abcdefgh')) --> [[3, 4, 5, 6], ['a', 'b', 'c', 'd']]
+
+    :param fillvalue:
+    :param use_longest:
+    :param iterables: iterable of indexable iterables, each of at least length n-1 (since n is an index)
+    :return: nth element in each iterable stored in 'iterables'
+    """
+    # TODO: Improve efficiency, fix docstring, refactor(?)
+    # return list(starmap(get_every_nth_item, zip(iterables, range())))
+    if len(iterables) == 0:
+        return []
+    len_aggregator = max if use_longest else min
+    num_splits = len_aggregator(map(len, iterables))
+    splits = [[] for _ in range(num_splits)]
+
+    if use_longest:
+        for iterable in iterables:
+            for split, item in zip_longest(splits, iterable, fillvalue=fillvalue):
+                split.append(item)
+    else:
+        for iterable in iterables:
+            for split, item in zip(splits, iterable):
+                split.append(item)
+    return splits
 
 
 def remove_items(iterable, items):
@@ -345,7 +345,7 @@ def ignore_first_n_args_decorator(n=0):
     def ignore_first_n_args(func):
         # TODO: User functools.wraps or the like?
         def wrapped(*args, **kwargs):
-            args_subset = args[n:]
+            args_subset = islice(args, n, None)
             return func(*args_subset, **kwargs)
         return wrapped
     return ignore_first_n_args
@@ -412,3 +412,21 @@ def nth(iterable, n, default=None):
 def add_multiple_to_dict(dict_, items):
     for key, value in items:
         dict_[key] = value
+
+
+def chain_dicts(*dicts):
+    if not dicts:
+        return
+    elif len(dicts) == 1:
+        return dicts[0]
+
+    chained_dict = dicts[0].copy()
+    for dict_ in dicts[1:]:
+        for key, chained_value in chained_dict.items():
+            chained_dict[key] = dict_[chained_value]
+
+    return chained_dict
+
+
+def take_first(iterable):
+    return next(iter(iterable))

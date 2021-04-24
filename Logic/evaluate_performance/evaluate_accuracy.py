@@ -1,16 +1,14 @@
 import os
 from itertools import product
 
-import numpy as np
-
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation
 from Logic.ProperLogic.handlers.handler_clear_data import clear_clustering
 from Logic.ProperLogic.main_logic import init_program
 from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDBManager
-from eval_handlers_versions.eval_process_image_dir import eval_process_image_dir
+from Logic.evaluate_performance.eval_handlers_versions.eval_process_image_dir import eval_process_image_dir
 
-import f_measure
+from Logic.evaluate_performance import f_measure
 
 # TODO: Also store statistics about resulting clustering! (number of clusters, mean/median cluster size + variance)
 
@@ -30,9 +28,9 @@ SAVE_FILE_NAME_POSTFIX = ''
 #     else:
 #         cluster_dict = EvalDBManager.load_cluster_dict()
 #     eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=MAX_NUM_PROC_IMGS)
-#     emb_id_to_name_dict = EvalDBManager.get_emb_id_to_name_dict(images_path=images_path)
+#     emb_id_to_img_name_dict = EvalDBManager.get_emb_id_to_name_dict(images_path=images_path)
 #     clusters = EvalDBManager.load_cluster_dict().get_clusters()
-#     f_measure.main(clusters, emb_id_to_name_dict, SAVE_RESULTS, SAVE_PATH, SAVE_FILE_NAME_POSTFIX)
+#     f_measure.main(clusters, emb_id_to_img_name_dict, SAVE_RESULTS, SAVE_PATH, SAVE_FILE_NAME_POSTFIX)
 
 
 def run_metric_evaluation(images_path, are_same_person_func, save_path, thresholds=(0.73,), metrics=(2,),

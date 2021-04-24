@@ -342,13 +342,28 @@ def get_parent_dir_path(obj_path):
 
 
 def ignore_first_n_args_decorator(n=0):
-    def ignore_first_n_args(func):
+    return ignore_args_outside_range_decorator(start=n)
+
+
+def ignore_last_n_args_decorator(n=0):
+    def ignore_last_n_args(func):
         # TODO: User functools.wraps or the like?
         def wrapped(*args, **kwargs):
-            args_subset = islice(args, n, None)
+            stop = len(args) - n
+            args_subset = islice(args, 0, stop)
             return func(*args_subset, **kwargs)
         return wrapped
-    return ignore_first_n_args
+    return ignore_last_n_args
+
+
+def ignore_args_outside_range_decorator(start=0, stop=None):
+    def ignore_args_outside_range(func):
+        # TODO: User functools.wraps or the like?
+        def wrapped(*args, **kwargs):
+            args_subset = islice(args, start, stop)
+            return func(*args_subset, **kwargs)
+        return wrapped
+    return ignore_args_outside_range
 
 
 def get_multiple(dict_, keys):
@@ -430,3 +445,7 @@ def chain_dicts(*dicts):
 
 def take_first(iterable):
     return next(iter(iterable))
+
+
+# def dict_key_intersection():
+#     pass

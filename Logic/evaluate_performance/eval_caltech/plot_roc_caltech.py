@@ -27,8 +27,8 @@ def main(images_path):
     emb_id_to_fps_and_tps = get_emb_id_to_fps_and_tps(images_path, use_all=USE_ALL,
                                                       use_random_start_ids=USE_RANDOM_START_IDS,
                                                       num_random_start_ids=NUM_RANDOM_START_IDS)
-    fp_and_tp_rates = list(emb_id_to_fps_and_tps.items())
-    plot_rocs(fp_and_tp_rates)
+    # fp_and_tp_rates = list(emb_id_to_fps_and_tps.items())
+    plot_rocs(emb_id_to_fps_and_tps, save_path=SAVE_PATH)
 
 
 def get_emb_id_to_fps_and_tps(images_path, start_embs_ids=None, use_all=False, use_random_start_ids=False,
@@ -88,28 +88,45 @@ def plot_roc(fp_rate, tp_rate, eps=0.05):
     plt.show()
 
 
-def plot_rocs(fp_and_tp_rates, eps=0.05):
-    fig, ax = _plot_roc_helper(eps=eps)
+def plot_rocs(emb_id_to_fps_and_tps, emb_id_to_labels=None, emb_id_to_equal_colors=None, eps=0.05, title=None,
+              save_path=None):
+    if emb_id_to_labels is None:
+        emb_id_to_labels = dict()
 
-    for counter, (fp_rate, tp_rate) in enumerate(fp_and_tp_rates, start=1):
-        ax.plot(fp_rate, tp_rate, label=str(counter))
-    if SAVE_PATH is not None:
+    fig, ax = _plot_roc_helper(title=title, eps=eps, will_plot_multi=True)
+
+    any_label = False
+    for emb_id, (fp_rate, tp_rate) in emb_id_to_fps_and_tps.items():
+        label = emb_id_to_labels.get(emb_id)
+        if label is not None:
+            ax.plot(fp_rate, tp_rate, label=label)
+            any_label = True
+        else:
+            ax.plot(fp_rate, tp_rate)
+
+    if any_label:
+        plt.legend(loc='lower right')
+
+    if save_path is not None:
         plt.savefig(SAVE_PATH, format=SAVE_FORMAT)
     plt.show()
 
 
-def _plot_roc_helper(eps=0.05, will_plot_multi=False):
+def _plot_roc_helper(title=None, eps=0.05, will_plot_multi=False):
     axes_limits = [0 - eps, 1 + eps]
     plot_range = [0, 1]
 
     fig, ax = plt.subplots()
-    title = 'ROC'
     xlabel = 'False Positive Rate'
     ylabel = 'True Positive Rate'
     if will_plot_multi:
-        title += 's'
+        if title is None:
+            title = 'ROCs'
         xlabel += 's'
         ylabel += 's'
+    elif title is None:
+        title = 'ROC'
+
     plt.title(title)
     # ax = fig.add_subplot(111, aspect='equal')
     ax.set_xlim(axes_limits)
@@ -118,7 +135,6 @@ def _plot_roc_helper(eps=0.05, will_plot_multi=False):
     ax.set_ylabel(ylabel)
     ax.set_aspect('equal')
     # ax.grid(b=True, which='major', color='k', linestyle='--')
-    # plt.legend(loc='lower right')
     ax.plot(plot_range, plot_range, 'k--')
     return fig, ax
 

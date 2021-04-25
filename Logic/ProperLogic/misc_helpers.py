@@ -472,3 +472,10 @@ def unique_everseen(iterable, key=None):
             if k not in seen:
                 seen_add(k)
                 yield element
+
+
+def map_nested(func, iterable, n=1):
+    result = iterable
+    for _ in range(n):
+        result = map(func, result)
+    return result

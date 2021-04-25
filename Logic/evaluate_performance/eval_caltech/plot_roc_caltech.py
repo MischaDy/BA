@@ -20,17 +20,17 @@ METRIC = 2
 THRESHOLD = 0.73
 
 SAVE_FORMAT = 'svg'
-SAVE_PATH = f"plots_caltech/caltech_477_rocs___L{METRIC}__T{str(THRESHOLD).replace('.', '_pt_')}.{SAVE_FORMAT}"
+SAVE_PATH = f"plots_caltech/caltech_477_rocs"
 
 
 # TODO: Average all ROC curves?
 
 def main(images_path):
+    save_path = make_save_path(SAVE_PATH, metric=METRIC, threshold=THRESHOLD, format_=SAVE_FORMAT)
     emb_id_to_fps_and_tps = get_emb_id_to_fps_and_tps(images_path, use_all=USE_ALL,
                                                       use_random_start_ids=USE_RANDOM_START_IDS,
                                                       num_random_start_ids=NUM_RANDOM_START_IDS)
-    # fp_and_tp_rates = list(emb_id_to_fps_and_tps.items())
-    plot_rocs(emb_id_to_fps_and_tps, save_path=SAVE_PATH)
+    plot_rocs(emb_id_to_fps_and_tps, save_path=save_path)
 
 
 def get_emb_id_to_fps_and_tps(images_path, start_embs_ids=None, use_all=False, use_random_start_ids=False,
@@ -144,6 +144,15 @@ def _plot_roc_helper(title=None, eps=0.05, will_plot_multi=False):
     # ax.grid(b=True, which='major', color='k', linestyle='--')
     ax.plot(plot_range, plot_range, 'k--')
     return fig, ax
+
+
+def make_save_path(path, metric=2, threshold=0.73, format_='svg'):
+    def replace_point(num):
+        return str(num).replace('.', '_pt_')
+
+    metric_str, threshold_str = map(replace_point, [metric, threshold])
+    path += f'___L{metric_str}__T{threshold_str}.{format_}'
+    return path
 
 
 if __name__ == '__main__':

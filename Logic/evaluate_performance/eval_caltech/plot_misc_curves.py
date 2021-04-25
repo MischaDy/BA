@@ -1,3 +1,4 @@
+import operator
 from functools import partial
 from itertools import starmap
 
@@ -5,8 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from Logic.ProperLogic.cluster_modules.cluster import Cluster
-from Logic.ProperLogic.misc_helpers import starfilter, ignore_first_n_args_decorator, get_every_nth_item, \
-    ignore_last_n_args_decorator, unique_everseen, get_ext
+from Logic.ProperLogic.misc_helpers import get_every_nth_item, get_ext
 from Logic.evaluate_performance.eval_caltech.evaluate_accuracy_caltech import IMAGES_PATH, get_img_name_to_id_dict, \
     caltech_are_same_person_func
 from Logic.evaluate_performance.eval_caltech.plot_roc_caltech import plot_rocs, make_save_path
@@ -16,25 +16,115 @@ from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDB
 METRIC = 2
 THRESHOLD = 0.73
 TP_VS_THRES_SAVE_PATH = 'plots_caltech/caltech_tp_vs_thres'
+FP_VS_THRES_SAVE_PATH = 'plots_caltech/caltech_fp_vs_thres'
+F_MEASURE_VS_THRES_SAVE_PATH = 'plots_caltech/caltech_f_measure_vs_thres'
 
-# TODO: Make Threshold vs. FP / TP / f-measure plots!
-#       --> Compare to proposed threshold / threshold curve in paper (remember their cut-off criterion)
+# TODO: Note: FN etc. rates are *with regards to start cluster*!!!
+
+# TODO: Are you really calculating face PAIRS?!?!!
+#       Or does it not matter bc. its face pairs, but focusing only on start emb (not even its cluster)?
+
+# TODO: Make Threshold vs. f-measure plots!
+#       --> Compare plots to proposed threshold (curve) in paper -> (remember their cut-off criterion!)
 #       --> Generally: discuss!
 #       --> Also vary metric?
 
 
 def main_plot_misc(images_path):
-    save_path = make_save_path(TP_VS_THRES_SAVE_PATH, metric=METRIC, threshold=THRESHOLD, format_='svg')
-    thresholds_and_tps = get_thresholds_and_tps(images_path)
-    plot_thresholds_vs_tps(thresholds_and_tps, save_path=save_path)
+    # TPs
+    # tp_save_path = make_save_path(TP_VS_THRES_SAVE_PATH, metric=METRIC, threshold=THRESHOLD, format_='svg')
+    thresholds_and_tps, num_tps_list = get_thresholds_and_pos_rate(images_path, True, ret_abs_num_pos=True)
+    # FPs
+    # fp_save_path = make_save_path(FP_VS_THRES_SAVE_PATH, metric=METRIC, threshold=THRESHOLD, format_='svg')
+    thresholds_and_fps = get_thresholds_and_pos_rate(images_path, False)
+
+    # plot_thresholds_vs_pos(thresholds_and_tps, pos_type=True, save_path=tp_save_path)
+    # plot_thresholds_vs_pos(thresholds_and_fps, pos_type=False, save_path=fp_save_path)
+
+    # f-measure
+    f_measure_save_path = make_save_path(F_MEASURE_VS_THRES_SAVE_PATH, metric=METRIC, threshold=THRESHOLD,
+                                         format_='svg')
+    thresholds_and_f_measures = get_thresholds_and_f_measures(num_tps_list=num_tps_list,
+                                                              thresholds_and_tps=thresholds_and_tps,
+                                                              thresholds_and_fps=thresholds_and_fps)
+
+    plot_thresholds_vs_f_measures(thresholds_and_f_measures, save_path=f_measure_save_path)
 
 
-def get_thresholds_and_tps(images_path, eps=10):
+def get_thresholds_and_f_measures(num_tps_list, images_path=None, thresholds_and_tps=None, thresholds_and_fps=None):
+    if images_path is None and (thresholds_and_tps is None or thresholds_and_fps is None):
+        raise ValueError('Either both thresholds or images_path must be provided')
+    if thresholds_and_tps is None:
+        thresholds_and_tps = get_thresholds_and_pos_rate(images_path, True)
+    if thresholds_and_fps is None:
+        thresholds_and_fps = get_thresholds_and_pos_rate(images_path, False)
+
+    thresholds_and_fns = get_thresholds_and_fn_rate(thresholds_and_tps, num_tps_list)
+
+    get_every_2nd_item = partial(get_every_nth_item, n=1)
+    tp_rates, fp_rates, fn_rates = (list(get_every_2nd_item(iterable))
+                                    for iterable in [thresholds_and_tps, thresholds_and_fps, thresholds_and_fns])
+
+    precisions = starmap(compute_precision, zip(tp_rates, fp_rates))
+    recalls = starmap(compute_recall, zip(tp_rates, fn_rates))
+    f_measures = starmap(compute_f_measure, zip(precisions, recalls))
+
+    thresholds = get_every_nth_item(thresholds_and_fns, n=0)
+    thresholds_and_f_measures = list(zip(thresholds, f_measures))
+    return thresholds_and_f_measures
+
+
+def compute_precision(tp_rate, fp_rate):
+    return tp_rate / (tp_rate + fp_rate)
+
+
+def compute_recall(tp_rate, fn_rate):
+    return tp_rate / (tp_rate + fn_rate)
+
+
+def compute_f_measure(precision, recall):
+    return 2 * precision * recall / (precision + recall)
+
+
+def get_thresholds_and_fn_rate(thresholds_and_tps, num_tps_list):
+    """FN etc. rates *with regards to start cluster*!!!"""
+    thresholds_and_fns = []
+    for num_tps, (thresholds, tp_rate) in zip(num_tps_list, thresholds_and_tps):
+        fn_rate = num_tps - tp_rate
+        thresholds_and_fns.append((thresholds, fn_rate))
+    return thresholds_and_fns
+
+
+def count_false_negatives(self, clusters, emb_id_to_name_dict):
+    """
+    Number of face pairs incorrectly clustered to different clusters
+
+    :return: Number of
+    """
+
+    def does_match(emb_id_pair):
+        # Count iff result of check (yes/no) is same as wanted type (true/false positives)
+        return self.are_same_person_func(*emb_id_pair, emb_id_to_name_dict)
+
+    clusters_embedding_pairs = self._get_inter_clusters_embedding_id_pairs(clusters)
+    total_negatives = 0
+    for count, embedding_pairs in enumerate(clusters_embedding_pairs, start=1):
+        # if count % INTERCLUSTER_ITERATIONS_PROGRESS == 0:
+        #     logging.info(f'--- --- embeddings iteration: {count}')
+        cluster_negatives = sum(map(does_match, embedding_pairs))
+        total_negatives += cluster_negatives
+    return total_negatives
+
+
+def get_thresholds_and_pos_rate(images_path, pos_type, eps=10, ret_abs_num_pos=False):
+    compute_pos_rate = compute_tp_rate if pos_type else compute_fp_rate
+
     embeddings_with_ids = list(EvalDBManager.get_all_embeddings(with_ids=True, as_dict=False))
     emb_id_to_img_name_dict = EvalDBManager.get_emb_id_to_name_dict(images_path)
     img_name_to_person_id_dict = get_img_name_to_id_dict(images_path)
 
-    thresholds_and_tps = []
+    num_pos_list = []
+    thresholds_and_pos = []
     for start_emb_id, start_emb in embeddings_with_ids:
         compute_dist_to_start_emb = partial(Cluster.compute_dist, start_emb)
 
@@ -55,9 +145,13 @@ def get_thresholds_and_tps(images_path, eps=10):
         sorted_dists_to_start_emb = list(get_every_nth_item(sorted_embs_and_dists_to_start_emb, n=1))
         max_dist = max(sorted_dists_to_start_emb)
         thresholds = np.linspace(0, max_dist, num=max_dist * 100 + eps)
-        tp_rate = compute_tp_rate(thresholds, sorted_dists_to_start_emb, matches_with_start_emb)
-        thresholds_and_tps.append((thresholds, tp_rate))
-    return thresholds_and_tps
+        pos_rate = compute_pos_rate(thresholds, sorted_dists_to_start_emb, matches_with_start_emb)
+        thresholds_and_pos.append((thresholds, pos_rate))
+        num_pos_list.append(sum(matches_with_start_emb))
+
+    if ret_abs_num_pos:
+        return thresholds_and_pos, num_pos_list
+    return thresholds_and_pos
 
 
 def compute_tp_rate(thresholds, sorted_dists_to_start_emb, matches_with_start_emb):
@@ -88,19 +182,41 @@ def compute_tp_rate(thresholds, sorted_dists_to_start_emb, matches_with_start_em
     return tp_rate / num_tps
 
 
-def plot_thresholds_vs_tps(thresholds_and_tps, y_eps=0.05, title=None, save_path=None):
-    fig, ax = _plot_thresholds_vs_tps_helper(thresholds_and_tps, title=title, y_eps=y_eps)
+def compute_fp_rate(thresholds, sorted_dists_to_start_emb, matches_with_start_emb):
+    mismatches_with_start_emb = list(map(operator.not_, matches_with_start_emb))
+    return compute_tp_rate(thresholds, sorted_dists_to_start_emb, mismatches_with_start_emb)
 
-    for thres, tp_rate in thresholds_and_tps:
-        ax.plot(thres, tp_rate)
+
+def plot_thresholds_vs_f_measures(thresholds_and_f_measures, y_eps=0.05, title=None, save_path=None):
+    ylabel = 'f-measure'
+    fig, ax = _plot_thresholds_vs_params_helper(thresholds_and_f_measures, ylabel, title=title, y_eps=y_eps)
+
+    for thres, f_measure in thresholds_and_f_measures:
+        ax.plot(thres, f_measure)
 
     if save_path is not None:
         plt.savefig(save_path, format=get_ext(save_path))
     plt.show()
 
 
-def _plot_thresholds_vs_tps_helper(thresholds_and_tps, title=None, x_eps=None, y_eps=0.05):
-    thresholds = list(get_every_nth_item(thresholds_and_tps, n=0))
+def plot_thresholds_vs_pos(thresholds_and_pos, pos_type, y_eps=0.05, title=None, save_path=None):
+    fig, ax = _plot_thresholds_vs_positives_helper(thresholds_and_pos, pos_type, title=title, y_eps=y_eps)
+
+    for thres, pos_rate in thresholds_and_pos:
+        ax.plot(thres, pos_rate)
+
+    if save_path is not None:
+        plt.savefig(save_path, format=get_ext(save_path))
+    plt.show()
+
+
+def _plot_thresholds_vs_positives_helper(thresholds_and_pos, pos_type, title=None, x_eps=None, y_eps=0.05):
+    ylabel = f'{pos_type} Positive Rate'
+    return _plot_thresholds_vs_params_helper(thresholds_and_pos, ylabel, title=title, x_eps=x_eps, y_eps=y_eps)
+
+
+def _plot_thresholds_vs_params_helper(thresholds_and_params, ylabel, title=None, x_eps=None, y_eps=0.05):
+    thresholds = list(get_every_nth_item(thresholds_and_params, n=0))
     min_thres, max_thres = min(map(min, thresholds)), max(map(max, thresholds))
     if x_eps is None:
         x_eps = (max_thres - min_thres) / 20  # 5% margin
@@ -109,78 +225,15 @@ def _plot_thresholds_vs_tps_helper(thresholds_and_tps, title=None, x_eps=None, y
 
     fig, ax = plt.subplots()
     xlabel = 'Thresholds'
-    ylabel = 'True Positive Rate'
     if title is None:
-        title = 'Threshold vs. TP Rate'
+        title = f'Threshold vs. {ylabel}'
 
     plt.title(title)
     ax.set_xlim(x_axis_limits)
     ax.set_ylim(y_axis_limits)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    # ax.set_aspect('equal')
     return fig, ax
-
-
-def plot_bad_rocs_same_person_colors(bad_emb_ids_person_ids_img_names, emb_id_to_fps_and_tps):
-    bad_emb_ids = list(get_every_nth_item(bad_emb_ids_person_ids_img_names, n=0))
-
-    @ignore_last_n_args_decorator(n=1)
-    def is_bad(emb_id):
-        return emb_id in bad_emb_ids
-
-    bad_emb_id_to_fps_and_tps = dict(
-        starfilter(is_bad, emb_id_to_fps_and_tps.items())
-    )
-
-    unique_persons_triplets = list(unique_everseen(bad_emb_ids_person_ids_img_names, key=lambda triplet: triplet[1]))
-
-    bad_emb_id_to_person_id_dict = dict(
-        (emb_id,
-         person_id if person_id != 'person_11' else '5 x person_11')
-        for emb_id, person_id, _ in unique_persons_triplets
-    )
-
-    person_ids = get_every_nth_item(unique_persons_triplets, n=1)
-    colors = ['b', 'g', 'r', 'c', 'm']
-    person_id_to_color_dict = dict(zip(person_ids, colors))
-
-    emb_id_to_equal_colors = dict(
-        (emb_id, person_id_to_color_dict[person_id])
-        for emb_id, person_id, _ in bad_emb_ids_person_ids_img_names
-    )
-
-    plot_rocs(bad_emb_id_to_fps_and_tps, bad_emb_id_to_person_id_dict, emb_id_to_equal_colors, title='Bad ROCs',
-              save_path=BAD_ROCS_PERSON_SAME_COLOR_SAVE_PATH)
-
-
-def print_bad_rocs(images_path, bad_rocs, write_output=True):
-    emb_id_to_img_name_dict = EvalDBManager.get_emb_id_to_name_dict(images_path)
-    img_name_to_person_id_dict = get_img_name_to_id_dict(images_path)
-    bad_roc_triplets = []
-    bad_roc_lines = []
-    for start_emb_id in get_every_nth_item(bad_rocs):
-        img_name = emb_id_to_img_name_dict[start_emb_id]
-        person_id = img_name_to_person_id_dict[img_name]
-        bad_roc_lines.append(f'emb_id: {start_emb_id}  |  person_id: {person_id}  |  img_name: {img_name}' + '\n')
-        bad_roc_triplets.append((start_emb_id, person_id, img_name))
-    if PRINT_OUTPUT:
-        print('\n'.join(bad_roc_lines))
-    if write_output:
-        with open(BAD_ROCS_TXT_PATH, 'w') as file:
-            file.writelines(bad_roc_lines)
-    return bad_roc_triplets
-
-
-def get_bad_rocs(emb_id_to_fps_and_tps):
-    bad_rocs = starfilter(is_bad_roc, emb_id_to_fps_and_tps.items())
-    return bad_rocs
-
-
-@ignore_first_n_args_decorator(n=1)
-def is_bad_roc(fp_and_tp_rates):
-    tp_rate = fp_and_tp_rates[1]
-    return np.percentile(tp_rate, q=20) < 0.9
 
 
 if __name__ == '__main__':

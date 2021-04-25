@@ -93,13 +93,13 @@ class FMeasureComputation:
             return self.are_same_person_func(*emb_id_pair, emb_id_to_name_dict)
 
         clusters_embedding_pairs = self._get_inter_clusters_embedding_id_pairs(clusters)
-        total_positives = 0
+        total_negatives = 0
         for count, embedding_pairs in enumerate(clusters_embedding_pairs, start=1):
             # if count % INTERCLUSTER_ITERATIONS_PROGRESS == 0:
             #     logging.info(f'--- --- embeddings iteration: {count}')
-            cluster_positives = sum(map(does_match, embedding_pairs))
-            total_positives += cluster_positives
-        return total_positives
+            cluster_negatives = sum(map(does_match, embedding_pairs))
+            total_negatives += cluster_negatives
+        return total_negatives
 
     @staticmethod
     def _get_intra_clusters_embedding_id_pairs(clusters):

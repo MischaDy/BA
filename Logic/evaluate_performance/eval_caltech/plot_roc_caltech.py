@@ -23,6 +23,8 @@ SAVE_FORMAT = 'svg'
 SAVE_PATH = f"plots_caltech/caltech_477_rocs___L{METRIC}__T{str(THRESHOLD).replace('.', '_pt_')}.{SAVE_FORMAT}"
 
 
+# TODO: Average all ROC curves?
+
 def main(images_path):
     emb_id_to_fps_and_tps = get_emb_id_to_fps_and_tps(images_path, use_all=USE_ALL,
                                                       use_random_start_ids=USE_RANDOM_START_IDS,

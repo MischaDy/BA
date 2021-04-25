@@ -7,7 +7,7 @@ from Logic.evaluate_performance.eval_caltech.plot_roc_caltech import get_emb_id_
 from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDBManager
 
 
-BAD_ROCS_SAVE_PATH = 'plots_caltech/caltech_bad_rocs_person_same_color.svg'
+BAD_ROCS_PERSON_SAME_COLOR_SAVE_PATH = 'plots_caltech/caltech_bad_rocs_person_same_color.svg'
 BAD_ROCS_TXT_PATH = 'bad_rocs.txt'
 WRITE_OUTPUT = False
 PRINT_OUTPUT = False
@@ -29,6 +29,7 @@ PRINT_OUTPUT = False
 #           --> why are there "2 paths"?
 # TODO: Time working with that dataset until everything is sorted correctly!
 # TODO: Other evaluation methods needed?
+# TODO: Average all ROC curves?
 
 
 def main_investigate(images_path):
@@ -68,7 +69,7 @@ def plot_bad_rocs_same_person_colors(bad_emb_ids_person_ids_img_names, emb_id_to
     )
 
     plot_rocs(bad_emb_id_to_fps_and_tps, bad_emb_id_to_person_id_dict, emb_id_to_equal_colors, title='Bad ROCs',
-              save_path=BAD_ROCS_SAVE_PATH)
+              save_path=BAD_ROCS_PERSON_SAME_COLOR_SAVE_PATH)
 
 
 def print_bad_rocs(images_path, bad_rocs, write_output=True):

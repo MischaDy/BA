@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 from functools import reduce
 
-from itertools import filterfalse, tee, islice
+from itertools import filterfalse, tee, islice, zip_longest
 
 
 # ----- OOP -----
@@ -417,7 +417,7 @@ def identity(*args):
 
 def nth(iterable, n, default=None):
     """
-    Returns the nth item or a default value
+    Returns the nth item or a default value.
 
     Taken from https://docs.python.org/3/library/itertools.html#itertools-recipes
     """
@@ -447,5 +447,28 @@ def take_first(iterable):
     return next(iter(iterable))
 
 
-# def dict_key_intersection():
-#     pass
+def get_ext(path):
+    return os.path.splitext(path)[-1].lstrip('.')
+
+
+def unique_everseen(iterable, key=None):
+    """
+    List unique elements, preserving order. Remember all elements ever seen.
+
+    Taken from https://docs.python.org/3/library/itertools.html#itertools-recipes
+
+    unique_everseen('AAAABBBCCDAABBB') --> A B C D
+    unique_everseen('ABBCcAD', str.lower) --> A B C D
+    """
+    seen = set()
+    seen_add = seen.add
+    if key is None:
+        for element in filterfalse(seen.__contains__, iterable):
+            seen_add(element)
+            yield element
+    else:
+        for element in iterable:
+            k = key(element)
+            if k not in seen:
+                seen_add(k)
+                yield element

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from Logic.ProperLogic.cluster_modules.cluster import Cluster
-from Logic.ProperLogic.misc_helpers import take_first
+from Logic.ProperLogic.misc_helpers import take_first, get_ext
 from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDBManager
 from evaluate_accuracy_caltech import IMAGES_PATH, get_img_name_to_id_dict, caltech_are_same_person_func
 
@@ -22,6 +22,8 @@ THRESHOLD = 0.73
 SAVE_FORMAT = 'svg'
 SAVE_PATH = f"plots_caltech/caltech_477_rocs___L{METRIC}__T{str(THRESHOLD).replace('.', '_pt_')}.{SAVE_FORMAT}"
 
+
+# TODO: Average all ROC curves?
 
 def main(images_path):
     emb_id_to_fps_and_tps = get_emb_id_to_fps_and_tps(images_path, use_all=USE_ALL,
@@ -92,23 +94,28 @@ def plot_rocs(emb_id_to_fps_and_tps, emb_id_to_labels=None, emb_id_to_equal_colo
               save_path=None):
     if emb_id_to_labels is None:
         emb_id_to_labels = dict()
+    if emb_id_to_equal_colors is None:
+        emb_id_to_equal_colors = dict()
 
     fig, ax = _plot_roc_helper(title=title, eps=eps, will_plot_multi=True)
 
     any_label = False
     for emb_id, (fp_rate, tp_rate) in emb_id_to_fps_and_tps.items():
+        kwargs = {}
         label = emb_id_to_labels.get(emb_id)
+        color = emb_id_to_equal_colors.get(emb_id)
         if label is not None:
-            ax.plot(fp_rate, tp_rate, label=label)
             any_label = True
-        else:
-            ax.plot(fp_rate, tp_rate)
+            kwargs['label'] = label
+        if color is not None:
+            kwargs['color'] = color
+        ax.plot(fp_rate, tp_rate, **kwargs)
 
     if any_label:
         plt.legend(loc='lower right')
 
     if save_path is not None:
-        plt.savefig(SAVE_PATH, format=SAVE_FORMAT)
+        plt.savefig(save_path, format=get_ext(save_path))
     plt.show()
 
 

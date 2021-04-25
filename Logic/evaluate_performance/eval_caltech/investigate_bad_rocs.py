@@ -1,15 +1,34 @@
 import numpy as np
 
 from Logic.ProperLogic.misc_helpers import starfilter, ignore_first_n_args_decorator, get_every_nth_item, \
-    ignore_last_n_args_decorator
+    ignore_last_n_args_decorator, unique_everseen
 from Logic.evaluate_performance.eval_caltech.evaluate_accuracy_caltech import IMAGES_PATH, get_img_name_to_id_dict
 from Logic.evaluate_performance.eval_caltech.plot_roc_caltech import get_emb_id_to_fps_and_tps, plot_rocs
 from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDBManager
 
 
+BAD_ROCS_SAVE_PATH = 'plots_caltech/caltech_bad_rocs_person_same_color.svg'
 BAD_ROCS_TXT_PATH = 'bad_rocs.txt'
 WRITE_OUTPUT = False
 PRINT_OUTPUT = False
+
+
+# TODO: Make Threshold vs. FP / TP / f-measure plots!
+#       --> Compare to proposed threshold / threshold curve in paper (remember their cut-off criterion)
+#       --> Generally: discuss!
+#       --> Also vary metric?
+# TODO: What is up with the 3 persons (showing similar trend)?
+#       --> lighting issues?
+#           --> any other images (esp. in same sets!) with flash but no problem?
+#           --> problem persists after cropping, and after readjusting brightness?
+# TODO: What is up with the the 1 person?
+#       --> Small number of images?
+#           --> Other folder with equally small, but > 1 number of people?
+#       --> Plot 5 individual lines!
+#           --> How are they inter-related?!
+#           --> why are there "2 paths"?
+# TODO: Time working with that dataset until everything is sorted correctly!
+# TODO: Other evaluation methods needed?
 
 
 def main_investigate(images_path):
@@ -17,29 +36,39 @@ def main_investigate(images_path):
     # emb_id, fps, tps
     bad_rocs = get_bad_rocs(emb_id_to_fps_and_tps)
     bad_emb_ids_person_ids_img_names = print_bad_rocs(images_path, bad_rocs, write_output=WRITE_OUTPUT)
-    plot_bad_rocs(bad_emb_ids_person_ids_img_names, emb_id_to_fps_and_tps)
+    plot_bad_rocs_same_person_colors(bad_emb_ids_person_ids_img_names, emb_id_to_fps_and_tps)
 
 
-def plot_bad_rocs(bad_emb_ids_person_ids_img_names, emb_id_to_fps_and_tps):
-    # bad_emb_id_to_person_id_img_name_dict = {
-    #     (emb_id, (person_id, img_name))
-    #     for emb_id, person_id, img_name in bad_emb_ids_person_ids_img_names
-    # }
-    bad_emb_id_to_img_name_dict = dict(
-        (emb_id, img_name)
-        for emb_id, _, img_name in bad_emb_ids_person_ids_img_names
-    )
+def plot_bad_rocs_same_person_colors(bad_emb_ids_person_ids_img_names, emb_id_to_fps_and_tps):
+    bad_emb_ids = list(get_every_nth_item(bad_emb_ids_person_ids_img_names, n=0))
 
     @ignore_last_n_args_decorator(n=1)
     def is_bad(emb_id):
-        return emb_id in bad_emb_id_to_img_name_dict
+        return emb_id in bad_emb_ids
 
     bad_emb_id_to_fps_and_tps = dict(
         starfilter(is_bad, emb_id_to_fps_and_tps.items())
     )
-    # TODO: Same person = same color
-    # TODO: label = img_name
-    plot_rocs(bad_emb_id_to_fps_and_tps, bad_emb_id_to_img_name_dict, title='Bad ROCs')
+
+    unique_persons_triplets = list(unique_everseen(bad_emb_ids_person_ids_img_names, key=lambda triplet: triplet[1]))
+
+    bad_emb_id_to_person_id_dict = dict(
+        (emb_id,
+         person_id if person_id != 'person_11' else '5 x person_11')
+        for emb_id, person_id, _ in unique_persons_triplets
+    )
+
+    person_ids = get_every_nth_item(unique_persons_triplets, n=1)
+    colors = ['b', 'g', 'r', 'c', 'm']
+    person_id_to_color_dict = dict(zip(person_ids, colors))
+
+    emb_id_to_equal_colors = dict(
+        (emb_id, person_id_to_color_dict[person_id])
+        for emb_id, person_id, _ in bad_emb_ids_person_ids_img_names
+    )
+
+    plot_rocs(bad_emb_id_to_fps_and_tps, bad_emb_id_to_person_id_dict, emb_id_to_equal_colors, title='Bad ROCs',
+              save_path=BAD_ROCS_SAVE_PATH)
 
 
 def print_bad_rocs(images_path, bad_rocs, write_output=True):

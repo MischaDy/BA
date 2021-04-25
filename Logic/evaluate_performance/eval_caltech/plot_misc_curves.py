@@ -33,7 +33,8 @@ F_MEASURE_VS_THRES_SAVE_PATH = 'plots_caltech/caltech_f_measure_vs_thres'
 def main_plot_misc(images_path):
     # TPs
     # tp_save_path = make_save_path(TP_VS_THRES_SAVE_PATH, metric=METRIC, threshold=THRESHOLD, format_='svg')
-    thresholds_and_tps, num_tps_list = get_thresholds_and_pos_rate(images_path, True, ret_abs_num_pos=True)
+    # TODO: Remove ret_ option
+    thresholds_and_tps = get_thresholds_and_pos_rate(images_path, True)  # , ret_abs_num_pos=True)
     # FPs
     # fp_save_path = make_save_path(FP_VS_THRES_SAVE_PATH, metric=METRIC, threshold=THRESHOLD, format_='svg')
     thresholds_and_fps = get_thresholds_and_pos_rate(images_path, False)
@@ -44,14 +45,13 @@ def main_plot_misc(images_path):
     # f-measure
     f_measure_save_path = make_save_path(F_MEASURE_VS_THRES_SAVE_PATH, metric=METRIC, threshold=THRESHOLD,
                                          format_='svg')
-    thresholds_and_f_measures = get_thresholds_and_f_measures(num_tps_list=num_tps_list,
-                                                              thresholds_and_tps=thresholds_and_tps,
+    thresholds_and_f_measures = get_thresholds_and_f_measures(thresholds_and_tps=thresholds_and_tps,
                                                               thresholds_and_fps=thresholds_and_fps)
 
     plot_thresholds_vs_f_measures(thresholds_and_f_measures, save_path=f_measure_save_path)
 
 
-def get_thresholds_and_f_measures(num_tps_list, images_path=None, thresholds_and_tps=None, thresholds_and_fps=None):
+def get_thresholds_and_f_measures(images_path=None, thresholds_and_tps=None, thresholds_and_fps=None):
     if images_path is None and (thresholds_and_tps is None or thresholds_and_fps is None):
         raise ValueError('Either both thresholds or images_path must be provided')
     if thresholds_and_tps is None:
@@ -59,7 +59,7 @@ def get_thresholds_and_f_measures(num_tps_list, images_path=None, thresholds_and
     if thresholds_and_fps is None:
         thresholds_and_fps = get_thresholds_and_pos_rate(images_path, False)
 
-    thresholds_and_fns = get_thresholds_and_fn_rate(thresholds_and_tps, num_tps_list)
+    thresholds_and_fns = get_thresholds_and_fn_rate(thresholds_and_tps)
 
     get_every_2nd_item = partial(get_every_nth_item, n=1)
     tp_rates, fp_rates, fn_rates = (list(get_every_2nd_item(iterable))
@@ -86,11 +86,11 @@ def compute_f_measure(precision, recall):
     return 2 * precision * recall / (precision + recall)
 
 
-def get_thresholds_and_fn_rate(thresholds_and_tps, num_tps_list):
+def get_thresholds_and_fn_rate(thresholds_and_tps):
     """FN etc. rates *with regards to start cluster*!!!"""
     thresholds_and_fns = []
-    for num_tps, (thresholds, tp_rate) in zip(num_tps_list, thresholds_and_tps):
-        fn_rate = num_tps - tp_rate
+    for thresholds, tp_rate in thresholds_and_tps:
+        fn_rate = 1 - tp_rate
         thresholds_and_fns.append((thresholds, fn_rate))
     return thresholds_and_fns
 

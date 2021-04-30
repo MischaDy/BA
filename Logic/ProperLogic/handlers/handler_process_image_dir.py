@@ -54,7 +54,6 @@ def process_image_dir(cluster_dict, threshold=0.73, metric=2, **kwargs):
         overwrite_dict(cluster_dict, cluster_dict_copy)
 
 
-# TODO: Eval!
 def process_faces(images_path, central_con=None, local_con=None, close_connections=True):
     if local_con is None:
         path_to_local_db = DBManager.get_local_db_file_path(images_path)
@@ -128,9 +127,8 @@ def extract_faces(path, check_if_known=True, central_con=None, local_con=None, c
 
 
 def user_choose_images_path():
-    # TODO: make user choose path
-    # images_path = input('Please enter a path with images of people you would like to add.\n')
-    images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
+    images_path = input('Please enter a path with images of people you would like to add.\n')
+    # images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
     while not os.path.exists(images_path):
         log_error(f"unable to find path '{images_path}'")
         print("\nPlease try again.")

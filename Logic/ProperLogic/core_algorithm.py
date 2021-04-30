@@ -4,7 +4,7 @@ from typing import Union, Tuple
 from Logic.ProperLogic.cluster_modules.cluster import Cluster
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import DBManager
-from Logic.ProperLogic.misc_helpers import remove_items, starfilterfalse, partition
+from Logic.ProperLogic.misc_helpers import remove_items, starfilterfalse, partition, starmax, remove_multiple
 
 from itertools import combinations
 
@@ -90,7 +90,9 @@ class CoreAlgorithm:
             max_db_id = DBManager.get_max_cluster_id()
             next_cluster_id = max(max_existing_id, max_db_id) + 1
 
-        modified_clusters_ids, removed_clusters_ids = set(), set()
+        modified_clusters_ids = set()
+        removed_clusters = ClusterDict()
+
         for embedding_id, new_embedding in embeddings_with_ids:
             closest_clusters = self.get_closest_clusters(cluster_dict, new_embedding)
 
@@ -105,8 +107,10 @@ class CoreAlgorithm:
                 if is_cluster_too_big or self.exists_emb_too_far_from_center(closest_cluster):
                     new_clusters = self.split_cluster(closest_cluster)
                     cluster_dict.remove_cluster(closest_cluster)
-                    removed_clusters_ids.add(closest_cluster.cluster_id)
                     cluster_dict.add_clusters(new_clusters)
+
+                    removed_clusters.add_cluster(closest_cluster)
+                    modified_clusters_ids.remove(closest_cluster.cluster_id)
                     for new_cluster in new_clusters:
                         modified_clusters_ids.add(new_cluster.cluster_id)
             else:
@@ -118,8 +122,7 @@ class CoreAlgorithm:
         if final_clusters_only:
             return cluster_dict
         modified_clusters = cluster_dict.get_clusters_by_ids(modified_clusters_ids)
-        removed_clusters = cluster_dict.get_clusters_by_ids(removed_clusters_ids)
-        return cluster_dict, ClusterDict(modified_clusters), ClusterDict(removed_clusters)
+        return cluster_dict, ClusterDict(modified_clusters), removed_clusters
 
     def get_closest_clusters(self, cluster_dict, new_embedding):
         def key(cluster):
@@ -189,35 +192,40 @@ class CoreAlgorithm:
         :param cluster_to_split: Cluster to be split
         :return: Two new clusters containing embeddings of old one
         """
-        embeddings = list(cluster_to_split.get_embeddings())
-        cluster_start_emb1, cluster_start_emb2 = cls.find_most_distant_embeddings(embeddings)
-        remove_items(embeddings, [cluster_start_emb1, cluster_start_emb2])
+        embeddings_with_ids = cluster_to_split.get_embeddings(with_embeddings_ids=True, as_dict=True)
+        (emb1_id, cluster_start_emb1), (emb2_id, cluster_start_emb2) = cls.find_most_distant_embeddings(embeddings_with_ids)
+        remove_multiple(embeddings_with_ids, [emb1_id, emb2_id])
         label = cluster_to_split.label
 
         max_cluster_id = DBManager.get_max_cluster_id()
         new_cluster1_id, new_cluster2_id = max_cluster_id + 1, max_cluster_id + 2
-        new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, cluster_start_emb1, label=label),
-                                      Cluster(new_cluster2_id, cluster_start_emb2, label=label))
+        new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, [cluster_start_emb1], label=label),
+                                      Cluster(new_cluster2_id, [cluster_start_emb2], label=label))
 
         def is_closer_to_cluster1(emb):
             dist_to_cluster1 = new_cluster1.compute_dist_to_center(emb)
             dist_to_cluster2 = new_cluster2.compute_dist_to_center(emb)
             return dist_to_cluster1 < dist_to_cluster2
 
+        embeddings = embeddings_with_ids.values()
         cluster2_embs, cluster1_embs = partition(is_closer_to_cluster1, embeddings)
         new_cluster1.add_embeddings(cluster1_embs)
         new_cluster2.add_embeddings(cluster2_embs)
         return new_cluster1, new_cluster2
 
     @staticmethod
-    def find_most_distant_embeddings(embeddings):
+    def find_most_distant_embeddings(embeddings_with_ids):
         """
         Return the two embeddings which have the greatest distance between them.
-        :param embeddings:
+        :param embeddings_with_ids:
         :return:
         """
         # TODO: Improve efficiency --> No, ok for now
-        if not len(embeddings) > 1:
+        if not len(embeddings_with_ids) > 1:
             raise ValueError("'embeddings' must contain at least 2 embeddings")
-        embs_pairs = combinations(embeddings, r=2)
-        return max(embs_pairs, key=Cluster.compute_dist)
+        embs_pairs = combinations(embeddings_with_ids.items(), r=2)
+
+        def key(emb_with_id1, emb_with_id2):
+            return Cluster.compute_dist(emb_with_id1[1], emb_with_id2[1])
+
+        return starmax(embs_pairs, key=key)

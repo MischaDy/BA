@@ -553,6 +553,9 @@ class DBManager:
     def load_cluster_dict(cls):
         # TODO: Refactor + improve efficiency
         cluster_attributes_parts = DBManager.get_cluster_attributes_parts()
+        if not cluster_attributes_parts:
+            return ClusterDict()
+
         embeddings_parts = DBManager.get_embeddings_parts()
 
         # clusters_dict = dict(

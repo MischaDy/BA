@@ -20,7 +20,7 @@ METRIC = 2
 THRESHOLD = 0.73
 
 SAVE_FORMAT = 'svg'
-SAVE_PATH = f"plots_caltech/caltech_477_rocs"
+SAVE_PATH = ''  # f"plots_caltech/caltech_477_rocs"
 
 
 # TODO: Average all ROC curves?

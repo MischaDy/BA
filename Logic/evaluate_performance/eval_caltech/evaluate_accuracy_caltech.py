@@ -2,6 +2,8 @@ import os
 from functools import partial
 from itertools import repeat
 
+import numpy as np
+
 from Logic.ProperLogic.misc_helpers import add_multiple_to_dict
 from Logic.evaluate_performance.evaluate_accuracy import run_metric_evaluation
 
@@ -11,13 +13,15 @@ DELETE_LOCAL_DB_FILE = False
 DELETE_CENTRAL_DB_FILE = False
 CLEAR_CLUSTERS = True
 
-THRESHOLDS = [0.73]  # np.linspace(0.5, 1.0, num=11)  # ==>  step size = 0.05
+THRESHOLDS = np.linspace(0.5, 1.0, num=11)  # ==>  step size = 0.05
 METRICS = [2]  # , 1.5, 1, 0.75, 0.5, 0.3, 0.2, 0.1, 0]
 
 
+# TODO: Make eval use thresholds!
+
 def main(images_path):
     partial_caltech_are_same_person_func = partial(caltech_are_same_person_func,
-                                                   img_name_to_id_dict=get_img_name_to_id_dict(images_path))
+                                                   img_name_to_person_id_dict=get_img_name_to_id_dict(images_path))
     run_metric_evaluation(images_path, partial_caltech_are_same_person_func, save_path=SAVE_PATH,
                           delete_central_db_file=DELETE_CENTRAL_DB_FILE, delete_local_db_file=DELETE_LOCAL_DB_FILE)
     # images_path, are_same_person_func, save_path, thresholds=(0.73,), metrics=(2,),

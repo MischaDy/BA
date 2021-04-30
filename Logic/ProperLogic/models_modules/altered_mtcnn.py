@@ -57,9 +57,9 @@ class AlteredMTCNN(MTCNN):
                     face = fixed_image_standardization(face)
                 faces_im.append(face)
 
-            if self.keep_all:
-                faces_im = torch.stack(faces_im)
-            else:
+            if not self.keep_all:
+            #     faces_im = [faces_im]  # torch.stack(faces_im)
+            # else:
                 faces_im = faces_im[0]
 
             faces.append(faces_im)

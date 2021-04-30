@@ -111,7 +111,8 @@ class ClusterDict(dict):
             self.reset_max_id()
 
     def reset_max_id(self):
-        self.max_id = max(self.get_cluster_ids())
+        cluster_ids = self.get_cluster_ids()
+        self.max_id = max(cluster_ids) if cluster_ids else 0
 
     def remove_cluster(self, cluster):
         self.remove_clusters([cluster])

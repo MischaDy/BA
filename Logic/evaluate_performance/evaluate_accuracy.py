@@ -66,7 +66,7 @@ def delete_db_files(should_delete_central_db_file, should_delete_local_db_file, 
 
 
 def delete_db_file(path_to_db_file, is_local):
-    confirm = input('--- WARNING ---\n' f"Really delete {'local' if is_local else 'central'} db files")
+    confirm = input('--- WARNING ---\n' f"Really delete {'local' if is_local else 'central'} db files?" '\n')
     if not confirm:
         exit()
 
@@ -78,12 +78,12 @@ def delete_db_file(path_to_db_file, is_local):
 
 def delete_central_db_file():
     path_to_central_db_file = EvalDBManager.get_central_db_file_path()
-    delete_db_file(path_to_central_db_file)
+    delete_db_file(path_to_central_db_file, is_local=False)
 
 
 def delete_local_db_file(images_path):
     path_to_local_db_file = EvalDBManager.get_local_db_file_path(images_path)
-    delete_db_file(path_to_local_db_file)
+    delete_db_file(path_to_local_db_file, is_local=True)
 
 
 # if __name__ == '__main__':

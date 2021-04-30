@@ -8,8 +8,15 @@ import pandas as pd
 
 from Logic.ProperLogic.misc_helpers import get_every_nth_item, group_pairs, map_dict_vals, log_error
 
-RESULTS_DIR_PATH = '../results_thresholds'
+RESULTS_DIR_PATH = '../results_thresholds2'
 YVALUE = 'precision'  # 'f-measure'
+
+
+def main(results_dir_path):
+    thres_and_met_to_f_measure = get_thres_and_met_to_f_measure(results_dir_path)
+    plot_f_measure_vs_param(thres_and_met_to_f_measure, thres=True)
+    # plot_f_measure_vs_param(thres_and_met_to_f_measure, metric=True)
+    # plot_f_measure_vs_threshold_and_metric(thres_and_met_to_f_measure)
 
 
 def get_thres_and_met_to_f_measure(results_dir_path):
@@ -32,13 +39,6 @@ def get_thres_and_met_to_f_measure(results_dir_path):
         thres_and_met_to_f_measure[thres_and_met] = results_dict[YVALUE]
 
     return thres_and_met_to_f_measure
-
-
-def main(results_dir_path):
-    thres_and_met_to_f_measure = get_thres_and_met_to_f_measure(results_dir_path)
-    plot_f_measure_vs_param(thres_and_met_to_f_measure, thres=True)
-    plot_f_measure_vs_param(thres_and_met_to_f_measure, metric=True)
-    plot_f_measure_vs_threshold_and_metric(thres_and_met_to_f_measure)
 
 
 # def plot_f_measure_vs_metric(thres_and_met_to_f_measure):
@@ -102,24 +102,24 @@ def get_xs_and_ys(thres_and_met_to_f_measure, thres=False, metric=False):
         for thres_met, f_measure in thres_and_met_to_f_measure.items()
     ]
     param_f_measure = [
-        (param.lstrip('L'), float(f_measure))
+        (param.lstrip('LT'), float(f_measure))
         for param, f_measure in param_f_measure
     ]
     # TODO: Incorporate variance, too?
 
-    thres_met_f_measures_groups_dict = group_pairs(param_f_measure, ret_dict=True)
-    # map_dict_vals(thres_met_f_measures_groups_dict, func=np.mean)
-    return thres_met_f_measures_groups_dict
-
-    thres_met_f_measures_groups = sorted(thres_met_f_measures_groups_dict.items())
+    # thres_met_f_measures_groups_dict = group_pairs(param_f_measure, ret_dict=True)
+    # # map_dict_vals(thres_met_f_measures_groups_dict, func=np.mean)
+    # # return thres_met_f_measures_groups_dict
+    #
+    # thres_met_f_measures_groups = sorted(thres_met_f_measures_groups_dict.items())
 
     # grouped_thres_met_f_measures = defaultdict(list)
     # for met, f_measures in groupby(met_f_measure, key=lambda mf: mf[0]):
     #     grouped_thres_met_f_measures[met].append(np.mean(f_measures))
     # grouped_thres_met_f_measures = sorted(grouped_thres_met_f_measures.items())
 
-    xs = get_every_nth_item(thres_met_f_measures_groups, n=0)
-    ys = get_every_nth_item(thres_met_f_measures_groups, n=1)
+    xs = get_every_nth_item(param_f_measure, n=0)
+    ys = get_every_nth_item(param_f_measure, n=1)
     return list(xs), list(ys)
 
 

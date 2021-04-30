@@ -8,8 +8,8 @@ from Logic.ProperLogic.misc_helpers import overwrite_dict, log_error
 from Logic.ProperLogic.models_modules.models import Models
 from Logic.evaluate_performance.eval_custom_classes.eval_core_algorithm import EvalCoreAlgorithm
 
-PRINT_PROGRESS = False
-PROGRESS_STEPS = 100
+PRINT_PROGRESS = True
+PROGRESS_STEPS = 10
 
 
 def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None, metric=2, threshold=0.73):

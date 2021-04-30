@@ -85,10 +85,9 @@ def clear_clustering(con=None, close_connections=True):
 
 def user_choose_local_db_dir_path():
     # TODO: Refactor, use user_choose function!
-    # local_db_dir_path = input('Please enter a path containing a local table you would like to clear.\n')
-    # TODO: Make user choose paths!
-    local_db_dir_path = (r'C:\Users\Mischa\Desktop\Uni\20-21 WS'
-                         r'\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs')
+    local_db_dir_path = input('Please enter a path containing a local table you would like to clear.\n')
+    # local_db_dir_path = (r'C:\Users\Mischa\Desktop\Uni\20-21 WS'
+    #                      r'\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs')
     while True:
         if not local_db_dir_path:
             local_db_dir_path = None

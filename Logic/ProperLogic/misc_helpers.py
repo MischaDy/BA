@@ -479,3 +479,9 @@ def map_nested(func, iterable, n=1):
     for _ in range(n):
         result = map(func, result)
     return result
+
+
+def starmax(iterable, key=identity):
+    def starkey(items):
+        return key(*items)
+    return max(iterable, key=starkey)

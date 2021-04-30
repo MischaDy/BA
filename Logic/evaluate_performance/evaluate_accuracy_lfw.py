@@ -4,13 +4,13 @@ from Logic.evaluate_performance.evaluate_accuracy import run_metric_evaluation
 import numpy as np
 
 IMAGES_PATH = r'..\my_test\subset_cplfw\images'
-SAVE_PATH = 'results_thresholds'
+SAVE_PATH = 'results_thresholds2'
 DELETE_LOCAL_DB_FILE = False
 DELETE_CENTRAL_DB_FILE = False
 CLEAR_CLUSTERS = True
 
 
-THRESHOLDS = np.linspace(0.5, 1.0, num=11)  # ==>  step size = 0.05
+THRESHOLDS = list(map(lambda t: round(t, 2), np.linspace(0.5, 1.0, num=11)))  # ==>  step size = 0.05
 METRICS = [2]  # , 1.5, 1, 0.75, 0.5, 0.3, 0.2, 0.1, 0]
 
 
@@ -32,5 +32,5 @@ def _rstrip_underscored_part(string):
 
 
 if __name__ == '__main__':
-    run_metric_evaluation(IMAGES_PATH, THRESHOLDS, METRICS, SAVE_PATH, DELETE_LOCAL_DB_FILE, DELETE_CENTRAL_DB_FILE,
-                          CLEAR_CLUSTERS)  # lfw_are_same_person_func
+    run_metric_evaluation(IMAGES_PATH, lfw_are_same_person_func, SAVE_PATH, THRESHOLDS, METRICS, DELETE_CENTRAL_DB_FILE,
+                          DELETE_LOCAL_DB_FILE, CLEAR_CLUSTERS)

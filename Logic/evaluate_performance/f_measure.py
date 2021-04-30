@@ -23,46 +23,46 @@ class FMeasureComputation:
     def __init__(self, are_same_person_func):
         self.are_same_person_func = are_same_person_func
 
-    def compute_f_measure(self, clusters, emb_id_to_name_dict, output_dict):
-        num_true_positives = self.count_true_positives(clusters, emb_id_to_name_dict)
-        precision = self.compute_pairwise_precision(clusters, emb_id_to_name_dict, output_dict, num_true_positives)
-        recall = self.compute_pairwise_recall(clusters, emb_id_to_name_dict, output_dict, num_true_positives)
+    def compute_f_measure(self, clusters, emb_id_to_img_name_dict, output_dict):
+        num_true_positives = self.count_true_positives(clusters, emb_id_to_img_name_dict)
+        precision = self.compute_pairwise_precision(clusters, emb_id_to_img_name_dict, output_dict, num_true_positives)
+        recall = self.compute_pairwise_recall(clusters, emb_id_to_img_name_dict, output_dict, num_true_positives)
         output_dict['precision'] = precision
         output_dict['recall'] = recall
         return 2 * precision * recall / (precision + recall)
 
-    def compute_pairwise_precision(self, clusters, emb_id_to_name_dict, output_dict, num_true_positives=None):
+    def compute_pairwise_precision(self, clusters, emb_id_to_img_name_dict, output_dict, num_true_positives=None):
         """Fraction of faces correctly clustered together of all faces clustered together"""
         # intuition: Of all faces *placed* in same cluster(s), how many really *belonged* there (together)?
         # best when: clusters small
         if num_true_positives is None:
-            num_true_positives = self.count_true_positives(clusters, emb_id_to_name_dict)
-        num_false_positives = self.count_false_positives(clusters, emb_id_to_name_dict)
+            num_true_positives = self.count_true_positives(clusters, emb_id_to_img_name_dict)
+        num_false_positives = self.count_false_positives(clusters, emb_id_to_img_name_dict)
         output_dict['true positives'] = num_true_positives
         output_dict['false positives'] = num_false_positives
         return num_true_positives / (num_true_positives + num_false_positives)
 
-    def compute_pairwise_recall(self, clusters, emb_id_to_name_dict, output_dict, num_true_positives=None):
+    def compute_pairwise_recall(self, clusters, emb_id_to_img_name_dict, output_dict, num_true_positives=None):
         """Fraction of faces correctly clustered together of all faces belonging together"""
         # intuition: Of all faces which *belonged* in same cluster(s), how many were actually *placed* there (together)?
         # best when: clusters big
         if num_true_positives is None:
-            num_true_positives = self.count_true_positives(clusters, emb_id_to_name_dict)
-        num_false_negatives = self.count_false_negatives(clusters, emb_id_to_name_dict)
+            num_true_positives = self.count_true_positives(clusters, emb_id_to_img_name_dict)
+        num_false_negatives = self.count_false_negatives(clusters, emb_id_to_img_name_dict)
         output_dict['false negatives'] = num_false_negatives
         return num_true_positives / (num_true_positives + num_false_negatives)
 
     # TODO: Does order matter??? I.e. is (f1, f2) != (f2, f1)? Does this matter for the evaluation??
     # TODO: Parallelize the counting? Is this important? ---> only if slow or cumbersome!
-    def count_true_positives(self, clusters, emb_id_to_name_dict):
+    def count_true_positives(self, clusters, emb_id_to_img_name_dict):
         """Number of face pairs correctly clustered to same cluster"""
-        return self._count_positives(clusters, emb_id_to_name_dict, True)
+        return self._count_positives(clusters, emb_id_to_img_name_dict, True)
 
-    def count_false_positives(self, clusters, emb_id_to_name_dict):
+    def count_false_positives(self, clusters, emb_id_to_img_name_dict):
         """Number of face pairs incorrectly clustered to same cluster"""
-        return self._count_positives(clusters, emb_id_to_name_dict, False)
+        return self._count_positives(clusters, emb_id_to_img_name_dict, False)
 
-    def _count_positives(self, clusters, emb_id_to_name_dict, type_of_positives):
+    def _count_positives(self, clusters, emb_id_to_img_name_dict, type_of_positives):
         """
         ...
         :param type_of_positives: Boolean(!) indicating whether true or false positives are to be returned.
@@ -71,7 +71,7 @@ class FMeasureComputation:
 
         def does_match(emb_id_pair):
             # Count iff result of check (yes/no) is same as wanted type (true/false positives)
-            return self.are_same_person_func(*emb_id_pair, emb_id_to_name_dict) is type_of_positives
+            return self.are_same_person_func(*emb_id_pair, emb_id_to_img_name_dict) is type_of_positives
 
         # TODO: output one level to unflat?
         clusters_embedding_id_pairs = self._get_intra_clusters_embedding_id_pairs(clusters)
@@ -81,7 +81,7 @@ class FMeasureComputation:
             total_positives += cluster_positives
         return total_positives
 
-    def count_false_negatives(self, clusters, emb_id_to_name_dict):
+    def count_false_negatives(self, clusters, emb_id_to_img_name_dict):
         """
         Number of face pairs incorrectly clustered to different clusters
 
@@ -90,7 +90,7 @@ class FMeasureComputation:
 
         def does_match(emb_id_pair):
             # Count iff result of check (yes/no) is same as wanted type (true/false positives)
-            return self.are_same_person_func(*emb_id_pair, emb_id_to_name_dict)
+            return self.are_same_person_func(*emb_id_pair, emb_id_to_img_name_dict)
 
         clusters_embedding_pairs = self._get_inter_clusters_embedding_id_pairs(clusters)
         total_negatives = 0
@@ -124,7 +124,7 @@ class FMeasureComputation:
             yield embeddings_ids_pairs
 
 
-def main(clusters, emb_id_to_name_dict, are_same_person_func, save_results, save_path, save_file_name_postfix=''):
+def main(clusters, emb_id_to_img_name_dict, are_same_person_func, save_results, save_path, save_file_name_postfix=''):
     if not save_results:
         ans = input("Really don't save the results? Press Enter without entering anything to abort function.\n")
         if not ans:
@@ -133,9 +133,9 @@ def main(clusters, emb_id_to_name_dict, are_same_person_func, save_results, save
 
     output_dict = {}
     f_measure_comp = FMeasureComputation(are_same_person_func)
-    f_measure = f_measure_comp.compute_f_measure(clusters, emb_id_to_name_dict, output_dict)
+    f_measure = f_measure_comp.compute_f_measure(clusters, emb_id_to_img_name_dict, output_dict)
     output_dict['f-measure'] = f_measure
-    num_embeddings = len(emb_id_to_name_dict)
+    num_embeddings = len(emb_id_to_img_name_dict)
     # num_pairs = sum i=0...num_embeddings-1 {i} = n (n-1) / 2
     # = len(list(combinations(range(n), 2)))
     # = 2293011

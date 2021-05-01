@@ -1,5 +1,5 @@
-from Logic.face_evoLVe_PyTorch.align.detector import detect_faces
-from Logic.face_evoLVe_PyTorch.align.visualization_utils import show_results
+from Logic.xxxface_evoLVe_PyTorch.align.detector import detect_faces
+from Logic.xxxface_evoLVe_PyTorch.align.visualization_utils import show_results
 from PIL import Image
 
 

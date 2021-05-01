@@ -1,12 +1,7 @@
 import os
-from collections import defaultdict
-from itertools import groupby
-
-import numpy as np
 from matplotlib import pyplot as plt
-import pandas as pd
 
-from Logic.ProperLogic.misc_helpers import get_every_nth_item, group_pairs, map_dict_vals, log_error
+from Logic.ProperLogic.misc_helpers import get_every_nth_item, log_error
 
 RESULTS_DIR_PATH = '../results_thresholds2'
 YVALUE = 'precision'  # 'f-measure'

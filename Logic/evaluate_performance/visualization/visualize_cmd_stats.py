@@ -1,12 +1,7 @@
 import os
-from collections import defaultdict
-from itertools import groupby
-
-import numpy as np
 from matplotlib import pyplot as plt
-import pandas as pd
 
-from Logic.ProperLogic.misc_helpers import get_every_nth_item, group_pairs, map_dict_vals, log_error, get_ext
+from Logic.ProperLogic.misc_helpers import get_every_nth_item, get_ext
 
 RESULTS_DIR_PATH = '../results_cmd_stats'
 CMD_STATS_FILE = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\BA Papers\Datasets\faces 1999 caltech\commands_stats.txt'
@@ -45,27 +40,6 @@ def plot_cmd(cmd_name, xs, ys, save_path=None):
     if save_path is not None:
         plt.savefig(save_path, format=get_ext(save_path))
     plt.show()
-
-
-def _plot_thresholds_vs_params_helper(thresholds_and_params, ylabel, title=None, x_eps=None, y_eps=0.05):
-    thresholds = list(get_every_nth_item(thresholds_and_params, n=0))
-    min_thres, max_thres = min(map(min, thresholds)), max(map(max, thresholds))
-    if x_eps is None:
-        x_eps = (max_thres - min_thres) / 20  # 5% margin
-    x_axis_limits = [min_thres - x_eps, max_thres + x_eps]
-    y_axis_limits = [0 - y_eps, 1 + y_eps]
-
-    fig, ax = plt.subplots()
-    xlabel = 'Thresholds'
-    if title is None:
-        title = f'Threshold vs. {ylabel}'
-
-    plt.title(title)
-    ax.set_xlim(x_axis_limits)
-    ax.set_ylim(y_axis_limits)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    return fig, ax
 
 
 if __name__ == '__main__':

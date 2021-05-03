@@ -9,7 +9,7 @@ from Logic.ProperLogic.models_modules.models import Models
 from Logic.evaluate_performance.eval_custom_classes.eval_core_algorithm import EvalCoreAlgorithm
 
 PRINT_PROGRESS = True
-PROGRESS_STEPS = 10
+PROGRESS_STEPS = 100
 
 
 def eval_process_image_dir(cluster_dict, images_path, max_num_proc_imgs=None, metric=2, threshold=0.73):

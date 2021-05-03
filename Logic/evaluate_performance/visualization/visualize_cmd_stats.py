@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 
 from Logic.ProperLogic.misc_helpers import get_every_nth_item, get_ext
 
+WRITE = False
 RESULTS_DIR_PATH = '../results_cmd_stats'
 CMD_STATS_FILE = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\BA Papers\Datasets\faces 1999 caltech\commands_stats.txt'
 
@@ -19,7 +20,7 @@ def main():
 
     for cmd_name, xs_and_ys in cmd_dict.items():
         xs, ys = list(get_every_nth_item(xs_and_ys, 0)), list(get_every_nth_item(xs_and_ys, 1))
-        save_path = os.path.join(RESULTS_DIR_PATH, cmd_name + '.png')
+        save_path = os.path.join(RESULTS_DIR_PATH, cmd_name + '.png') if WRITE else None
         plot_cmd(cmd_name, xs, ys, save_path)
 
 

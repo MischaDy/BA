@@ -1,10 +1,11 @@
 import os
 
-from Logic.evaluate_performance.evaluate_accuracy import run_metric_evaluation
 import numpy as np
 
-IMAGES_PATH = r'..\my_test\subset_cplfw\images'
-SAVE_PATH = 'results_thresholds2'
+from Logic.evaluate_performance.evaluate_accuracy import run_metric_evaluation
+
+IMAGES_PATH = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\Backup unneeded files\BA\Logic\my_test\subset_cplfw\images'
+SAVE_PATH = 'results_thresholds_lfw3'
 DELETE_LOCAL_DB_FILE = False
 DELETE_CENTRAL_DB_FILE = False
 CLEAR_CLUSTERS = True

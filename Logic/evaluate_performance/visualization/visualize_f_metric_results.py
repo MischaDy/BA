@@ -3,11 +3,14 @@ from matplotlib import pyplot as plt
 
 from Logic.ProperLogic.misc_helpers import get_every_nth_item, log_error, get_ext
 
-WRITE = True
 MULTIPLOT = True
-RESULTS_DIR_PATH = '../eval_caltech/results_caltech'
-OUTPUT_PLOTS_DIR_PATH = '../eval_caltech/plots_caltech'
+RESULTS_DIR_PATH = '../eval_lfw/results_thresholds_lfw4'  # '../eval_caltech/results_caltech4_rand'
+WRITE = True
+OUTPUT_PLOTS_DIR_PATH = '../eval_lfw/plots_lfw'
+POSTFIX = 'lfw4'
 YVALUES = ['f-measure', 'precision', 'recall']
+X_MIN = 0.5
+X_MAX = 1.4
 
 
 def main(results_dir_path, yvalues):
@@ -20,11 +23,13 @@ def main(results_dir_path, yvalues):
         # plot_f_measure_vs_threshold_and_metric(thres_and_met_to_yvalue)
         return
 
-    save_path = os.path.join(OUTPUT_PLOTS_DIR_PATH, '_'.join(yvalues) + '.png') if WRITE else None
-    plot_yvalues_vs_param(results_dir_path, ylabels=yvalues, thres=True, metric=False, save_path=save_path)
+    postfix = f'_{POSTFIX}' if POSTFIX else ''
+    save_path = os.path.join(OUTPUT_PLOTS_DIR_PATH, '_'.join(yvalues) + postfix + '.png') if WRITE else None
+    plot_yvalues_vs_param(results_dir_path, ylabels=yvalues, thres=True, metric=False, x_min=X_MIN, x_max=X_MAX,
+                          save_path=save_path)
 
 
-def _setup_plots(title, xlabel, ylabel, x_min=0.5, x_max=1, eps=0.05):
+def _setup_plots(title, xlabel, ylabel, x_min=0.5, x_max=1.0, eps=0.05):
     x_axes_limits = [x_min - eps, x_max + eps]
     y_axes_limits = [0 - eps, 1 + eps]
 
@@ -111,7 +116,8 @@ def _plot_worker(xs, ys, xlabel='', ylabel='f-measure', title='', save_path=None
     plt.show()
 
 
-def plot_yvalues_vs_param(results_dir_path, ylabels=None, thres=False, metric=False, save_path=None):
+def plot_yvalues_vs_param(results_dir_path, ylabels=None, thres=False, metric=False, x_min=0.5, x_max=1.0,
+                          save_path=None):
     # dict_ = get_xs_and_ys(thres_and_met_to_yvalue, thres=thres, metric=metric)
     # params_and_f_measure_data_frame = pd.DataFrame(dict_)
     # print(params_and_f_measure_data_frame)
@@ -121,14 +127,14 @@ def plot_yvalues_vs_param(results_dir_path, ylabels=None, thres=False, metric=Fa
         ylabels = ['f-measure']
 
     title = ', '.join(ylabels) if len(ylabels) > 1 else f'{ylabels} vs. {xlabel}'
-    fig, ax = _setup_plots(title=title, xlabel='threshold', ylabel='performance metric(s)')
+    fig, ax = _setup_plots(x_min=x_min, x_max=x_max, title=title, xlabel='threshold', ylabel='performance metric(s)')
 
     for ylabel in ylabels:
         thres_and_met_to_yvalue = get_thres_and_met_to_yvalue(results_dir_path, ylabel)
         xs, ys = get_xs_and_ys(thres_and_met_to_yvalue, thres=thres, metric=metric)
         ax.plot(xs, ys, label=ylabel)
 
-    plt.legend(loc='lower right')
+    plt.legend(loc='lower left')
     if save_path is not None:
         plt.savefig(save_path, format=get_ext(save_path))
     plt.show()

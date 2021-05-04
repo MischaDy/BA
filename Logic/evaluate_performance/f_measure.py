@@ -89,7 +89,7 @@ class FMeasureComputation:
         """
 
         def does_match(emb_id_pair):
-            # Count iff result of check (yes/no) is same as wanted type (true/false positives)
+            # Count if ids match
             return self.are_same_person_func(*emb_id_pair, emb_id_to_img_name_dict)
 
         clusters_embedding_pairs = self._get_inter_clusters_embedding_id_pairs(clusters)
@@ -124,13 +124,7 @@ class FMeasureComputation:
             yield embeddings_ids_pairs
 
 
-def main(clusters, emb_id_to_img_name_dict, are_same_person_func, save_results, save_path, save_file_name_postfix=''):
-    if not save_results:
-        ans = input("Really don't save the results? Press Enter without entering anything to abort function.\n")
-        if not ans:
-            exit()
-        print()
-
+def main(clusters, emb_id_to_img_name_dict, are_same_person_func, save_path, save_file_name_postfix=''):
     output_dict = {}
     f_measure_comp = FMeasureComputation(are_same_person_func)
     f_measure = f_measure_comp.compute_f_measure(clusters, emb_id_to_img_name_dict, output_dict)
@@ -144,8 +138,11 @@ def main(clusters, emb_id_to_img_name_dict, are_same_person_func, save_results, 
     num_true_negatives = num_pairs - sum(get_multiple(output_dict, other_result_types))
     output_dict['true negatives'] = num_true_negatives
 
-    if save_results:
-        save_f_measure_result(save_path, output_dict, save_file_name_postfix)
+    if save_path is None:
+        print("OK, you chose not to save the results. Exiting.")
+        exit()
+
+    save_f_measure_result(save_path, output_dict, save_file_name_postfix)
 
 
 def save_f_measure_result(save_path, output_dict, save_file_name_postfix):

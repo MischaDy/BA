@@ -87,8 +87,6 @@ class DBManager:
         :param close_connections:
         :return:
         """
-        # TODO: Does everything work even without explicit local/central call?
-        # TODO: Allow to not pass central/local con, but still open it here (and thus close it)?
         # TODO: Generalize to allow for one central and any number of local connections?
         # TODO: How to make this a decorator?
         # TODO: Refactor!

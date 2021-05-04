@@ -8,12 +8,13 @@ from Logic.ProperLogic.misc_helpers import add_multiple_to_dict
 from Logic.evaluate_performance.evaluate_accuracy import run_metric_evaluation
 
 IMAGES_PATH = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\BA Papers\Datasets\faces 1999 caltech'
-SAVE_PATH = 'results_caltech'
+SAVE_RESULTS = False
+SAVE_PATH = 'results_caltech3_rand' if SAVE_RESULTS else None
 DELETE_LOCAL_DB_FILE = False
 DELETE_CENTRAL_DB_FILE = False
 CLEAR_CLUSTERS = True
 
-THRESHOLDS = np.linspace(0.5, 1.0, num=11)  # ==>  step size = 0.05
+THRESHOLDS = np.linspace(0.9, 1.4, num=11)  # ==>  step size = 0.05
 METRICS = [2]  # , 1.5, 1, 0.75, 0.5, 0.3, 0.2, 0.1, 0]
 
 

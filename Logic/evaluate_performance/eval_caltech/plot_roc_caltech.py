@@ -7,7 +7,7 @@ import numpy as np
 
 from Logic.ProperLogic.cluster_modules.cluster import Cluster
 from Logic.ProperLogic.misc_helpers import take_first, get_ext
-from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDBManager
+from Logic.evaluate_performance.eval_helpers.eval_dbmanager import EvalDBManager
 from evaluate_accuracy_caltech import IMAGES_PATH, get_img_name_to_id_dict, caltech_are_same_person_func
 
 LABEL = '...label...'

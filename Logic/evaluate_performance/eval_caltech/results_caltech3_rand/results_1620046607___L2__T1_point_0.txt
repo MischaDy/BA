@@ -1,0 +1,7 @@
+true positives: 1706
+false positives: 153
+false negatives: 3046
+precision: 0.9176976869284562
+recall: 0.359006734006734
+f-measure: 0.5161095144456209
+true negatives: 95223.0

@@ -10,11 +10,11 @@ from Logic.ProperLogic.misc_helpers import get_every_nth_item, get_ext
 from Logic.evaluate_performance.eval_caltech.evaluate_accuracy_caltech import IMAGES_PATH, get_img_name_to_id_dict, \
     caltech_are_same_person_func
 from Logic.evaluate_performance.eval_caltech.plot_roc_caltech import make_save_path
-from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDBManager
+from Logic.evaluate_performance.eval_helpers.eval_dbmanager import EvalDBManager
 
 
-METRIC = 2
-THRESHOLD = 0.73
+# METRIC = 2
+# THRESHOLD = 0.73
 TP_VS_THRES_SAVE_PATH = 'plots_caltech/caltech_tp_vs_thres'
 FP_VS_THRES_SAVE_PATH = 'plots_caltech/caltech_fp_vs_thres'
 F_MEASURE_VS_THRES_SAVE_PATH = 'plots_caltech/caltech_f_measure_vs_thres'

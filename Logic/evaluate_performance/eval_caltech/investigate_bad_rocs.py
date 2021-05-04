@@ -4,7 +4,7 @@ from Logic.ProperLogic.misc_helpers import starfilter, ignore_first_n_args_decor
     ignore_last_n_args_decorator, unique_everseen
 from Logic.evaluate_performance.eval_caltech.evaluate_accuracy_caltech import IMAGES_PATH, get_img_name_to_id_dict
 from Logic.evaluate_performance.eval_caltech.plot_roc_caltech import get_emb_id_to_fps_and_tps, plot_rocs
-from Logic.evaluate_performance.eval_custom_classes.eval_dbmanager import EvalDBManager
+from Logic.evaluate_performance.eval_helpers.eval_dbmanager import EvalDBManager
 
 
 BAD_ROCS_PERSON_SAME_COLOR_SAVE_PATH = 'plots_caltech/caltech_bad_rocs_person_same_color.svg'

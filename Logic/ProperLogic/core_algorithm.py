@@ -35,7 +35,6 @@ class CoreAlgorithm:
         self.reclustering_threshold = r * classification_threshold
 
         self.max_cluster_size = max_cluster_size
-        self.max_num_total_comps = max_num_total_comps
         # maximum number of clusters to compute distance to
         self.max_num_cluster_comps = max_num_total_comps // max_cluster_size
         self.metric = metric

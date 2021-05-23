@@ -259,6 +259,9 @@ def split_items(iterables, use_longest=False, fillvalue=None):
     """
     # TODO: Improve efficiency, fix docstring, refactor(?)
     # return list(starmap(get_every_nth_item, zip(iterables, range())))
+    if not isinstance(iterables, (list, tuple)):
+        iterables = list(iterables)
+
     if len(iterables) == 0:
         return []
     len_aggregator = max if use_longest else min
@@ -364,6 +367,12 @@ def ignore_args_outside_range_decorator(start=0, stop=None):
             return func(*args_subset, **kwargs)
         return wrapped
     return ignore_args_outside_range
+
+
+def spread_args_decorator(func):
+    def spread_func(args):
+        return func(*args)
+    return spread_func
 
 
 def get_multiple(dict_, keys):

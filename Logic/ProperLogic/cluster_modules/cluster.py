@@ -42,6 +42,9 @@ class Cluster:
 
         self.cluster_id = cluster_id
 
+    def __len__(self):
+        return len(self.embeddings_dict)
+
     def set_label(self, label):
         self.label = label
 
@@ -92,6 +95,7 @@ class Cluster:
         embeddings = self.get_embeddings(as_list=True)
         embeddings_sum = self.sum_embeddings(embeddings)
 
+        # TODO: Check the math!!!
         if self.center_point is not None:
             self.center_point = (old_num_embeddings * self.center_point + embeddings_sum) / self.num_embeddings
         else:
@@ -106,6 +110,9 @@ class Cluster:
 
         old_num_embeddings = self.num_embeddings
         self.num_embeddings -= 1
+
+        # TODO: Check the math!!!
+
         # (old_center is a uniformly weighted sum of the old embeddings)
         try:
             self.center_point = (old_num_embeddings * self.center_point - embedding) / self.num_embeddings

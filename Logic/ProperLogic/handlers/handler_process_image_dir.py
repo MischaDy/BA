@@ -8,10 +8,13 @@ from PIL import Image
 from Logic.ProperLogic.core_algorithm import CoreAlgorithm
 from Logic.ProperLogic.database_modules.database_logic import IncompleteDatabaseOperation, DBManager
 from Logic.ProperLogic.database_modules.database_table_defs import Columns
+from Logic.ProperLogic.handlers.handler_reset_cluster_ids import reset_cluster_ids
 from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict, starfilter, get_every_nth_item, \
     ignore_first_n_args_decorator
 from Logic.ProperLogic.models_modules.models import Models
 from Logic.ProperLogic.handlers.helpers import TO_TENSOR
+
+# TODO: Cluster IDs should be reset right away!
 
 
 def process_image_dir(cluster_dict, threshold=0.73, metric=2, **kwargs):
@@ -47,6 +50,9 @@ def process_image_dir(cluster_dict, threshold=0.73, metric=2, **kwargs):
         _, modified_clusters_dict, removed_clusters_dict = clustering_result
         DBManager.overwrite_clusters_simplified(modified_clusters_dict, removed_clusters_dict, con=con,
                                                 close_connections=False)
+        reset_cluster_ids(con=con, close_connections=False)
+        new_cluster_dict = DBManager.load_cluster_dict(con=con, close_connections=False)
+        overwrite_dict(cluster_dict, new_cluster_dict)
 
     try:
         DBManager.connection_wrapper(cluster_processed_faces)

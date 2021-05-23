@@ -4,7 +4,8 @@ from typing import Union, Tuple
 from Logic.ProperLogic.cluster_modules.cluster import Cluster
 from Logic.ProperLogic.cluster_modules.cluster_dict import ClusterDict
 from Logic.ProperLogic.database_modules.database_logic import DBManager
-from Logic.ProperLogic.misc_helpers import remove_items, starfilterfalse, partition, starmax, remove_multiple
+from Logic.ProperLogic.misc_helpers import remove_items, starfilterfalse, partition, starmax, remove_multiple, \
+    ignore_first_n_args_decorator, get_every_nth_item, split_items, spread_args_decorator
 
 from itertools import combinations
 
@@ -104,7 +105,8 @@ class CoreAlgorithm:
 
                 is_cluster_too_big = self.is_cluster_too_big(closest_cluster)
                 if is_cluster_too_big or self.exists_emb_too_far_from_center(closest_cluster):
-                    new_clusters = self.split_cluster(closest_cluster)
+                    new_clusters, next_cluster_id = self.split_cluster(closest_cluster, next_cluster_id,
+                                                                       ret_new_next_id=True)
                     cluster_dict.remove_cluster(closest_cluster)
                     cluster_dict.add_clusters(new_clusters)
 
@@ -178,7 +180,7 @@ class CoreAlgorithm:
         return closest_cluster
 
     @classmethod
-    def split_cluster(cls, cluster_to_split):
+    def split_cluster(cls, cluster_to_split, next_cluster_id=None, ret_new_next_id=False):
         """
         Split cluster into two new clusters as follows:
         1. Find two embeddings e1, e2 in the cluster with the greatest distance between them.
@@ -188,29 +190,48 @@ class CoreAlgorithm:
 
         The given cluster must contain at least 2 embeddings.
 
+        :param ret_new_next_id:
+        :param next_cluster_id:
         :param cluster_to_split: Cluster to be split
         :return: Two new clusters containing embeddings of old one
         """
+        # TODO: Does this fail due to bad analogy to low-dim. space?!
         embeddings_with_ids = cluster_to_split.get_embeddings(with_embeddings_ids=True, as_dict=True)
         (emb1_id, cluster_start_emb1), (emb2_id, cluster_start_emb2) = cls.find_most_distant_embeddings(embeddings_with_ids)
         remove_multiple(embeddings_with_ids, [emb1_id, emb2_id])
         label = cluster_to_split.label
 
-        max_cluster_id = DBManager.get_max_cluster_id()
-        new_cluster1_id, new_cluster2_id = max_cluster_id + 1, max_cluster_id + 2
-        new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, [cluster_start_emb1], label=label),
-                                      Cluster(new_cluster2_id, [cluster_start_emb2], label=label))
+        if next_cluster_id is None:
+            next_cluster_id = DBManager.get_max_cluster_id() + 1
+        new_cluster1_id, new_cluster2_id = next_cluster_id, next_cluster_id + 1
+        new_cluster1, new_cluster2 = (Cluster(new_cluster1_id, [cluster_start_emb1], [emb1_id], label=label),
+                                      Cluster(new_cluster2_id, [cluster_start_emb2], [emb2_id], label=label))
 
+        @spread_args_decorator
+        @ignore_first_n_args_decorator(n=1)
         def is_closer_to_cluster1(emb):
             dist_to_cluster1 = new_cluster1.compute_dist_to_center(emb)
             dist_to_cluster2 = new_cluster2.compute_dist_to_center(emb)
             return dist_to_cluster1 < dist_to_cluster2
 
-        embeddings = embeddings_with_ids.values()
-        cluster2_embs, cluster1_embs = partition(is_closer_to_cluster1, embeddings)
-        new_cluster1.add_embeddings(cluster1_embs)
-        new_cluster2.add_embeddings(cluster2_embs)
-        return new_cluster1, new_cluster2
+        def try_split(cluster_embs_with_ids, new_cluster):
+            split_result = split_items(cluster_embs_with_ids)
+            try:
+                cluster_embs_ids, cluster_embs = split_result
+            except ValueError:
+                # not enough values to unpack
+                pass
+            else:
+                new_cluster.add_embeddings(cluster_embs, cluster_embs_ids)
+
+        cluster2_embs_with_ids, cluster1_embs_with_ids = partition(is_closer_to_cluster1, embeddings_with_ids.items())
+        try_split(cluster1_embs_with_ids, new_cluster1)
+        try_split(cluster2_embs_with_ids, new_cluster2)
+        new_clusters = (new_cluster1, new_cluster2)
+
+        if ret_new_next_id:
+            return new_clusters, new_cluster2_id + 1
+        return new_clusters
 
     @staticmethod
     def find_most_distant_embeddings(embeddings_with_ids):

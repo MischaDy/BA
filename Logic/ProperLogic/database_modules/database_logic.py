@@ -6,7 +6,7 @@ import os
 import sqlite3
 import sys
 from functools import partial
-from itertools import starmap, repeat
+from itertools import starmap, repeat, filterfalse
 
 import torch
 from PIL import Image
@@ -481,6 +481,11 @@ class DBManager:
         :return:
         """
         def clear_tables_worker(con):
+            if any(map(Tables.is_local_table, tables)):
+                cls.drop_tables(drop_local=True)
+            if any(map(Tables.is_central_table, tables)):
+                cls.drop_tables(drop_local=False)
+
             for table in tables:
                 cls.delete_from_table(table, path_to_local_db=path_to_local_db, con=con, close_connections=False)
 
@@ -548,13 +553,13 @@ class DBManager:
         return map(output_func, processed_rows)
 
     @classmethod
-    def load_cluster_dict(cls):
+    def load_cluster_dict(cls, con=None, close_connections=True):
         # TODO: Refactor + improve efficiency
-        cluster_attributes_parts = DBManager.get_cluster_attributes_parts()
+        cluster_attributes_parts = DBManager.get_cluster_attributes_parts(con=con, close_connections=close_connections)
         if not cluster_attributes_parts:
             return ClusterDict()
 
-        embeddings_parts = DBManager.get_embeddings_parts()
+        embeddings_parts = DBManager.get_embeddings_parts(con=con, close_connections=close_connections)
 
         # clusters_dict = dict(
         #     (kwargs[Columns.cluster_id.col_name], Cluster(**kwargs))
@@ -565,14 +570,19 @@ class DBManager:
         for cluster_id, label, center in cluster_attributes_parts:
             clusters_dict[cluster_id] = Cluster(cluster_id, label=label, center_point=center)
 
-        for cluster_id, embedding, embedding_id in embeddings_parts:
-            cluster = clusters_dict[cluster_id]
+        clustered_embs_parts = filterfalse(lambda parts: parts[0] == 'NULL', embeddings_parts)
+        for cluster_id, embedding, embedding_id in clustered_embs_parts:
+            try:
+                cluster = clusters_dict[cluster_id]
+            except KeyError as e:
+                log_error(e)
+                continue
             cluster.add_embedding(embedding, embedding_id)
 
         return clusters_dict
 
     @classmethod
-    def get_embeddings_parts(cls, cond=''):
+    def get_embeddings_parts(cls, cond='', con=None, close_connections=True):
         where_clause = cls._build_where_clause(cond)
 
         def get_embeddings_parts_worker(con):
@@ -583,7 +593,8 @@ class DBManager:
             ).fetchall()
             return embeddings_parts
 
-        embeddings_parts = cls.connection_wrapper(get_embeddings_parts_worker)
+        embeddings_parts = cls.connection_wrapper(get_embeddings_parts_worker, con=con,
+                                                  close_connections=close_connections)
 
         proc_embeddings_parts = [
             (cluster_id, cls.bytes_to_tensor(embedding), embedding_id)
@@ -592,7 +603,7 @@ class DBManager:
         return proc_embeddings_parts
 
     @classmethod
-    def get_cluster_attributes_parts(cls, cond=''):
+    def get_cluster_attributes_parts(cls, cond='', con=None, close_connections=True):
         # TODO: Refactor + improve efficiency (don't let attributes of same cluster be processed multiple times)
         where_clause = cls._build_where_clause(cond)
 
@@ -604,7 +615,8 @@ class DBManager:
             ).fetchall()
             return cluster_attributes_parts
 
-        cluster_attributes_parts = cls.connection_wrapper(get_cluster_attributes_parts_worker)
+        cluster_attributes_parts = cls.connection_wrapper(get_cluster_attributes_parts_worker, con=con,
+                                                          close_connections=close_connections)
 
         proc_cluster_attributes_parts = [
             (cluster_id, label, cls.bytes_to_tensor(center_point))
@@ -1065,30 +1077,45 @@ class DBManager:
         return result_dict
 
     @classmethod
-    def reset_cluster_ids(cls, old_ids, new_ids, con=None, close_connections=True):
+    def reset_cluster_ids(cls, old_cluster_ids, new_cluster_ids, cluster_dict, con=None, close_connections=True):
         # TODO: Refactor!!
         temp_table = Tables.temp_old_and_new_ids
         temp_row_dicts = [
             {Columns.old_cluster_id.col_name: old_id,
              Columns.new_cluster_id.col_name: new_id}
-            for old_id, new_id in zip(old_ids, new_ids)
+            for old_id, new_id in zip(old_cluster_ids, new_cluster_ids)
         ]
 
         col_names_to_update = [Columns.cluster_id.col_name]
-        set_values = f"{temp_table}.{Columns.new_cluster_id.col_name}"
+        set_values = f"{temp_table}.{Columns.new_cluster_id}"
+
+        # # ---------------
+        # table = Tables.embeddings_table
+        # new_temp_table = Tables.temp_emb_and_new_cluster_ids_table
+        # new_temp_col = ...
+        # where_clause = f"{table}.{Columns.embedding_id} = {temp_table}.{Columns.embedding_id}"
+        # update_sql = f"""
+        #     UPDATE {table}
+        #     SET ({Columns.cluster_id}) = ({new_temp_table}.{new_temp_col})
+        #     FROM ({new_temp_table}) AS {new_temp_table}
+        #     WHERE {where_clause};
+        # """
+        # # ---------------
 
         def reset_cluster_ids_worker(con):
             cls.create_temp_table(temp_table, con=con)
             cls.store_in_table(temp_table, temp_row_dicts, con=con, close_connections=False)
             cls._custom_update_table(Tables.cluster_attributes_table, col_names_to_update, set_values, con=con,
                                      close_connections=False)
-            cls._custom_update_table(Tables.embeddings_table, col_names_to_update, set_values, con=con,
-                                     close_connections=False)
+            cls.update_embeddings(cluster_dict, con=con, close_connections=False)
+            # cls._custom_update_table(Tables.embeddings_table, col_names_to_update, set_values, con=con,
+            #                          close_connections=False)
 
         cls.connection_wrapper(reset_cluster_ids_worker, con=con, close_connections=close_connections)
 
     @classmethod
     def _custom_update_table(cls, table, col_names, set_values, or_clause='', con=None, close_connections=True):
+        # TODO: Use proper update function for this!
         col_names_str = ', '.join(col_names)
         # values_template = cls.make_values_template(len(col_names))
 

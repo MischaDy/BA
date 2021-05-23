@@ -71,8 +71,8 @@ class ClusterDict(dict):
             self[new_cluster_id] = cluster
 
         max_id = start_id + len(clusters_with_ids) - 1
-        new_ids = list(range(start_id, max_id))
         self.max_id = max_id
+        new_ids = list(range(start_id, max_id + 1))
         return old_ids, new_ids
 
     def set_ids(self, old_ids, new_ids):

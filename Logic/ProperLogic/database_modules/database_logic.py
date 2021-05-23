@@ -1099,7 +1099,7 @@ class DBManager:
             UPDATE {or_clause} {table}
             SET ({col_names_str}) = ({set_values})
             FROM ({temp_table}) AS {temp_table}
-            WHERE {where_clause} 
+            WHERE {where_clause};
         """
 
         #     UPDATE inventory
@@ -1259,9 +1259,9 @@ class DBManager:
     def update_embeddings(cls, clusters, con=None, close_connections=True):
         """
 
+        :param clusters: Iterable of clusters to store, or a ClusterDict object.
         :param close_connections:
         :param con:
-        :param clusters: Iterable of clusters to store.
         :return: None
         """
         # TODO: Improve efficiency - don't build rows etc. if cluster already exists(?)

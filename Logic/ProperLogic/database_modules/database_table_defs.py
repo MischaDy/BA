@@ -276,7 +276,8 @@ class Tables:
          Columns.thumbnail.with_constraint('NOT NULL'),
          ],
         [f'FOREIGN KEY ({Columns.cluster_id}) REFERENCES {cluster_attributes_table} ({Columns.cluster_id})'
-         + ' ON DELETE SET NULL',
+         + ' ON DELETE SET NULL'
+         + ' ON UPDATE CASCADE',
          f'FOREIGN KEY ({Columns.image_id}) REFERENCES {image_paths_table} ({Columns.image_id})'
          + ' ON DELETE RESTRICT',
          ],
@@ -342,6 +343,16 @@ class Tables:
         elif table in cls.central_tables or table in cls.temp_tables:
             return False
         raise ValueError(f"table '{table}' not found (its type, {type(table)}, might not be TableSchema)")
+
+    @classmethod
+    def is_central_table(cls, table):
+        # TODO: Differentiate between central vs temp table!
+        return not cls.is_local_table(table)
+
+    @classmethod
+    def is_temp_table(cls, table):
+        # TODO: implement!
+        raise NotImplementedError
 
     @classmethod
     def get_table_names(cls, local):

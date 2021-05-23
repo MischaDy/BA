@@ -3,9 +3,7 @@ from Logic.ProperLogic.database_modules.database_logic import DBManager, Incompl
 from Logic.ProperLogic.misc_helpers import log_error, overwrite_dict
 
 
-# TODO: Fix bug where after reclassification, clusters seem to contain no images.
-#       Is bc stored cluster ids in embeddings table arent reset and clusters aren't properly removed/overwritten
-#
+# TODO: should ids be reset here?
 
 def reclassify(cluster_dict, embeddings_with_ids=None, con=None, close_connections=True, **kwargs):
     def reclassify_worker(con):

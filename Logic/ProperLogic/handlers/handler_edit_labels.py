@@ -10,6 +10,10 @@ from Logic.ProperLogic.misc_helpers import log_error, get_user_decision, get_use
 
 # TODO: Square brackets around cluster numbers!
 # TODO: Square brackets around face numbers!
+# TODO: Rework interactions!
+#       - don't ask when only one choice is available (incl. aborting), but just inform user
+#         --> when only one picture in cluster, relabeling should automatically choose "picture"
+
 
 def edit_labels(cluster_dict, **kwargs):
     # TODO: Refactor
@@ -53,7 +57,7 @@ def edit_labels(cluster_dict, **kwargs):
                 else:
                     set_picture_label(embedding_id, new_label, cluster, cluster_dict)
             except IncompleteDatabaseOperation:
-                pass
+                pass  # TODO: error notification here!!!
 
             # Auto-stop choosing faces if cluster is empty or consists of only one face
             continue_choosing_face = get_face_decision() if cluster.get_size() > 2 else 'n'

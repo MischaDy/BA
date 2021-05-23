@@ -50,9 +50,11 @@ def clear_data(cluster_dict, **kwargs):
         def clear_data_worker(con):
             if data_kind_to_clear in ('l', 'b'):
                 # TODO: How to use local connections here? Rollback on multiple?
-                clear_local_tables()
+                # clear_local_tables()
+                drop_local_tables()
             if data_kind_to_clear in ('g', 'b'):
-                clear_central_tables(con=con, close_connections=False)
+                # clear_central_tables(con=con, close_connections=False)
+                drop_central_tables(con=con, close_connections=False)
                 overwrite_dict(cluster_dict, dict())
             if data_kind_to_clear == 'c':
                 clear_clustering(con=con, close_connections=False)
@@ -66,9 +68,29 @@ def clear_data(cluster_dict, **kwargs):
         should_clear_data = 'n'
 
 
-def clear_local_tables(con=None, close_connections=True):
-    local_db_dir_path = user_choose_local_db_dir_path()
+def drop_local_tables(local_db_dir_path=None, con=None, close_connections=True):
     if local_db_dir_path is None:
+        # none given, allow the user to set path
+        local_db_dir_path = user_choose_local_db_dir_path()
+    if local_db_dir_path is None:
+        # user didn't set path, exit
+        return
+
+    path_to_local_db = DBManager.get_local_db_file_path(local_db_dir_path)
+    DBManager.create_local_tables(drop_existing_tables=True, path_to_local_db=path_to_local_db, con=con,
+                                  close_connections=close_connections)
+
+
+def drop_central_tables(con=None, close_connections=True):
+    DBManager.create_central_tables(drop_existing_tables=True, con=con, close_connections=close_connections)
+
+
+def clear_local_tables(local_db_dir_path=None, con=None, close_connections=True):
+    if local_db_dir_path is None:
+        # none given, allow the user to set path
+        local_db_dir_path = user_choose_local_db_dir_path()
+    if local_db_dir_path is None:
+        # user didn't set path, exit
         return
 
     path_to_local_db = DBManager.get_local_db_file_path(local_db_dir_path)

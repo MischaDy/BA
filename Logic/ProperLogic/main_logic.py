@@ -6,7 +6,11 @@ from Logic.ProperLogic.database_modules.database_table_defs import Tables, Colum
 from Logic.ProperLogic.database_modules.database_logic import DBManager
 from Logic.ProperLogic.misc_helpers import clean_string, wait_for_any_input, log_error
 
+
 # -------------- TODOs --------------
+
+# TODO: Fix view person!
+
 
 # ------- NEEDED -------
 # TODO: Everytime when run, determine own absolute path and use that for central database file(?)

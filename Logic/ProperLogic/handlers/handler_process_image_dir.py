@@ -134,7 +134,6 @@ def extract_faces(path, check_if_known=True, central_con=None, local_con=None, c
 
 def user_choose_images_path():
     images_path = input('Please enter a path with images of people you would like to add.\n')
-    # images_path = r'C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Programming\BA\Logic\my_test\facenet_Test\group_imgs'
     while not os.path.exists(images_path):
         log_error(f"unable to find path '{images_path}'")
         print("\nPlease try again.")

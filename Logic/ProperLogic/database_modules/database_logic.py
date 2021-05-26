@@ -1046,7 +1046,8 @@ class DBManager:
         def get_image_names(con):
             cls.create_temp_table(temp_table, con=con)
             cls.store_in_table(temp_table, image_id_row_dicts, con=con, close_connections=False)
-            return con.execute(get_image_names_sql).fetchall()
+            image_names = con.execute(get_image_names_sql).fetchall()
+            return image_names
 
         image_names_tuples = cls.connection_wrapper(get_image_names, path_to_local_db=path_to_local_db, con=con,
                                                     close_connections=close_connections)

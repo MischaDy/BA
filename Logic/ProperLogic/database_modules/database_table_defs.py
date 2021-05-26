@@ -206,7 +206,7 @@ class Columns:
     cluster_id = ColumnSchema('cluster_id', ColumnTypes.integer)
     embedding = ColumnSchema('embedding', ColumnTypes.blob, col_details=ColumnDetails.tensor)
     embedding_id = ColumnSchema('embedding_id', ColumnTypes.integer)
-    file_name = ColumnSchema('file_name', ColumnTypes.text)
+    rel_file_path = ColumnSchema('rel_file_path', ColumnTypes.text)  # the relative file path
     image_id = ColumnSchema('image_id', ColumnTypes.integer)
     label = ColumnSchema('label', ColumnTypes.text)
     last_modified = ColumnSchema('last_modified', ColumnTypes.text, col_details=ColumnDetails.date)
@@ -227,7 +227,7 @@ class Tables:
     images_table = TableSchema(
         'images',
         [Columns.image_id.with_constraint('PRIMARY KEY'),
-         Columns.file_name.with_constraint('NOT NULL'),
+         Columns.rel_file_path.with_constraint('NOT NULL'),
          Columns.last_modified.with_constraint('NOT NULL')
          ]
     )
@@ -323,7 +323,7 @@ class Tables:
     temp_img_ids_and_names_table = TableSchema(
         'temp_img_ids_and_names',
         [Columns.image_id,
-         Columns.file_name]
+         Columns.rel_file_path]
     )
 
     temp_tables = (temp_cluster_ids_table, temp_image_ids_table, temp_old_and_new_ids,

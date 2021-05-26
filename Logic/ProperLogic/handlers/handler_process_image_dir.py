@@ -87,7 +87,7 @@ def extract_faces(path, check_if_known=True, central_con=None, local_con=None, c
         # path not yet known
         path_id = DBManager.store_directory_path(path, con=central_con, close_connections=False)
         DBManager.store_path_id(path_id, path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
-    imgs_names_and_date = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
+    imgs_rel_paths_and_dates = set(DBManager.get_images_attributes(path_to_local_db=path_to_local_db))
 
     # Note: 'MAX' returns None / (None, ) as a default value
     max_img_id = DBManager.get_max_image_id(path_to_local_db=path_to_local_db)
@@ -101,22 +101,22 @@ def extract_faces(path, check_if_known=True, central_con=None, local_con=None, c
     def store_embedding_row_dicts(con):
         # TODO: Also auto-increment emb_id etc.
         max_embedding_id = initial_max_embedding_id
-        for img_id, (img_path, img_name, img) in get_counted_img_loader():
+        for img_id, (img_abs_path, img_rel_path, img) in get_counted_img_loader():
             # TODO: Implement automatic deletion cascade! (Using among other things on_conflict clause and FKs)
             #       ---> Done?
             # Check if image already stored --> don't process again
             # known = (name, last modified) as a pair known for this director
-            last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_path).st_mtime))
-            if check_if_known and (img_name, last_modified) in imgs_names_and_date:
+            last_modified = datetime.datetime.fromtimestamp(round(os.stat(img_abs_path).st_mtime))
+            if check_if_known and (img_rel_path, last_modified) in imgs_rel_paths_and_dates:
                 continue
 
-            DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
+            DBManager.store_image(img_id=img_id, rel_file_path=img_rel_path, last_modified=last_modified,
                                   path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
             DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
 
             faces = Models.altered_mtcnn.forward_return_results(img)
             if not faces:
-                log_error(f"no faces found in image '{img_path}'")
+                log_error(f"no faces found in image '{img_abs_path}'")
                 continue
 
             # TODO: Better way to create these row_dicts?
@@ -183,9 +183,9 @@ def load_imgs_from_path(dir_path, recursive=False, output_file_names=False, outp
         indices.append(1)
     indices.append(2)
     output_format_func = partial(choose_args, indices)
-    for img_name, img_path in get_img_names(dir_path, recursive, extensions, with_paths=True):
-        with Image.open(img_path) as img:
-            yield output_format_func(img_path, img_name, img)
+    for img_rel_path, img_abs_path in get_img_paths(dir_path, recursive, extensions, with_abs_paths=True):
+        with Image.open(img_abs_path) as img:
+            yield output_format_func(img_abs_path, img_rel_path, img)
 
 
 def choose_args(indices, *args):
@@ -194,31 +194,45 @@ def choose_args(indices, *args):
     return [arg for i, arg in enumerate(args) if i in indices]
 
 
-def get_img_names(dir_path, recursive=False, img_extensions=None, with_paths=False):
+def get_img_paths(base_dir_path, recursive=False, img_extensions=None, with_abs_paths=False):
     """
     Yield all image file paths in dir_path.
     """
-    # TODO: Put the following function outside?
+    img_paths = _get_img_paths_worker(base_dir_path, recursive=recursive, img_extensions=img_extensions,
+                                      with_abs_paths=with_abs_paths, rel_dir_path='')
+    return img_paths
+
+
+def _get_img_paths_worker(base_dir_path, recursive=False, img_extensions=None, with_abs_paths=False, rel_dir_path=''):
     @ignore_first_n_args_decorator(n=1)
     def is_img_known_extensions(obj_path):
         return is_img(obj_path, img_extensions)
 
-    object_names_in_dir = list(os.listdir(dir_path))
-    object_paths_in_dir = list(map(partial(os.path.join, dir_path),
-                                   object_names_in_dir))
-    object_names_and_paths = zip(object_names_in_dir, object_paths_in_dir)
-    img_names_and_paths = starfilter(is_img_known_extensions, object_names_and_paths)
-    img_names_in_dir = get_every_nth_item(img_names_and_paths, n=0)
+    cur_dir = os.path.join(base_dir_path, rel_dir_path)
+    # prepend the acquired directory tree of previous recursions
+    object_rel_paths_in_dir = list(map(lambda obj: os.path.join(rel_dir_path, obj),
+                                       os.listdir(cur_dir)))
+    object_abs_paths_in_dir = list(map(partial(os.path.join, base_dir_path),
+                                       object_rel_paths_in_dir))
+    object_rel_and_abs_paths = zip(object_rel_paths_in_dir, object_abs_paths_in_dir)
+    img_rel_and_abs_paths = starfilter(is_img_known_extensions, object_rel_and_abs_paths)
+    img_rel_paths_in_dir = get_every_nth_item(img_rel_and_abs_paths, n=0)
     if not recursive:
-        if with_paths:
-            return img_names_and_paths
-        return img_names_in_dir
+        if with_abs_paths:
+            return img_rel_and_abs_paths
+        return img_rel_paths_in_dir
 
-    dir_paths = filter(os.path.isdir, object_paths_in_dir)
-    subdirs_img_names_iterables = map(partial(get_img_names, recursive=True, with_paths=with_paths),
-                                      dir_paths)
-    img_objects_iterable = img_names_and_paths if with_paths else img_names_in_dir
-    all_img_objects = chain(img_objects_iterable, *subdirs_img_names_iterables)
+    def get_subdirs_img_paths(subdir_path):
+        next_subdir = os.path.split(subdir_path)[-1]
+        new_rel_dir_path = os.path.join(rel_dir_path, next_subdir)
+        subdirs_img_paths = _get_img_paths_worker(base_dir_path, recursive=True, img_extensions=img_extensions,
+                                                  with_abs_paths=with_abs_paths, rel_dir_path=new_rel_dir_path)
+        return subdirs_img_paths
+
+    subdir_abs_paths = filter(os.path.isdir, object_abs_paths_in_dir)
+    subdirs_img_paths = map(get_subdirs_img_paths, subdir_abs_paths)
+    img_objects_iterable = img_rel_and_abs_paths if with_abs_paths else img_rel_paths_in_dir
+    all_img_objects = chain(img_objects_iterable, *subdirs_img_paths)
     return all_img_objects
 
 

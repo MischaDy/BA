@@ -6,7 +6,7 @@ class EvalDBManager(DBManager):
     @classmethod
     def get_emb_id_to_name_dict(cls, images_path, central_con=None, local_con=None, close_connections=True):
         temp_table = Tables.temp_img_ids_and_names_table
-        images_cols = [Columns.image_id, Columns.file_name]
+        images_cols = [Columns.image_id, Columns.rel_file_path]
 
         from_clause_sql = f"""
             {Tables.embeddings_table}
@@ -14,7 +14,7 @@ class EvalDBManager(DBManager):
         """
 
         emb_id_and_name_sql = f"""
-            SELECT {Columns.embedding_id}, {Columns.file_name} 
+            SELECT {Columns.embedding_id}, {Columns.rel_file_path} 
             FROM {from_clause_sql};
         """
 
@@ -24,7 +24,7 @@ class EvalDBManager(DBManager):
                                                           close_connections=False)
             img_ids_and_names_row_dicts = [
                 {Columns.image_id.col_name: image_id,
-                 Columns.file_name.col_name: file_name}
+                 Columns.rel_file_path.col_name: file_name}
                 for image_id, file_name in img_ids_and_names_rows
             ]
             cls.create_temp_table(temp_table, con=central_con)

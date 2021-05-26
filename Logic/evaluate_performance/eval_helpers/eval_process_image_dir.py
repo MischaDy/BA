@@ -98,7 +98,7 @@ def eval_extract_faces(path, check_if_known=True, max_num_proc_imgs=None, centra
             if check_if_known and (img_name, last_modified) in imgs_names_and_date:
                 continue
 
-            DBManager.store_image(img_id=img_id, file_name=img_name, last_modified=last_modified,
+            DBManager.store_image(img_id=img_id, rel_file_path=img_name, last_modified=last_modified,
                                   path_to_local_db=path_to_local_db, con=local_con, close_connections=False)
             DBManager.store_image_path(img_id=img_id, path_id=path_id, con=central_con, close_connections=False)
 

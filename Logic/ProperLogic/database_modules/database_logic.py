@@ -23,7 +23,7 @@ from Logic.ProperLogic.misc_helpers import is_instance_by_type_name, log_error, 
 
 --- Local Tables ---
 
-images(INT image_id, TEXT file_name, INT last_modified)
+images(INT image_id, TEXT rel_file_path, INT last_modified)
 faces(INT embedding_id, INT image_id, BLOB thumbnail)
 
 --- Centralized Tables ---
@@ -350,10 +350,10 @@ class DBManager:
         cls.connection_wrapper(store_image_path_worker, con=con, close_connections=close_connections)
 
     @classmethod
-    def store_image(cls, img_id, file_name, last_modified, path_to_local_db, con=None, close_connections=True):
+    def store_image(cls, img_id, rel_file_path, last_modified, path_to_local_db, con=None, close_connections=True):
         # TODO: Allow img_id to be None?
         img_row = {Columns.image_id.col_name: img_id,
-                   Columns.file_name.col_name: file_name,
+                   Columns.rel_file_path.col_name: rel_file_path,
                    Columns.last_modified.col_name: last_modified}
 
         def store_image_worker(con):
@@ -697,7 +697,7 @@ class DBManager:
 
     @classmethod
     def get_images_attributes(cls, path_to_local_db=None):
-        cols = [Columns.file_name, Columns.last_modified]
+        cols = [Columns.rel_file_path, Columns.last_modified]
         rows = cls.fetch_from_table(Tables.images_table, cols=cols, path_to_local_db=path_to_local_db)
         return rows
 
@@ -1038,7 +1038,7 @@ class DBManager:
                               for image_id in image_ids]
 
         get_image_names_sql = f"""
-            SELECT {Columns.file_name}
+            SELECT {Columns.rel_file_path}
             FROM {images_table}
             WHERE {cond};
         """

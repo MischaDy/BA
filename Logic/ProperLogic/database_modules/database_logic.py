@@ -481,11 +481,10 @@ class DBManager:
         :return:
         """
         def clear_tables_worker(con):
-            if any(map(Tables.is_local_table, tables)):
-                cls.drop_tables(drop_local=True)
-            if any(map(Tables.is_central_table, tables)):
-                cls.drop_tables(drop_local=False)
-
+            # if any(map(Tables.is_local_table, tables)):
+            #     cls.drop_tables(drop_local=True)
+            # if any(map(Tables.is_central_table, tables)):
+            #     cls.drop_tables(drop_local=False)
             for table in tables:
                 cls.delete_from_table(table, path_to_local_db=path_to_local_db, con=con, close_connections=False)
 

@@ -2,7 +2,6 @@
 Program containing the main application logic.
 """
 from Logic.ProperLogic.commands import Command, Commands
-from Logic.ProperLogic.database_modules.database_table_defs import Tables, Columns
 from Logic.ProperLogic.database_modules.database_logic import DBManager
 from Logic.ProperLogic.misc_helpers import clean_string, wait_for_any_input, log_error
 

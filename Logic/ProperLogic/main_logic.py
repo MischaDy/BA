@@ -98,31 +98,6 @@ def run_program():
         cmd_name = get_user_command()
 
 
-def _debug_program():
-    print('======= DEBUGGING =======')
-
-    init_program()
-    cluster_dict = DBManager.load_cluster_dict()
-
-    # clear data in both db files
-    def clear_data(con):
-        from Logic.ProperLogic.handlers.handler_clear_data import drop_local_tables, drop_central_tables
-        from Logic.ProperLogic.misc_helpers import overwrite_dict
-
-        local_db_dir_path = r"C:\Users\Mischa\Desktop\Uni\20-21 WS\Bachelor\Datasets\faces 1999 caltech\person_1"
-        drop_local_tables(local_db_dir_path=local_db_dir_path)
-        drop_central_tables(con=con, close_connections=False)
-        overwrite_dict(cluster_dict, dict())
-
-    DBManager.connection_wrapper(clear_data)
-
-    cmd_name = get_user_command()
-    while cmd_name != str(Commands.exit):
-        cmd = Command.get_command(cmd_name)
-        call_handler(cmd.handler, cluster_dict=cluster_dict)
-        cmd_name = get_user_command()
-
-
 def init_program():
     DBManager.create_central_tables(drop_existing_tables=False)
     Commands.initialize()
@@ -133,11 +108,6 @@ def call_handler(handler, *args, **kwargs):
         return handler(*args, **kwargs)
     except Exception as e:
         log_error(e)
-
-
-def _show_thumbnail():
-    thumbs = DBManager.fetch_from_table(Tables.embeddings_table, cols=[Columns.thumbnail])
-    thumbs[0].show()
 
 
 # ----- I/O -----

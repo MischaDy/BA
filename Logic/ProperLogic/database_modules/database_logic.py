@@ -418,7 +418,7 @@ class DBManager:
             proc_clusters_to_remove = clusters_to_remove
 
             if remove_all:
-                proc_clusters_to_remove = DBManager.load_cluster_dict()
+                proc_clusters_to_remove = cls.load_cluster_dict()
             elif not is_instance_by_type_name(proc_clusters_to_remove, ClusterDict):
                 proc_clusters_to_remove = ClusterDict(proc_clusters_to_remove)
 
@@ -555,11 +555,11 @@ class DBManager:
     @classmethod
     def load_cluster_dict(cls, con=None, close_connections=True):
         # TODO: Refactor + improve efficiency
-        cluster_attributes_parts = DBManager.get_cluster_attributes_parts(con=con, close_connections=close_connections)
+        cluster_attributes_parts = cls.get_cluster_attributes_parts(con=con, close_connections=close_connections)
         if not cluster_attributes_parts:
             return ClusterDict()
 
-        embeddings_parts = DBManager.get_embeddings_parts(con=con, close_connections=close_connections)
+        embeddings_parts = cls.get_embeddings_parts(con=con, close_connections=close_connections)
 
         # clusters_dict = dict(
         #     (kwargs[Columns.cluster_id.col_name], Cluster(**kwargs))
